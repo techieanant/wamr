@@ -1,0 +1,4 @@
+// data directory for database
+data/
+.wwebjs_auth/
+.env

@@ -1,0 +1,36 @@
+{
+  "name": "wamr-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WhatsApp Media Request Manager - Monorepo",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "format": "turbo format",
+    "format:check": "turbo format:check",
+    "clean": "turbo clean && rm -rf node_modules .turbo",
+    "backend:dev": "turbo dev --filter=wamr-backend",
+    "frontend:dev": "turbo dev --filter=wamr-frontend",
+    "backend:build": "turbo build --filter=wamr-backend",
+    "frontend:build": "turbo build --filter=wamr-frontend",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.0.0"
+}

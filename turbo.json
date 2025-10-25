@@ -1,0 +1,58 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "build/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:integration": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "lint:fix": {
+      "dependsOn": ["^build"]
+    },
+    "format": {},
+    "format:check": {},
+    "clean": {
+      "cache": false
+    },
+    "db:generate": {},
+    "db:migrate": {},
+    "db:studio": {
+      "cache": false,
+      "persistent": true
+    },
+    "db:seed": {}
+  },
+  "globalEnv": [
+    "NODE_ENV",
+    "PORT",
+    "DATABASE_PATH",
+    "JWT_SECRET",
+    "ENCRYPTION_KEY",
+    "CORS_ORIGIN",
+    "VITE_API_URL",
+    "ADMIN_USERNAME",
+    "ADMIN_PASSWORD"
+  ]
+}

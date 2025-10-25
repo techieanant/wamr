@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Question or Discussion
+    url: https://github.com/techieanant/wamr/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 🔒 Security Vulnerability
+    url: https://github.com/techieanant/wamr/security/advisories/new
+    about: Report security vulnerabilities privately
+  - name: 📖 Documentation
+    url: https://github.com/techieanant/wamr/blob/main/README.md
+    about: Read the project documentation

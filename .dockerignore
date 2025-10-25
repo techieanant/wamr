@@ -1,0 +1,55 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment
+.env*
+!.env.example
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+tests/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Documentation
+*.md
+!README.md
+docs/
+specs/
+
+# Build artifacts (exclude from image)
+dist/
+build/
+.next/
+out/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.github/
+.specify/
+CLAUDE.md
