@@ -116,8 +116,11 @@ export function useRequests(page: number = 1, limit: number = 50, status?: Reque
 
     // Listen to 'request:new' events (new requests created)
     const cleanupNew = on('request:new', () => {
-      // Invalidate requests query to refetch and show new request
-      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      // Invalidate and refetch requests query to show new request immediately
+      queryClient.invalidateQueries({
+        queryKey: ['requests'],
+        refetchType: 'active', // Force refetch for active queries
+      });
     });
 
     // Listen to 'request:status-update' events (request status changed)
