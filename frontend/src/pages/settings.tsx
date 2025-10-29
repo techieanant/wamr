@@ -150,9 +150,7 @@ export default function SettingsPage() {
       });
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Failed to update approval mode.';
+        error instanceof Error ? error.message : 'Failed to update approval mode.';
       toast({
         title: 'Error',
         description: errorMessage,
@@ -421,7 +419,9 @@ export default function SettingsPage() {
               <Label>Approval Mode</Label>
               <RadioGroup
                 value={autoApprovalMode}
-                onValueChange={(value: string) => handleApprovalModeChange(value as AutoApprovalMode)}
+                onValueChange={(value: string) =>
+                  handleApprovalModeChange(value as AutoApprovalMode)
+                }
                 disabled={isUpdatingApprovalMode}
                 className="space-y-3"
               >

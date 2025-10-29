@@ -123,18 +123,15 @@ wamr/
 │   ├── drizzle/           # Database migrations
 │   └── data/              # SQLite database file
 │
-├── frontend/              # React/Vite SPA
-│   ├── src/
-│   │   ├── components/    # UI components (shadcn/ui)
-│   │   ├── pages/         # Page components
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── services/      # API client, Socket.IO
-│   │   ├── lib/           # Utils, query client
-│   │   └── types/         # TypeScript types
-│   └── tests/             # Component and E2E tests
-│
-└── specs/                 # Feature specifications
-    └── 001-whatsapp-media-request/
+└── frontend/              # React/Vite SPA
+    ├── src/
+    │   ├── components/    # UI components (shadcn/ui)
+    │   ├── pages/         # Page components
+    │   ├── hooks/         # Custom React hooks
+    │   ├── services/      # API client, Socket.IO
+    │   ├── lib/           # Utils, query client
+    │   └── types/         # TypeScript types
+    └── tests/             # Component and E2E tests
 ```
 
 ## 🛠️ Development Commands
@@ -157,7 +154,7 @@ npm run backend:build    # Build backend only
 npm run frontend:build   # Build frontend only
 ```
 
-### Testing & Quality
+### Testing & Quality - TODO
 
 ```bash
 npm run test             # Run all tests
@@ -279,7 +276,7 @@ export const db = drizzle(pool, { schema });
 
 3. Regenerate migrations and apply.
 
-## 🧪 Testing
+## 🧪 Testing - TODO
 
 ### Backend
 
@@ -295,11 +292,6 @@ export const db = drizzle(pool, { schema });
 ## 📚 Documentation
 
 - [Deployment Guide](./DEPLOYMENT.md) - Production deployment with Docker
-- [Feature Specification](./specs/001-whatsapp-media-request/spec.md) - Detailed requirements
-- [Implementation Plan](./specs/001-whatsapp-media-request/plan.md) - Development roadmap
-- [Task Breakdown](./specs/001-whatsapp-media-request/tasks.md) - Granular task list
-- [Data Model](./specs/001-whatsapp-media-request/data-model.md) - Database schema
-- [API Contracts](./specs/001-whatsapp-media-request/contracts/) - API specifications
 
 ## 🐳 Docker Deployment
 
