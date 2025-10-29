@@ -27,7 +27,7 @@ COPY tailwind.config.ts ./
 RUN npm run build
 
 # Production stage
-FROM nginx:1.25-alpine
+FROM nginx:1.29-alpine
 
 # Copy built application
 COPY --from=builder /app/dist /usr/share/nginx/html
