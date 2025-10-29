@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-slim AS builder
+FROM node:25-slim AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY drizzle.config.ts ./
 RUN npm run build
 
 # Production stage
-FROM node:20-slim
+FROM node:25-slim
 
 WORKDIR /app
 
