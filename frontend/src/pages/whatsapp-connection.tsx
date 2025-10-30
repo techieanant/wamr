@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 export default function WhatsAppConnection() {
   const { status, connect, updateFilter, isConnecting, isUpdatingFilter, isLoading } =
     useWhatsApp();
-  const { on, isConnected: socketConnected } = useSocket();
+  const { on, isConnected: socketConnected } = useSocket(false); // Don't auto-connect (App.tsx handles it)
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [hasClickedConnect, setHasClickedConnect] = useState(false);
@@ -25,12 +25,29 @@ export default function WhatsAppConnection() {
       return;
     }
 
-    const cleanup = on('whatsapp:status', (data: WhatsAppStatusEvent) => {
+    const cleanup = on('whatsapp:status', (data) => {
+      // Status updates handled by TanStack Query now
+
       if (data.status === 'connected') {
         setRealtimeConnected(true);
         setHasClickedConnect(false); // Hide QR immediately
-        // Force immediate refetch of status
-        queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'] });
+
+        // Force immediate refetch of full status to get filter settings
+        queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
+
+        // Show success toast after a short delay to ensure data is loaded
+        setTimeout(() => {
+          toast({
+            title: 'WhatsApp Connected',
+            description: 'Your WhatsApp account has been successfully connected.',
+          });
+        }, 500);
+      } else if (data.status === 'loading' && data.progress === 100) {
+        // When loading reaches 100%, it means connection is about to complete
+        // Force refetch to get the latest status
+        setTimeout(() => {
+          queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
+        }, 1000);
       } else {
         setRealtimeConnected(false);
       }
@@ -39,7 +56,7 @@ export default function WhatsAppConnection() {
     return () => {
       cleanup();
     };
-  }, [on, socketConnected, queryClient]);
+  }, [on, socketConnected, queryClient, toast]);
 
   // Auto-connect if disconnected (will trigger QR generation)
   useEffect(() => {

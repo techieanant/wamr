@@ -169,6 +169,8 @@ export class OverseerrClient {
         };
       }
 
+      logger.debug({ query }, 'Starting Overseerr search');
+
       // URL encode the query parameter manually to satisfy Overseerr's strict validation
       const encodedQuery = encodeURIComponent(query);
 
@@ -180,21 +182,39 @@ export class OverseerrClient {
 
       return response.data;
     } catch (error) {
-      // Log the error but don't fail the entire search - other services might still work
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { status?: number; data?: unknown } };
-        logger.error(
-          {
-            error,
-            query,
-            status: axiosError.response?.status,
-            responseData: axiosError.response?.data,
-          },
-          'Overseerr search failed'
-        );
-      } else {
-        logger.error({ error, query }, 'Overseerr search failed');
+      // Enhanced error logging with detailed information
+      const errorDetails: any = {
+        query,
+        endpoint: '/api/v1/search',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      // Add axios-specific error details
+      if (error && typeof error === 'object') {
+        const axiosError = error as any;
+
+        if (axiosError.response) {
+          // Server responded with error status
+          errorDetails.errorType = 'API_RESPONSE_ERROR';
+          errorDetails.httpStatus = axiosError.response.status;
+          errorDetails.httpStatusText = axiosError.response.statusText;
+          errorDetails.responseData = axiosError.response.data;
+          errorDetails.baseUrl = axiosError.config?.baseURL;
+          errorDetails.fullUrl = axiosError.config?.url;
+        } else if (axiosError.request) {
+          // Request was made but no response received
+          errorDetails.errorType = 'NO_RESPONSE';
+          errorDetails.code = axiosError.code;
+          errorDetails.baseUrl = axiosError.config?.baseURL;
+          errorDetails.fullUrl = axiosError.config?.url;
+          errorDetails.timeout = axiosError.config?.timeout;
+        } else {
+          // Error setting up request
+          errorDetails.errorType = 'REQUEST_SETUP_ERROR';
+        }
       }
+
+      logger.error(errorDetails, 'Overseerr search failed');
 
       // Return empty results instead of throwing to allow other services to provide results
       return {

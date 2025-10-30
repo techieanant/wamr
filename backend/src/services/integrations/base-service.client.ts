@@ -15,7 +15,7 @@ export class BaseServiceClient {
     // Create axios instance with common configuration
     this.client = axios.create({
       baseURL,
-      timeout: 10000, // 10 seconds
+      timeout: 9000, // 9 seconds (slightly less than search timeout to allow proper error handling)
       headers: {
         'Content-Type': 'application/json',
         'X-Api-Key': apiKey,
@@ -155,7 +155,7 @@ export class BaseServiceClient {
   static createClient(baseURL: string, apiKey: string): AxiosInstance {
     return axios.create({
       baseURL,
-      timeout: 10000, // 10 seconds
+      timeout: 9000, // 9 seconds (slightly less than search timeout to allow proper error handling)
       headers: {
         'Content-Type': 'application/json',
         'X-Api-Key': apiKey,

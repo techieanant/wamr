@@ -68,6 +68,8 @@ export class WebSocketService {
    */
   private authenticateSocket(socket: Socket, next: (err?: Error) => void): void {
     try {
+      logger.debug({ socketId: socket.id }, '🔐 Authenticating socket connection...');
+
       // Get token from handshake auth, query, or cookies
       let token = socket.handshake.auth.token || socket.handshake.query.token;
 
@@ -78,12 +80,21 @@ export class WebSocketService {
           const cookieMatch = cookies.match(/wamr-auth-token=([^;]+)/);
           if (cookieMatch) {
             token = cookieMatch[1];
+            logger.debug({ socketId: socket.id }, '🍪 Token extracted from cookie');
           }
         }
       }
 
       if (!token || typeof token !== 'string') {
-        logger.warn('WebSocket connection attempt without token');
+        logger.warn(
+          {
+            socketId: socket.id,
+            hasCookie: !!socket.handshake.headers.cookie,
+            hasAuth: !!socket.handshake.auth.token,
+            hasQuery: !!socket.handshake.query.token,
+          },
+          '❌ WebSocket connection attempt without valid token'
+        );
         return next(new Error('Authentication required'));
       }
 
@@ -91,7 +102,7 @@ export class WebSocketService {
       const payload = authService.verifyToken(token);
 
       if (!payload) {
-        logger.warn('WebSocket connection attempt with invalid token');
+        logger.warn({ socketId: socket.id }, '❌ WebSocket connection attempt with invalid token');
         return next(new Error('Invalid or expired token'));
       }
 
@@ -104,11 +115,14 @@ export class WebSocketService {
       // Mark socket as authenticated
       this.authenticatedSockets.add(socket.id);
 
-      logger.info({ userId: payload.userId, socketId: socket.id }, 'Socket authenticated');
+      logger.info(
+        { userId: payload.userId, socketId: socket.id, username: payload.username },
+        '✅ Socket authenticated successfully'
+      );
 
       next();
     } catch (error) {
-      logger.error({ error }, 'Socket authentication error');
+      logger.error({ error, socketId: socket.id }, '❌ Socket authentication error');
       next(new Error('Authentication failed'));
     }
   }

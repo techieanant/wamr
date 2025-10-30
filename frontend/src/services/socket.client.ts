@@ -43,8 +43,15 @@ export interface ClientToServerEvents {
   'whatsapp:restart': () => void;
 }
 
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('socket');
+
 /**
- * Socket.IO client wrapper
+ * Socket.IO Client Service
+ *
+ * Manages WebSocket connections with retry logic and reconnection handling.
+ * Supports authentication via cookies and provides event subscription.
  */
 class SocketClient {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
@@ -55,9 +62,25 @@ class SocketClient {
    * Connect to WebSocket server
    */
   connect(): void {
+    // Check if already connected
     if (this.socket?.connected) {
-      console.warn('Socket already connected');
+      logger.info('Socket already connected with ID:', this.socket.id);
       return;
+    }
+
+    // Check if socket exists and is currently connecting
+    if (this.socket && !this.socket.connected && !this.socket.disconnected) {
+      logger.debug('Socket connection already in progress...');
+      return;
+    }
+
+    // Disconnect old socket if it exists but is not connected
+    if (this.socket && !this.socket.connected) {
+      logger.debug('Cleaning up old disconnected socket');
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+      this.reconnectAttempts = 0;
     }
 
     // In development, use empty string to connect to same origin (Vite proxy)
@@ -66,40 +89,37 @@ class SocketClient {
       ? import.meta.env.VITE_API_URL || 'http://localhost:4000'
       : ''; // Empty string connects to same origin, using Vite proxy
 
+    logger.info('Connecting to socket server:', socketUrl || 'same-origin (via Vite proxy)');
+
     this.socket = io(socketUrl, {
       withCredentials: true, // Include cookies (JWT)
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: this.maxReconnectAttempts,
+      timeout: 10000, // 10 second connection timeout
     });
 
     // Connection event handlers
     this.socket.on('connect', () => {
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.info('Socket connected:', this.socket?.id);
-      }
+      logger.info('Socket connected successfully! Socket ID:', this.socket?.id);
       this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', (reason) => {
-      if (import.meta.env.DEV) {
-        console.warn('Socket disconnected:', reason);
-      }
+      logger.warn('Socket disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
       this.reconnectAttempts++;
-      if (import.meta.env.DEV) {
-        console.error('Socket connection error:', error.message);
-      }
+      logger.error(
+        `Socket connection error (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}):`,
+        error.message
+      );
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        if (import.meta.env.DEV) {
-          console.error('Max reconnection attempts reached');
-        }
+        logger.error('Max reconnection attempts reached');
         this.disconnect();
       }
     });
@@ -108,11 +128,9 @@ class SocketClient {
     if (import.meta.env.DEV) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.socket.onAny((eventName, ...args: any[]) => {
-        // eslint-disable-next-line no-console
-        console.log('Socket received event:', eventName, args);
+        logger.debug('Socket received event:', eventName, args);
         if (eventName === 'whatsapp:qr') {
-          // eslint-disable-next-line no-console
-          console.log('whatsapp:qr event data details:', JSON.stringify(args, null, 2));
+          logger.debug('whatsapp:qr event data details:', JSON.stringify(args, null, 2));
         }
       });
     }
@@ -134,7 +152,7 @@ class SocketClient {
   on<K extends keyof ServerToClientEvents>(event: K, handler: ServerToClientEvents[K]): void {
     if (!this.socket) {
       if (import.meta.env.DEV) {
-        console.warn('Socket not connected. Call connect() first.');
+        logger.warn('Socket not connected. Call connect() first.');
       }
       return;
     }
@@ -161,7 +179,7 @@ class SocketClient {
     ...args: Parameters<ClientToServerEvents[K]>
   ): void {
     if (!this.socket?.connected) {
-      console.warn('Socket not connected. Cannot emit event:', event);
+      logger.warn('Socket not connected. Cannot emit event:', event);
       return;
     }
     this.socket.emit(event, ...args);

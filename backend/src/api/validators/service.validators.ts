@@ -62,7 +62,7 @@ export const createServiceConfigSchema = z
       .number()
       .int('Max results must be an integer')
       .min(1, 'Max results must be at least 1')
-      .max(20, 'Max results must not exceed 20')
+      .max(99, 'Max results must not exceed 99')
       .optional()
       .default(5),
     // Radarr/Sonarr specific fields (not applicable for Overseerr)
@@ -110,7 +110,7 @@ export const updateServiceConfigSchema = z
       .number()
       .int('Max results must be an integer')
       .min(1, 'Max results must be at least 1')
-      .max(20, 'Max results must not exceed 20')
+      .max(99, 'Max results must not exceed 99')
       .optional(),
     // Radarr/Sonarr specific fields (not applicable for Overseerr)
     qualityProfileId: z.number().int().positive().optional(),

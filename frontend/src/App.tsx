@@ -14,6 +14,9 @@ import SettingsPage from './pages/settings';
 import { MainLayout } from './components/layout/main-layout';
 import { Toaster } from './components/ui/toaster';
 import { socketClient } from './services/socket.client';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('app');
 
 /**
  * Protected route wrapper
@@ -72,14 +75,21 @@ function App() {
   // Connect to WebSocket when authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      socketClient.connect();
+      // Small delay to ensure cookie is set and auth is fully established
+      const timer = setTimeout(() => {
+        logger.debug('Initiating WebSocket connection (user authenticated)');
+        socketClient.connect();
+      }, 100);
+
+      return () => {
+        clearTimeout(timer);
+        logger.debug('Disconnecting WebSocket (user logged out)');
+        socketClient.disconnect();
+      };
     } else {
+      // Immediately disconnect if not authenticated
       socketClient.disconnect();
     }
-
-    return () => {
-      socketClient.disconnect();
-    };
   }, [isAuthenticated]);
 
   // Listen for notification permission changes

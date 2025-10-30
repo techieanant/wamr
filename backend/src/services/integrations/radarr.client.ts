@@ -93,6 +93,8 @@ export class RadarrClient {
    */
   async searchMovies(query: string): Promise<RadarrMovie[]> {
     try {
+      logger.debug({ query }, 'Starting Radarr movie search');
+
       const response = await this.client.get<RadarrMovie[]>('/api/v3/movie/lookup', {
         params: { term: query },
       });
@@ -101,7 +103,40 @@ export class RadarrClient {
 
       return response.data;
     } catch (error) {
-      logger.error({ error, query }, 'Radarr movie search failed');
+      // Enhanced error logging with detailed information
+      const errorDetails: any = {
+        query,
+        endpoint: '/api/v3/movie/lookup',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      // Add axios-specific error details
+      if (error && typeof error === 'object') {
+        const axiosError = error as any;
+
+        if (axiosError.response) {
+          // Server responded with error status
+          errorDetails.errorType = 'API_RESPONSE_ERROR';
+          errorDetails.httpStatus = axiosError.response.status;
+          errorDetails.httpStatusText = axiosError.response.statusText;
+          errorDetails.responseData = axiosError.response.data;
+          errorDetails.baseUrl = axiosError.config?.baseURL;
+          errorDetails.fullUrl = axiosError.config?.url;
+        } else if (axiosError.request) {
+          // Request was made but no response received
+          errorDetails.errorType = 'NO_RESPONSE';
+          errorDetails.code = axiosError.code;
+          errorDetails.baseUrl = axiosError.config?.baseURL;
+          errorDetails.fullUrl = axiosError.config?.url;
+          errorDetails.timeout = axiosError.config?.timeout;
+        } else {
+          // Error setting up request
+          errorDetails.errorType = 'REQUEST_SETUP_ERROR';
+        }
+      }
+
+      logger.error(errorDetails, 'Radarr movie search failed');
+
       // Return empty array instead of throwing to allow other services to provide results
       return [];
     }
@@ -178,6 +213,73 @@ export class RadarrClient {
       }));
     } catch (error) {
       logger.error({ error }, 'Failed to fetch Radarr root folders');
+      throw error;
+    }
+  }
+
+  /**
+   * Get all movies from Radarr
+   */
+  async getMovies(): Promise<RadarrMovie[]> {
+    try {
+      logger.debug('Fetching all movies from Radarr');
+
+      const response = await this.client.get<RadarrMovie[]>('/api/v3/movie');
+
+      logger.debug({ count: response.data.length }, 'Radarr movies fetched');
+
+      return response.data;
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch Radarr movies');
+      throw error;
+    }
+  }
+
+  /**
+   * Get a specific movie by ID from Radarr
+   */
+  async getMovieById(id: number): Promise<RadarrMovie | null> {
+    try {
+      logger.debug({ id }, 'Fetching movie from Radarr by ID');
+
+      const response = await this.client.get<RadarrMovie>(`/api/v3/movie/${id}`);
+
+      return response.data;
+    } catch (error) {
+      // 404 means movie not found
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 404) {
+          logger.debug({ id }, 'Movie not found in Radarr');
+          return null;
+        }
+      }
+
+      logger.error({ error, id }, 'Failed to fetch Radarr movie by ID');
+      throw error;
+    }
+  }
+
+  /**
+   * Get a movie by TMDB ID from Radarr
+   */
+  async getMovieByTmdbId(tmdbId: number): Promise<RadarrMovie | null> {
+    try {
+      logger.debug({ tmdbId }, 'Fetching movie from Radarr by TMDB ID');
+
+      // Get all movies and find by TMDB ID
+      const movies = await this.getMovies();
+      const movie = movies.find((m) => m.tmdbId === tmdbId);
+
+      if (movie) {
+        logger.debug({ tmdbId, title: movie.title }, 'Found movie in Radarr');
+      } else {
+        logger.debug({ tmdbId }, 'Movie not found in Radarr');
+      }
+
+      return movie || null;
+    } catch (error) {
+      logger.error({ error, tmdbId }, 'Failed to fetch Radarr movie by TMDB ID');
       throw error;
     }
   }

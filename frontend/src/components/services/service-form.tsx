@@ -578,13 +578,13 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
               id="maxResults"
               type="number"
               min={1}
-              max={20}
+              max={99}
               value={formData.maxResults}
               onChange={(e) => handleFieldChange('maxResults', parseInt(e.target.value))}
               required
             />
             <p className="text-sm text-muted-foreground">
-              Maximum number of search results to return (1-20). The final result count will use the
+              Maximum number of search results to return (1-99). The final result count will use the
               highest value across all enabled services.
             </p>
           </div>

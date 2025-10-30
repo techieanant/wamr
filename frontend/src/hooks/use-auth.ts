@@ -110,11 +110,6 @@ export const useAuth = create<AuthState>()(
           return;
         }
 
-        // If already authenticated and initialized from storage, skip check
-        if (state.isAuthenticated && state.initialized) {
-          return;
-        }
-
         set({ isLoading: true });
 
         try {
@@ -127,22 +122,14 @@ export const useAuth = create<AuthState>()(
             initialized: true,
           });
         } catch (error) {
-          // Only clear auth if we weren't previously authenticated
-          // This prevents clearing state on network errors when user is already logged in
-          if (!state.isAuthenticated) {
-            set({
-              user: null,
-              isAuthenticated: false,
-              isLoading: false,
-              initialized: true,
-            });
-          } else {
-            // Keep existing auth state but mark as initialized
-            set({
-              isLoading: false,
-              initialized: true,
-            });
-          }
+          // Token is invalid/expired - clear authentication
+          console.warn('Auth check failed, clearing session:', error);
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            initialized: true,
+          });
         }
       },
     }),

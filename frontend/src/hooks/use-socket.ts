@@ -6,15 +6,11 @@ import { socketClient, ServerToClientEvents } from '../services/socket.client';
  * Automatically connects on mount (but does NOT disconnect on unmount to allow shared connection)
  */
 export function useSocket(autoConnect = true) {
-  const [isConnected, setIsConnected] = useState(socketClient.isConnected());
-  const [socketId, setSocketId] = useState(socketClient.getId());
+  const [isConnected, setIsConnected] = useState(false);
+  const [socketId, setSocketId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (autoConnect) {
-      socketClient.connect();
-    }
-
-    // Listen for connection status changes
+    // Listen for connection status changes BEFORE connecting
     const handleConnect = () => {
       setIsConnected(true);
       setSocketId(socketClient.getId());
@@ -25,11 +21,24 @@ export function useSocket(autoConnect = true) {
       setSocketId(undefined);
     };
 
-    // Subscribe to connection events
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    socketClient.on('connect' as any, handleConnect);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    socketClient.on('disconnect' as any, handleDisconnect);
+    // Subscribe to connection events on the raw socket
+    const socket = socketClient.getRawSocket();
+    if (socket) {
+      socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+    }
+
+    // Connect after setting up handlers
+    if (autoConnect && !socketClient.isConnected()) {
+      socketClient.connect();
+
+      // Set up handlers on the new socket after connection
+      const newSocket = socketClient.getRawSocket();
+      if (newSocket) {
+        newSocket.on('connect', handleConnect);
+        newSocket.on('disconnect', handleDisconnect);
+      }
+    }
 
     // Set initial state
     setIsConnected(socketClient.isConnected());
@@ -37,10 +46,11 @@ export function useSocket(autoConnect = true) {
 
     // Cleanup
     return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      socketClient.off('connect' as any, handleConnect);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      socketClient.off('disconnect' as any, handleDisconnect);
+      const socket = socketClient.getRawSocket();
+      if (socket) {
+        socket.off('connect', handleConnect);
+        socket.off('disconnect', handleDisconnect);
+      }
     };
   }, [autoConnect]);
 

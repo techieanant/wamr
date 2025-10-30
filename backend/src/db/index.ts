@@ -1,3 +1,14 @@
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+// Load environment variables from root .env first
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const rootEnvPath = resolve(__dirname, '../../../.env');
+dotenv.config({ path: rootEnvPath });
+dotenv.config(); // Fallback to local .env if needed
+
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 import * as schema from './schema';

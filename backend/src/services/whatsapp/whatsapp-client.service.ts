@@ -14,6 +14,7 @@ import type { WhatsAppConnectionStatus } from '../../models/whatsapp-connection.
 class WhatsAppClientService {
   private client: InstanceType<typeof Client> | null = null;
   private isInitializing = false;
+  private hasCalledReady = false; // Track if ready callback has been called for current connection
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: Message) => void) | null = null;
   private readyCallback: (() => void) | null = null;
@@ -172,13 +173,17 @@ class WhatsAppClientService {
 
         logger.info({ phoneHash }, 'WhatsApp connected');
 
-        // Emit status update via WebSocket
+        // Emit status update via WebSocket (can happen multiple times, that's OK)
         const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
         qrCodeEmitterService.emitConnectionStatus('connected', phoneNumber);
 
-        // Notify via callback
-        if (this.readyCallback) {
+        // Notify via callback ONLY ONCE per connection session
+        if (this.readyCallback && !this.hasCalledReady) {
+          this.hasCalledReady = true;
+          logger.debug('Calling ready callback for the first time');
           this.readyCallback();
+        } else if (this.hasCalledReady) {
+          logger.debug('Skipping ready callback (already called for this session)');
         }
       } catch (error) {
         logger.error({ error }, 'Error handling ready event');
@@ -208,6 +213,9 @@ class WhatsAppClientService {
       logger.warn({ reason }, 'WhatsApp disconnected');
 
       try {
+        // Reset ready flag so callback can be called again on next connection
+        this.hasCalledReady = false;
+
         await this.updateConnectionStatus('DISCONNECTED');
 
         // Emit status update via WebSocket
@@ -406,14 +414,46 @@ class WhatsAppClientService {
       // First disconnect the client
       await this.disconnect();
 
+      // Wait for Chromium to fully release file locks (2 seconds)
+      logger.info('Waiting for Chromium to release file locks...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Then delete session files
       const sessionPath = env.WHATSAPP_SESSION_PATH;
       const fs = await import('fs/promises');
-      try {
-        await fs.rm(sessionPath, { recursive: true, force: true });
-        logger.info('WhatsApp session files deleted after logout');
-      } catch (err) {
-        logger.warn({ err }, 'Failed to delete session files (may not exist)');
+
+      // Try multiple times with exponential backoff if busy
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      while (attempts < maxAttempts) {
+        try {
+          await fs.rm(sessionPath, { recursive: true, force: true });
+          logger.info('WhatsApp session files deleted after logout');
+          break;
+        } catch (err: any) {
+          attempts++;
+
+          // If resource is busy and we have attempts left, wait and retry
+          if (err.code === 'EBUSY' && attempts < maxAttempts) {
+            const waitTime = Math.pow(2, attempts) * 500; // 500ms, 1s, 2s, 4s
+            logger.info(
+              { attempt: attempts, maxAttempts, waitTime },
+              'Session directory busy, retrying after delay...'
+            );
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+          } else if (attempts >= maxAttempts) {
+            logger.error(
+              { err, attempts },
+              'Failed to delete session files after multiple attempts - will try on next restart'
+            );
+            // Don't throw, just log - the session will be cleaned up on next restart
+            break;
+          } else {
+            logger.warn({ err }, 'Failed to delete session files (may not exist)');
+            break;
+          }
+        }
       }
     } catch (error) {
       logger.error({ error }, 'Error during logout');

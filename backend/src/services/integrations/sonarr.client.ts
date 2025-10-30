@@ -43,7 +43,14 @@ interface SonarrSeries {
   seriesType?: string;
   certification?: string;
   monitored?: boolean;
-  hasFile?: boolean;
+  statistics?: {
+    seasonCount: number;
+    episodeCount: number;
+    episodeFileCount: number; // Number of downloaded episode files
+    totalEpisodeCount: number;
+    sizeOnDisk: number;
+    percentOfEpisodes: number; // Percentage of episodes downloaded
+  };
 }
 
 interface SonarrSystemStatus {
@@ -106,6 +113,8 @@ export class SonarrClient {
    */
   async searchSeries(query: string): Promise<SonarrSeries[]> {
     try {
+      logger.debug({ query }, 'Starting Sonarr series search');
+
       const response = await this.client.get<SonarrSeries[]>('/api/v3/series/lookup', {
         params: { term: query },
       });
@@ -114,7 +123,40 @@ export class SonarrClient {
 
       return response.data;
     } catch (error) {
-      logger.error({ error, query }, 'Sonarr series search failed');
+      // Enhanced error logging with detailed information
+      const errorDetails: any = {
+        query,
+        endpoint: '/api/v3/series/lookup',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      // Add axios-specific error details
+      if (error && typeof error === 'object') {
+        const axiosError = error as any;
+
+        if (axiosError.response) {
+          // Server responded with error status
+          errorDetails.errorType = 'API_RESPONSE_ERROR';
+          errorDetails.httpStatus = axiosError.response.status;
+          errorDetails.httpStatusText = axiosError.response.statusText;
+          errorDetails.responseData = axiosError.response.data;
+          errorDetails.baseUrl = axiosError.config?.baseURL;
+          errorDetails.fullUrl = axiosError.config?.url;
+        } else if (axiosError.request) {
+          // Request was made but no response received
+          errorDetails.errorType = 'NO_RESPONSE';
+          errorDetails.code = axiosError.code;
+          errorDetails.baseUrl = axiosError.config?.baseURL;
+          errorDetails.fullUrl = axiosError.config?.url;
+          errorDetails.timeout = axiosError.config?.timeout;
+        } else {
+          // Error setting up request
+          errorDetails.errorType = 'REQUEST_SETUP_ERROR';
+        }
+      }
+
+      logger.error(errorDetails, 'Sonarr series search failed');
+
       // Return empty array instead of throwing to allow other services to provide results
       return [];
     }
@@ -194,6 +236,73 @@ export class SonarrClient {
       }));
     } catch (error) {
       logger.error({ error }, 'Failed to fetch Sonarr root folders');
+      throw error;
+    }
+  }
+
+  /**
+   * Get all series from Sonarr
+   */
+  async getSeries(): Promise<SonarrSeries[]> {
+    try {
+      logger.debug('Fetching all series from Sonarr');
+
+      const response = await this.client.get<SonarrSeries[]>('/api/v3/series');
+
+      logger.debug({ count: response.data.length }, 'Sonarr series fetched');
+
+      return response.data;
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch Sonarr series');
+      throw error;
+    }
+  }
+
+  /**
+   * Get a specific series by ID from Sonarr
+   */
+  async getSeriesById(id: number): Promise<SonarrSeries | null> {
+    try {
+      logger.debug({ id }, 'Fetching series from Sonarr by ID');
+
+      const response = await this.client.get<SonarrSeries>(`/api/v3/series/${id}`);
+
+      return response.data;
+    } catch (error) {
+      // 404 means series not found
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 404) {
+          logger.debug({ id }, 'Series not found in Sonarr');
+          return null;
+        }
+      }
+
+      logger.error({ error, id }, 'Failed to fetch Sonarr series by ID');
+      throw error;
+    }
+  }
+
+  /**
+   * Get a series by TVDB ID from Sonarr
+   */
+  async getSeriesByTvdbId(tvdbId: number): Promise<SonarrSeries | null> {
+    try {
+      logger.debug({ tvdbId }, 'Fetching series from Sonarr by TVDB ID');
+
+      // Get all series and find by TVDB ID
+      const allSeries = await this.getSeries();
+      const series = allSeries.find((s) => s.tvdbId === tvdbId);
+
+      if (series) {
+        logger.debug({ tvdbId, title: series.title }, 'Found series in Sonarr');
+      } else {
+        logger.debug({ tvdbId }, 'Series not found in Sonarr');
+      }
+
+      return series || null;
+    } catch (error) {
+      logger.error({ error, tvdbId }, 'Failed to fetch Sonarr series by TVDB ID');
       throw error;
     }
   }
