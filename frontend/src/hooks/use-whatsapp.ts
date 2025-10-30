@@ -1,8 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, useCallback } from 'react';
-import { socketClient } from '@/services/socket.client';
-import { useAuthStore } from './use-auth';
-import api from '@/services/api.client';
+import { useEffect } from 'react';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('whatsapp');

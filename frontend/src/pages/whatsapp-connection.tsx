@@ -7,7 +7,7 @@ import { QRCodeDisplay } from '../components/whatsapp/qr-code-display';
 import { ConnectionStatus } from '../components/whatsapp/connection-status';
 import { MessageFilterForm } from '../components/whatsapp/message-filter-form';
 import { Smartphone, Loader2 } from 'lucide-react';
-import type { WhatsAppStatusEvent, MessageFilterType } from '../types/whatsapp.types';
+import type { MessageFilterType } from '../types/whatsapp.types';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function WhatsAppConnection() {
