@@ -160,15 +160,15 @@ export class IntentParser {
   }
 
   /**
-   * Parse numeric selection from message (1-20 to match maxResults limit)
+   * Parse numeric selection from message (1-99 to match maxResults limit)
    */
   private parseSelection(message: string): number | null {
-    // Check for 1-2 digit numbers (1-20)
+    // Check for 1-2 digit numbers (1-99)
     const match = message.match(/^\s*(\d{1,2})\s*$/);
     if (match) {
       const num = parseInt(match[1], 10);
-      // Accept 1-20 to match the maxResults configuration limit
-      if (num >= 1 && num <= 20) {
+      // Accept 1-99 to match the maxResults configuration limit
+      if (num >= 1 && num <= 99) {
         return num;
       }
     }

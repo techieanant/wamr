@@ -1,7 +1,18 @@
 import { readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
+import dotenv from 'dotenv';
 import { logger } from '../config/logger';
+
+// Get the directory name in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables from root .env file (monorepo setup)
+const rootEnvPath = resolve(__dirname, '../../../.env');
+dotenv.config({ path: rootEnvPath });
+dotenv.config(); // Fallback to local .env
 
 const DATABASE_PATH = process.env.DATABASE_PATH || './data/wamr.db';
 const MIGRATIONS_DIR = './drizzle/migrations';

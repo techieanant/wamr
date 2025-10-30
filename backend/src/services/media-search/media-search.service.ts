@@ -30,7 +30,7 @@ export interface MediaSearchResult {
  * Service for searching media across multiple sources
  */
 class MediaSearchService {
-  private readonly searchTimeout = 3000; // 3 seconds per service
+  private readonly searchTimeout = 8000; // 8 seconds per service (axios has 9s timeout)
 
   /**
    * Search for media across all enabled services
@@ -215,7 +215,10 @@ class MediaSearchService {
       logger.debug('Searching service', {
         serviceType,
         serviceName: config.name,
+        serviceId: config.id,
+        baseUrl: config.baseUrl,
         query,
+        mediaType,
       });
 
       // Decrypt API key
@@ -244,11 +247,32 @@ class MediaSearchService {
 
       return results;
     } catch (error) {
-      logger.error('Service search error', {
+      // Determine error type for better debugging
+      const isTimeout = error instanceof Error && error.message === 'Search timeout';
+      const errorDetails: any = {
         serviceType,
-        error,
         query,
-      });
+        mediaType,
+        errorType: isTimeout ? 'TIMEOUT' : 'UNKNOWN',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      // Add axios-specific error details if available
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        errorDetails.errorType = 'API_ERROR';
+        errorDetails.httpStatus = axiosError.response?.status;
+        errorDetails.httpStatusText = axiosError.response?.statusText;
+        errorDetails.responseData = axiosError.response?.data;
+        errorDetails.requestUrl = axiosError.config?.url;
+        errorDetails.requestMethod = axiosError.config?.method;
+      } else if (error && typeof error === 'object' && 'request' in error) {
+        errorDetails.errorType = 'NETWORK_ERROR';
+        errorDetails.code = (error as any).code;
+      }
+
+      logger.error('Service search error', errorDetails);
+
       // Return empty array instead of throwing to allow other services to provide results
       return [];
     }

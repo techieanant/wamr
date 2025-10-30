@@ -201,7 +201,7 @@ export class ConversationService {
 
     return this.createResponse(
       session,
-      `🔍 Searching for ${intent.mediaType === 'movie' ? 'movie' : 'series'}: "${intent.query}"...\n\nPlease wait...`,
+      `🔍 Searching for: "${intent.query}"...\n\nPlease wait...`,
       'SEARCHING'
     );
   }

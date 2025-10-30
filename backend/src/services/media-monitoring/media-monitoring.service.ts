@@ -10,8 +10,8 @@ import { env } from '../../config/environment.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
 import { mediaServiceConfigRepository } from '../../repositories/media-service-config.repository.js';
 import { OverseerrClient } from '../integrations/overseerr.client.js';
-// import { RadarrClient } from '../integrations/radarr.client.js';
-// import { SonarrClient } from '../integrations/sonarr.client.js';
+import { RadarrClient } from '../integrations/radarr.client.js';
+import { SonarrClient } from '../integrations/sonarr.client.js';
 import { encryptionService } from '../encryption/encryption.service.js';
 
 /**
@@ -28,13 +28,16 @@ class MediaMonitoringService {
    */
   start(): void {
     if (this.isMonitoring) {
-      logger.warn('Media monitoring already running');
+      logger.warn('Media monitoring already running, skipping start');
       return;
     }
 
     this.isMonitoring = true;
     logger.info(
-      { intervalMinutes: this.CHECK_INTERVAL_MS / 60000 },
+      {
+        intervalMs: this.CHECK_INTERVAL_MS,
+        intervalMinutes: parseFloat((this.CHECK_INTERVAL_MS / 60000).toFixed(2)),
+      },
       'Starting media monitoring service'
     );
 
@@ -200,36 +203,94 @@ class MediaMonitoringService {
 
   /**
    * Check Radarr for movie availability
-   * Note: This requires additional API methods to be implemented in RadarrClient
    */
-  private async checkRadarrStatus(
-    _baseUrl: string,
-    _apiKey: string,
-    request: any
-  ): Promise<boolean> {
-    // TODO: Implement when Radarr client has getMovies() method
-    logger.warn(
-      { requestId: request.id },
-      'Radarr status checking not yet implemented - requires getMovies() API method'
-    );
-    return false;
+  private async checkRadarrStatus(baseUrl: string, apiKey: string, request: any): Promise<boolean> {
+    const client = new RadarrClient(baseUrl, apiKey);
+
+    try {
+      // Get movie by TMDB ID
+      if (!request.tmdbId) {
+        logger.warn({ requestId: request.id }, 'Request missing TMDB ID for Radarr check');
+        return false;
+      }
+
+      const movie = await client.getMovieByTmdbId(request.tmdbId);
+
+      if (!movie) {
+        logger.debug(
+          { requestId: request.id, tmdbId: request.tmdbId },
+          'Movie not found in Radarr'
+        );
+        return false;
+      }
+
+      // Check if movie has file (hasFile indicates the movie is downloaded and available)
+      const isAvailable = movie.hasFile === true;
+
+      logger.debug(
+        {
+          requestId: request.id,
+          title: movie.title,
+          hasFile: movie.hasFile,
+          monitored: movie.monitored,
+          isAvailable,
+        },
+        'Radarr movie status'
+      );
+
+      return isAvailable;
+    } catch (error) {
+      logger.error({ error, requestId: request.id }, 'Error checking Radarr status');
+      return false;
+    }
   }
 
   /**
    * Check Sonarr for series availability
-   * Note: This requires additional API methods to be implemented in SonarrClient
    */
-  private async checkSonarrStatus(
-    _baseUrl: string,
-    _apiKey: string,
-    request: any
-  ): Promise<boolean> {
-    // TODO: Implement when Sonarr client has getSeries() method
-    logger.warn(
-      { requestId: request.id },
-      'Sonarr status checking not yet implemented - requires getSeries() API method'
-    );
-    return false;
+  private async checkSonarrStatus(baseUrl: string, apiKey: string, request: any): Promise<boolean> {
+    const client = new SonarrClient(baseUrl, apiKey);
+
+    try {
+      // Get series by TVDB ID
+      if (!request.tvdbId) {
+        logger.warn({ requestId: request.id }, 'Request missing TVDB ID for Sonarr check');
+        return false;
+      }
+
+      const series = await client.getSeriesByTvdbId(request.tvdbId);
+
+      if (!series) {
+        logger.debug(
+          { requestId: request.id, tvdbId: request.tvdbId },
+          'Series not found in Sonarr'
+        );
+        return false;
+      }
+
+      // Check if series has any downloaded episodes
+      // For series, we consider it available if it has at least one downloaded episode file
+      const episodeFileCount = series.statistics?.episodeFileCount ?? 0;
+      const isAvailable = episodeFileCount > 0;
+
+      logger.debug(
+        {
+          requestId: request.id,
+          title: series.title,
+          episodeFileCount,
+          episodeCount: series.statistics?.episodeCount,
+          percentOfEpisodes: series.statistics?.percentOfEpisodes,
+          monitored: series.monitored,
+          isAvailable,
+        },
+        'Sonarr series status'
+      );
+
+      return isAvailable;
+    } catch (error) {
+      logger.error({ error, requestId: request.id }, 'Error checking Sonarr status');
+      return false;
+    }
   }
 
   /**

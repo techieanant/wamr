@@ -6,9 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { CheckCircle2, XCircle, Loader2, RefreshCw, Power } from 'lucide-react';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('whatsapp-connection');
 
 export function ConnectionStatus() {
-  const { on, isConnected: socketConnected } = useSocket();
+  const { on, isConnected: socketConnected } = useSocket(false); // Don't auto-connect (App.tsx handles it)
   const { status, disconnect, restart, isDisconnecting, isRestarting } = useWhatsApp();
   const [realtimeStatus, setRealtimeStatus] = useState<
     'connected' | 'disconnected' | 'connecting' | 'loading' | null
@@ -23,6 +26,8 @@ export function ConnectionStatus() {
 
     // Handle whatsapp:status events
     const cleanupStatus = on('whatsapp:status', (data: WhatsAppStatusEvent) => {
+      logger.debug('Received whatsapp:status:', data);
+
       setRealtimeStatus(data.status);
       if (data.phoneNumber) {
         setPhoneNumber(data.phoneNumber);
@@ -33,15 +38,28 @@ export function ConnectionStatus() {
       if (data.message) {
         setLoadingMessage(data.message);
       }
+
+      // Clear loading indicators when connected or disconnected
+      if (data.status === 'connected' || data.status === 'disconnected') {
+        setLoadingProgress(undefined);
+        setLoadingMessage(undefined);
+      }
     });
 
     // Handle status-change events (includes loading progress)
     const cleanupStatusChange = on('status-change', (data) => {
+      logger.debug('Received status-change:', data);
+
       const statusValue = data.status as 'connected' | 'disconnected' | 'connecting' | 'loading';
       setRealtimeStatus(statusValue);
 
       if (data.progress !== undefined) {
         setLoadingProgress(data.progress);
+
+        // When loading reaches 100%, automatically transition to connected after a short delay
+        if (data.progress === 100) {
+          logger.debug('Loading reached 100%, will transition to connected shortly');
+        }
       }
       if (data.message) {
         setLoadingMessage(data.message);

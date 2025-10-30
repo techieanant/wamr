@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -21,6 +21,12 @@ export function MessageFilterForm({
 }: MessageFilterFormProps) {
   const [filterType, setFilterType] = useState<string>(currentFilterType || 'none');
   const [filterValue, setFilterValue] = useState<string>(currentFilterValue || '');
+
+  // Sync state when props change from database
+  useEffect(() => {
+    setFilterType(currentFilterType || 'none');
+    setFilterValue(currentFilterValue || '');
+  }, [currentFilterType, currentFilterValue]);
 
   const handleSave = () => {
     if (filterType === 'none') {

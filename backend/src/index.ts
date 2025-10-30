@@ -104,7 +104,8 @@ async function startServer(): Promise<HttpServer> {
   });
 
   whatsappClientService.onReady(() => {
-    qrCodeEmitterService.emitConnectionStatus('connected');
+    // Note: Connection status is already emitted by whatsapp-client.service.ts ready handler
+    // No need to emit again here to avoid duplicates
 
     // Initialize message handler when WhatsApp is ready
     logger.info('WhatsApp client ready, initializing message handler');

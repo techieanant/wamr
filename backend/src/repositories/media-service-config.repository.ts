@@ -74,12 +74,15 @@ export class MediaServiceConfigRepository {
     // Extract IV from encrypted string (format: iv:authTag:ciphertext)
     const [iv] = data.apiKeyEncrypted.split(':');
 
+    // Remove trailing slash from baseUrl if present
+    const baseUrl = data.baseUrl.endsWith('/') ? data.baseUrl.slice(0, -1) : data.baseUrl;
+
     const result = await db
       .insert(mediaServiceConfigurations)
       .values({
         name: data.name,
         serviceType: data.serviceType,
-        baseUrl: data.baseUrl,
+        baseUrl: baseUrl,
         apiKeyEncrypted: data.apiKeyEncrypted, // Store full encrypted string
         apiKeyIv: iv, // Store IV separately for reference
         enabled: data.enabled ?? true,
@@ -108,7 +111,8 @@ export class MediaServiceConfigRepository {
       updateData.name = data.name;
     }
     if (data.baseUrl !== undefined) {
-      updateData.baseUrl = data.baseUrl;
+      // Remove trailing slash from baseUrl if present
+      updateData.baseUrl = data.baseUrl.endsWith('/') ? data.baseUrl.slice(0, -1) : data.baseUrl;
     }
     if (data.apiKeyEncrypted !== undefined) {
       // Extract IV from encrypted string (format: iv:authTag:ciphertext)

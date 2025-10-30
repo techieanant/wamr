@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('whatsapp');
 import { apiClient } from '../services/api.client';
 import { useSocket } from './use-socket';
 import type {
@@ -131,7 +134,12 @@ export function useWhatsApp() {
         }
       );
 
-      queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'], refetchType: 'none' });
+      // When connection completes, refetch full status to get filter settings
+      if (data.status === 'connected') {
+        queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'], refetchType: 'none' });
+      }
     });
 
     // Listen to 'status-change' events (loading progress updates)
@@ -160,7 +168,15 @@ export function useWhatsApp() {
         }
       );
 
-      queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'], refetchType: 'none' });
+      // When loading reaches 100%, wait a bit then refetch to get final connected status
+      if (data.status === 'loading' && data.progress === 100) {
+        logger.debug('Loading reached 100%, scheduling status refetch...');
+        setTimeout(() => {
+          queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
+        }, 2000); // Wait 2 seconds for WhatsApp to fully connect
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'], refetchType: 'none' });
+      }
     });
 
     return () => {
