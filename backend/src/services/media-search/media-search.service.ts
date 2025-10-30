@@ -30,7 +30,7 @@ export interface MediaSearchResult {
  * Service for searching media across multiple sources
  */
 class MediaSearchService {
-  private readonly searchTimeout = 8000; // 8 seconds per service (axios has 10s timeout)
+  private readonly searchTimeout = 8000; // 8 seconds per service (axios has 9s timeout)
 
   /**
    * Search for media across all enabled services

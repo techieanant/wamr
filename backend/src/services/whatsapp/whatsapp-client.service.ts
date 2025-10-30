@@ -182,7 +182,7 @@ class WhatsAppClientService {
           this.hasCalledReady = true;
           logger.debug('Calling ready callback for the first time');
           this.readyCallback();
-        } else if (this.hasCalledReady) {
+        } else {
           logger.debug('Skipping ready callback (already called for this session)');
         }
       } catch (error) {

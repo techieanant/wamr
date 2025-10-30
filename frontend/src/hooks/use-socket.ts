@@ -6,8 +6,8 @@ import { socketClient, ServerToClientEvents } from '../services/socket.client';
  * Automatically connects on mount (but does NOT disconnect on unmount to allow shared connection)
  */
 export function useSocket(autoConnect = true) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [socketId, setSocketId] = useState<string | undefined>(undefined);
+  const [isConnected, setIsConnected] = useState(socketClient.isConnected());
+  const [socketId, setSocketId] = useState<string | undefined>(socketClient.getId());
 
   useEffect(() => {
     // Listen for connection status changes BEFORE connecting

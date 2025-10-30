@@ -36,7 +36,7 @@ class MediaMonitoringService {
     logger.info(
       {
         intervalMs: this.CHECK_INTERVAL_MS,
-        intervalMinutes: (this.CHECK_INTERVAL_MS / 60000).toFixed(2),
+        intervalMinutes: parseFloat((this.CHECK_INTERVAL_MS / 60000).toFixed(2)),
       },
       'Starting media monitoring service'
     );
