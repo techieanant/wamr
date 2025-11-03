@@ -1,79 +1,57 @@
+# WAMR Docker Compose Configuration
+# Single container serving both frontend and backend
+# Uses .env.prod for configuration
+# Build: npm run docker:build
+# Start: npm run docker:up
+# Logs:  npm run docker:logs
+# Stop:  npm run docker:down
+
 services:
-  backend:
+  wamr:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
-    container_name: wamr-backend
+      args:
+        # Frontend uses root path, API routes already have /api prefix
+        - VITE_API_URL=/
+    container_name: wamr-combined
     restart: unless-stopped
+    env_file:
+      - .env.prod
     ports:
-      - "${BACKEND_PORT:-4000}:4000"
+      - "${PORT:-9000}:${PORT:-9000}"
     environment:
-      - NODE_ENV=production
-      - PORT=4000
-      - DATABASE_PATH=/app/data/wamr.db
+      # All configuration comes from .env.prod
+      # These are just ensuring required variables exist
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT}
+      - DATABASE_PATH=${DATABASE_PATH}
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
-      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
-      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
-      - LOGIN_RATE_LIMIT_MAX=${LOGIN_RATE_LIMIT_MAX:-5}
-      - WHATSAPP_SESSION_PATH=/app/.wwebjs_auth
-      - MEDIA_MONITORING_INTERVAL_MS=${MEDIA_MONITORING_INTERVAL_MS:-300000}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_PRETTY=${LOG_PRETTY:-false}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS}
+      - LOGIN_RATE_LIMIT_MAX=${LOGIN_RATE_LIMIT_MAX}
+      - WHATSAPP_SESSION_PATH=${WHATSAPP_SESSION_PATH}
+      - MEDIA_MONITORING_INTERVAL_MS=${MEDIA_MONITORING_INTERVAL_MS}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - LOG_PRETTY=${LOG_PRETTY}
     volumes:
       - wamr-data:/app/data
       - wamr-whatsapp-auth:/app/.wwebjs_auth
-    networks:
-      - wamr-network
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:4000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+          "require('http').get('http://localhost:${PORT}/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
         ]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 40s
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
-    container_name: wamr-frontend
-    restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-3000}:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - wamr-network
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://localhost:80/health",
-        ]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-
-networks:
-  wamr-network:
-    driver: bridge
 
 volumes:
   wamr-data:

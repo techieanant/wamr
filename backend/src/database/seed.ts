@@ -1,13 +1,16 @@
-import { resolve, dirname } from 'path';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-// Load environment variables from root .env first
+// Load environment variables from project root based on NODE_ENV
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const rootEnvPath = resolve(__dirname, '../../../.env');
-dotenv.config({ path: rootEnvPath });
-dotenv.config(); // Fallback to local .env if needed
+const rootDir = resolve(__dirname, '../../..');
+const isProduction = process.env.NODE_ENV === 'production';
+const envFile = isProduction ? '.env.prod' : '.env.local';
+const envPath = join(rootDir, envFile);
+
+dotenv.config({ path: envPath });
 
 import { db } from '../db';
 import { adminUsers } from '../db/schema';
@@ -21,7 +24,7 @@ import { logger } from '../config/logger';
  */
 const DEFAULT_ADMIN = {
   username: process.env.ADMIN_USERNAME || 'admin@wamr.local',
-  password: process.env.ADMIN_PASSWORD || 'changeme123456', // 14 characters - meets 12 char minimum
+  password: process.env.ADMIN_PASSWORD || 'changeme123456', // 14 characters - meets 6 char minimum
 };
 
 /**

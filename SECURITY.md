@@ -106,7 +106,7 @@ We will:
 
 ### Access Control
 
-- **Use strong passwords** (12+ characters)
+- **Use strong passwords** (minimum 6 characters, recommended 12+)
 - **Enable 2FA** when available
 - **Limit admin access** to necessary personnel only
 - **Review audit logs** regularly

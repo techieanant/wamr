@@ -68,7 +68,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={12}
+                minLength={6}
                 disabled={isLoading}
               />
             </div>

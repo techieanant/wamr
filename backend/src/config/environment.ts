@@ -20,13 +20,13 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from root .env file (monorepo setup)
-// Try root directory first (for monorepo), then fallback to current directory
-const rootEnvPath = path.resolve(__dirname, '../../../.env');
-dotenv.config({ path: rootEnvPath });
+// Load environment variables from project root based on NODE_ENV
+const rootDir = path.resolve(__dirname, '../../..');
+const isProduction = process.env.NODE_ENV === 'production';
+const envFile = isProduction ? '.env.prod' : '.env.local';
+const envPath = path.join(rootDir, envFile);
 
-// Also try loading from backend directory for standalone setup
-dotenv.config();
+dotenv.config({ path: envPath });
 
 // Environment schema validation
 const envSchema = z.object({

@@ -19,11 +19,11 @@
     "frontend:dev": "turbo dev --filter=wamr-frontend",
     "backend:build": "turbo build --filter=wamr-backend",
     "frontend:build": "turbo build --filter=wamr-frontend",
-    "docker:build": "docker-compose build",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f",
-    "docker:restart": "docker-compose restart",
+    "docker:build": "docker-compose --env-file .env.prod build",
+    "docker:up": "docker-compose --env-file .env.prod up -d",
+    "docker:down": "docker-compose --env-file .env.prod down",
+    "docker:logs": "docker-compose --env-file .env.prod logs -f",
+    "docker:restart": "docker-compose --env-file .env.prod restart",
     "prepare": "husky"
   },
   "devDependencies": {

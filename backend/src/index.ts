@@ -3,6 +3,8 @@ import { createServer, Server as HttpServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { env } from './config/environment';
 import { logger } from './config/logger';
 import { webSocketService } from './services/websocket/websocket.service';
@@ -20,6 +22,9 @@ import { qrCodeEmitterService } from './services/whatsapp/qr-code-emitter.servic
 import { whatsappSessionService } from './services/whatsapp/whatsapp-session.service';
 import { messageHandlerService } from './services/whatsapp/message-handler.service';
 import { mediaMonitoringService } from './services/media-monitoring/media-monitoring.service';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Create Express application with middleware
@@ -76,8 +81,21 @@ function createApp(): Express {
   // TODO: Register remaining route modules when created
   // app.use('/api/stats', statsRoutes);
 
-  // 404 handler
-  app.use(notFoundHandler);
+  // Serve static frontend files (for combined container)
+  const publicPath = path.join(__dirname, '..', 'public');
+  app.use(express.static(publicPath));
+
+  // SPA fallback: serve index.html for all non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip if it's an API route or health check
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+
+  // 404 handler for API routes only
+  app.use('/api/*', notFoundHandler);
 
   // Global error handler (must be last)
   app.use(errorHandler);

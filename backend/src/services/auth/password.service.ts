@@ -46,8 +46,8 @@ export class PasswordService {
   validateComplexity(password: string): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    if (password.length < 12) {
-      errors.push('Password must be at least 12 characters long');
+    if (password.length < 6) {
+      errors.push('Password must be at least 6 characters long');
     }
 
     if (!/[a-z]/.test(password)) {

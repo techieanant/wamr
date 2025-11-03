@@ -83,13 +83,12 @@ class SocketClient {
       this.reconnectAttempts = 0;
     }
 
-    // In development, use empty string to connect to same origin (Vite proxy)
-    // In production, use VITE_API_URL
-    const socketUrl = import.meta.env.PROD
-      ? import.meta.env.VITE_API_URL || 'http://localhost:4000'
-      : ''; // Empty string connects to same origin, using Vite proxy
+    // Use empty string to connect to same origin
+    // In development: Vite proxy handles this
+    // In production (combined container): Backend serves frontend, so same origin
+    const socketUrl = ''; // Empty string connects to same origin
 
-    logger.info('Connecting to socket server:', socketUrl || 'same-origin (via Vite proxy)');
+    logger.info('Connecting to socket server: same-origin');
 
     this.socket = io(socketUrl, {
       withCredentials: true, // Include cookies (JWT)

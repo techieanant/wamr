@@ -10,6 +10,7 @@ An open-source, self-hosted WhatsApp bot that enables users to request movies an
 > **📋 Documentation:**
 >
 > - [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment with Docker
+> - [ENVIRONMENT.md](ENVIRONMENT.md) - Environment variable configuration guide
 > - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 > - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community guidelines
 > - [SECURITY.md](SECURITY.md) - Security policy and reporting
@@ -28,34 +29,36 @@ An open-source, self-hosted WhatsApp bot that enables users to request movies an
 # 1. Install dependencies
 npm install
 
-# 2. Configure backend environment
+# 2. Configure environment
+cp .env.example .env.local
+# Edit .env.local and set secure values:
+# - Generate JWT_SECRET: openssl rand -base64 32
+# - Generate ENCRYPTION_KEY: openssl rand -hex 32
+# - Set ADMIN_USERNAME and ADMIN_PASSWORD
+
+# 3. Setup database
 cd backend
-cp .env.example .env
-# Edit .env and set secure values (see Backend Configuration below)
-
-# 3. Configure frontend environment
-cd ../frontend
-cp .env.example .env
-# Edit .env to set VITE_API_URL=http://localhost:4000
-
-# 4. Setup database
-cd ../backend
-npm run db:generate  # Generate migrations
 npm run db:migrate   # Apply migrations
 npm run db:seed      # Create admin user
 
-# 5. Start development (both backend + frontend)
+# 4. Start development (both backend + frontend)
 cd ..
 npm run dev
 ```
 
+**Development Environment:**
+
+- Frontend runs on `http://localhost:3000` (configurable via `.env.local` → `VITE_PORT`)
+- Backend runs on `http://localhost:4000` (configurable via `.env.local` → `PORT`)
+- Vite dev server automatically proxies `/api` and `/socket.io` to backend
+
 **Default Admin Credentials (Development):**
 
-- Username: `admin@wamr.local`
-- Password: `changeme123456`
+- Username: `admin` (from `.env.local` → `ADMIN_USERNAME`)
+- Password: `changeme123456` (from `.env.local` → `ADMIN_PASSWORD`)
 - ⚠️ **Change password immediately after first login!**
 
-> **Note for Docker users:** When running with Docker, credentials come from your `.env` file. See [Docker Deployment](#-docker-deployment) section below.
+> **Note:** Use `.env.local` for development and `.env.prod` for Docker/production. See [ENVIRONMENT.md](ENVIRONMENT.md) for details.
 
 ## 🎯 Features
 
@@ -300,53 +303,59 @@ export const db = drizzle(pool, { schema });
 ```bash
 # 1. Copy and configure environment variables
 cp .env.example .env
-# Edit .env and set all required values (see below)
+# Edit .env and set all required values
 
-# 2. Build and start all services
-docker compose up -d
+# 2. Generate secure keys
+JWT_SECRET=$(openssl rand -base64 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+# Add these to your .env file
 
-# 3. View logs to get admin credentials
-docker compose logs backend | grep "Default admin credentials" -A 3
+# 3. Build and start the container
+npm run docker:build
+npm run docker:up
 
-# 4. Access the application
-# Frontend: http://localhost:3000
-# Backend: http://localhost:4000
+# 4. View logs
+npm run docker:logs
+
+# 5. Access the application
+# Application: http://localhost:9000 (or your configured PORT)
 ```
 
 ### Docker Login Credentials
 
-Your admin login credentials are configured in your `.env` file via:
+Your admin login credentials are configured in your `.env` file:
 
 ```bash
-ADMIN_USERNAME=admin@wamr.local    # Your admin username
-ADMIN_PASSWORD=changeme123456      # Your admin password
+ADMIN_USERNAME=admin              # Your admin username (default: admin)
+ADMIN_PASSWORD=changeme1234       # Your admin password
 ```
 
 **Important:**
 
-- The credentials displayed in the Docker logs during startup are the ones you should use
-- See [DOCKER_LOGIN_GUIDE.md](DOCKER_LOGIN_GUIDE.md) for detailed troubleshooting
-- ⚠️ **Change the password immediately after first login!**
+- ⚠️ **Change `ADMIN_PASSWORD` from the default value!**
+- ⚠️ **Generate new `JWT_SECRET` and `ENCRYPTION_KEY` for production!**
+- The credentials from your `.env` file are used for login
 
 ### Docker Commands
 
 ```bash
-# Start services
-docker compose up -d
+# Build the image
+npm run docker:build
+
+# Start the container
+npm run docker:up
 
 # View logs
-docker compose logs -f
+npm run docker:logs
 
-# Stop services
-docker compose down
+# Restart the container
+npm run docker:restart
 
-# Rebuild after code changes
-docker compose down
-docker compose build
-docker compose up -d
+# Stop the container
+npm run docker:down
 ```
 
-For production deployment, see [DEPLOYMENT.md](DEPLOYMENT.md).
+For detailed production deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## 🤝 Contributing
 
