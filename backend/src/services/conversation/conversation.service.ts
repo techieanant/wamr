@@ -276,6 +276,11 @@ export class ConversationService {
         } catch (sendError) {
           logger.error({ sessionId, error: sendError }, 'Failed to send error message');
         }
+      } else {
+        logger.warn(
+          { sessionId },
+          'Phone number not found for session - cannot send error message'
+        );
       }
     }
   }

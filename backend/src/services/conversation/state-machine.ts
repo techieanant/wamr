@@ -9,7 +9,7 @@ import { logger } from '../../config/logger.js';
  * State transition rules for the conversation state machine
  */
 const STATE_TRANSITIONS: Record<ConversationState, ConversationState[]> = {
-  IDLE: ['SEARCHING'],
+  IDLE: ['SEARCHING', 'IDLE'], // Allow self-transition for cancel/timeout
   SEARCHING: ['AWAITING_SELECTION', 'IDLE'], // IDLE for no results
   AWAITING_SELECTION: ['AWAITING_CONFIRMATION', 'IDLE'], // IDLE for cancel
   AWAITING_CONFIRMATION: ['PROCESSING', 'IDLE'], // IDLE for cancel

@@ -22,6 +22,7 @@ export async function getSystemInfo(_req: Request, res: Response): Promise<void>
       const packageJsonPath = join(__dirname, '../../../package.json');
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
       version = packageJson.version || '1.0.0';
+      schemaVersion = packageJson.schemaVersion || '1.0.0';
     } catch (error) {
       logger.warn('Could not read version from package.json');
     }
