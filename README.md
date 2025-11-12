@@ -90,25 +90,6 @@ npm run dev
 - **Community Media Sharing**: Moderate media requests from community members
 - **Personal Assistant**: Natural language interface to media services
 
-### Backend Configuration
-
-Generate secure keys for your `.env` file:
-
-```bash
-# Generate JWT secret (64 hex characters)
-openssl rand -hex 32
-
-# Generate encryption key (64 hex characters)
-openssl rand -hex 32
-```
-
-Required environment variables:
-
-- `JWT_SECRET` - JWT signing secret (minimum 32 characters)
-- `ENCRYPTION_KEY` - AES-256-GCM encryption key (64 hex characters)
-- `PORT` - Server port (default: 4000)
-- `CORS_ORIGIN` - Frontend URL (default: http://localhost:3000)
-
 ## 📂 Project Structure
 
 ```
@@ -186,48 +167,26 @@ npm run docker:logs      # View container logs
 npm run docker:restart   # Restart all services
 ```
 
+> **💡 Tip:** For detailed Docker deployment options, see [DEPLOYMENT.md](DEPLOYMENT.md)
+
 ### Cleanup
 
 ```bash
 npm run clean            # Remove dist/, node_modules, .turbo cache
 ```
 
-### Why Turborepo?
-
-Turborepo provides intelligent caching and parallel execution:
-
-- **Smart Caching**: Build outputs are cached. If nothing changed, tasks are instant
-- **Parallel Execution**: Runs independent tasks simultaneously across workspaces
-- **Dependency Awareness**: Understands workspace dependencies and runs tasks in the right order
-- **Incremental Builds**: Only rebuilds what changed
-
-Example: Running `npm run build` will:
-
-1. Build backend (has no dependencies)
-2. Build frontend in parallel (if no shared dependencies)
-3. Use cached results if source code hasn't changed
-
 ## 🔐 Security
 
-### Environment Variables
+See [SECURITY.md](SECURITY.md) for our security policy and vulnerability reporting.
 
-Never commit `.env` files to version control. Required secrets:
+**Key Security Features:**
 
-- `JWT_SECRET`: Minimum 32 characters, used for JWT token signing
-- `ENCRYPTION_KEY`: 64 hex characters (32 bytes), used for AES-256-GCM encryption
-
-### Sensitive Data Handling
-
-- Phone numbers are SHA-256 hashed before storage
-- API keys are encrypted with AES-256-GCM
-- Passwords are bcrypt hashed (cost factor 10)
-- Logs automatically redact sensitive fields
-
-### Rate Limiting
-
-- Admin API: 100 requests per 15 minutes
-- Login: 5 attempts per 15 minutes
-- WhatsApp messages: 10 per minute per phone number
+- Encrypted API keys (AES-256-GCM)
+- Hashed passwords (bcrypt)
+- Hashed phone numbers (SHA-256)
+- JWT authentication
+- Rate limiting on all endpoints
+- Automatic sensitive data redaction in logs
 
 ## 📝 Database
 
@@ -241,121 +200,50 @@ Never commit `.env` files to version control. Required secrets:
 
 ### Migrations
 
-```bash
-# Generate migration from schema changes
-npm run db:generate
+See [Database Commands](#database-run-from-backend) above for migration workflow.
 
-# Apply migrations to database
-npm run db:migrate
+## 🧪 Testing
 
-# Open Drizzle Studio (database GUI)
-npm run db:studio
-```
+**Status**: TODO - Test infrastructure planned
 
-### SQLite to PostgreSQL Migration
+**Planned Coverage:**
 
-The schema is PostgreSQL-compatible. To migrate:
-
-1. Update `drizzle.config.ts`:
-
-```ts
-export default defineConfig({
-  dialect: "postgresql",
-  dbCredentials: {
-    url: process.env.DATABASE_URL,
-  },
-});
-```
-
-2. Update `src/db/index.ts`:
-
-```ts
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
-```
-
-3. Regenerate migrations and apply.
-
-## 🧪 Testing - TODO
-
-### Backend
-
-- **Unit tests**: Service logic, utilities
-- **Integration tests**: API endpoints, database operations
-- **Coverage target**: 80% minimum
-
-### Frontend
-
-- **Component tests**: React Testing Library + Vitest
-- **E2E tests**: Playwright for critical user flows
-
-## 📚 Documentation
-
-- [Deployment Guide](./DEPLOYMENT.md) - Production deployment with Docker
+- Backend: Unit tests, integration tests, API tests
+- Frontend: Component tests, E2E tests
+- Target: 80% code coverage
 
 ## 🐳 Docker Deployment
 
-### Quick Start with Docker
+**Quick Start:**
 
 ```bash
-# 1. Copy and configure environment variables
-cp .env.example .env
-# Edit .env and set all required values
+# Pull and start with defaults
+docker compose -f docker-compose.prod.yml up -d
 
-# 2. Generate secure keys
-JWT_SECRET=$(openssl rand -base64 32)
-ENCRYPTION_KEY=$(openssl rand -hex 32)
-# Add these to your .env file
-
-# 3. Build and start the container
-npm run docker:build
-npm run docker:up
-
-# 4. View logs
-npm run docker:logs
-
-# 5. Access the application
-# Application: http://localhost:9000 (or your configured PORT)
+# Access: http://localhost:9002
+# Login: admin / wamr123456
 ```
 
-### Docker Login Credentials
+⚠️ **For production**: Create a `.env.prod` file to customize credentials and security keys!
 
-Your admin login credentials are configured in your `.env` file:
+**Customize Settings (Optional):**
 
 ```bash
-ADMIN_USERNAME=admin              # Your admin username (default: admin)
-ADMIN_PASSWORD=changeme1234       # Your admin password
+# Create .env.prod file
+cp .env.example .env.prod
+
+# Edit with your values (especially JWT_SECRET, ENCRYPTION_KEY, ADMIN_PASSWORD)
+# Then start the container
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-**Important:**
+**Access:**
 
-- ⚠️ **Change `ADMIN_PASSWORD` from the default value!**
-- ⚠️ **Generate new `JWT_SECRET` and `ENCRYPTION_KEY` for production!**
-- The credentials from your `.env` file are used for login
+- Local: `http://localhost:9002`
+- Network: `http://YOUR_SERVER_IP:9002`
+- Reverse Proxy: `https://wamr.yourdomain.com`
 
-### Docker Commands
-
-```bash
-# Build the image
-npm run docker:build
-
-# Start the container
-npm run docker:up
-
-# View logs
-npm run docker:logs
-
-# Restart the container
-npm run docker:restart
-
-# Stop the container
-npm run docker:down
-```
-
-For detailed production deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
+📖 **See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions, configuration options, and troubleshooting.**
 
 ## 🤝 Contributing
 

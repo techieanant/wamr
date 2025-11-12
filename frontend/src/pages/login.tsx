@@ -77,11 +77,6 @@ export function LoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="mt-4 text-center text-sm text-gray-600">
-            <p>Default credentials:</p>
-            <p className="mt-1 font-mono text-xs">admin@wamr.local / changeme123456</p>
-          </div>
         </CardContent>
       </Card>
     </div>

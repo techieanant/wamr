@@ -10,61 +10,170 @@ This guide covers production deployment using Docker and development using Turbo
 
 ## Quick Start (Development)
 
-### 1. Install Dependencies
+For development setup, see the main [README.md](README.md#-quick-start).
 
-```bash
-# Install all dependencies using npm workspaces
-npm install
-```
-
-### 2. Configure Environment Variables
-
-Backend:
-
-```bash
-cd backend
-cp .env.example .env
-# Edit .env and set your configuration
-```
-
-Frontend:
-
-```bash
-cd frontend
-cp .env.example .env
-# Edit .env and set VITE_API_URL
-```
-
-### 3. Generate Security Keys
-
-```bash
-# Generate JWT_SECRET
-openssl rand -base64 32
-
-# Generate ENCRYPTION_KEY
-openssl rand -hex 32
-```
-
-Add these to your backend `.env` file.
-
-### 4. Run Development Servers
-
-```bash
-# Run both backend and frontend with Turbo
-npm run dev
-
-# Or run a specific service
-npm run backend:dev   # Backend only
-npm run frontend:dev  # Frontend only
-```
-
-Turbo will handle running both services in parallel with intelligent caching.
+For environment variable details, see [ENVIRONMENT.md](ENVIRONMENT.md).
 
 ## Production Deployment (Docker)
 
 WAMR uses a single combined container that serves both frontend and backend for simplified deployment.
 
-### 1. Setup Environment Variables
+### Using docker-compose.prod.yml
+
+This is the recommended method for production deployments with data stored in the current directory.
+
+**Quick Start (Using Defaults):**
+
+```bash
+# Pull and start with default settings
+docker compose -f docker-compose.prod.yml up -d
+
+# Default credentials: admin / wamr123456
+# Access: http://localhost:9002
+```
+
+⚠️ **For production, you MUST customize the security settings!**
+
+**1. Customize Environment Variables (Recommended for Production)**
+
+Create a `.env.prod` file to override defaults:
+
+```bash
+# Copy example file
+cp .env.example .env.prod
+```
+
+Edit `.env.prod` with your custom values:
+
+```bash
+# Host port mapping (default: 9002)
+HOST_PORT=9002
+
+# Security - REQUIRED! Change these values for production!
+JWT_SECRET=$(openssl rand -base64 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-password
+
+# Optional: Customize paths
+DATA_PATH=./data
+WWEBJS_PATH=./.wwebjs_auth
+
+# Optional: Adjust settings (these have sensible defaults)
+# NODE_ENV=production
+# PORT=9000
+# CORS_ORIGIN=*
+# RATE_LIMIT_WINDOW_MS=900000
+# RATE_LIMIT_MAX_REQUESTS=100
+# LOGIN_RATE_LIMIT_MAX=5
+# MEDIA_MONITORING_INTERVAL_MS=300000
+# LOG_LEVEL=info
+# LOG_PRETTY=false
+```
+
+**2. Run the Container**
+
+```bash
+# Pull the latest image and start
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Stop the container
+docker compose -f docker-compose.prod.yml down
+```
+
+**3. Access the Application**
+
+- **Local network (HTTP)**: `http://YOUR_SERVER_IP:9002` (or your custom HOST_PORT)
+- **Localhost**: `http://localhost:9002`
+- **Via reverse proxy (HTTPS)**: `https://wamr.yourdomain.com`
+
+**4. Default Credentials**
+
+- Username: `admin` (customize with `ADMIN_USERNAME`)
+- Password: `wamr123456` (customize with `ADMIN_PASSWORD`)
+- ⚠️ **Change the password immediately after first login!**
+
+**5. Data Storage**
+
+Data is stored in the current directory (customizable via `.env.prod`):
+
+- `./data/` - SQLite database (customize with `DATA_PATH`)
+- `./.wwebjs_auth/` - WhatsApp session data (customize with `WWEBJS_PATH`)
+
+These folders will be created automatically if they don't exist.
+
+### Environment Variable Reference
+
+The `docker-compose.prod.yml` file uses environment variables with sensible defaults. You can override any of these by creating a `.env.prod` file:
+
+| Variable                       | Default              | Description                         |
+| ------------------------------ | -------------------- | ----------------------------------- |
+| `HOST_PORT`                    | `9002`               | Host port to expose the application |
+| `NODE_ENV`                     | `production`         | Node environment                    |
+| `PORT`                         | `9000`               | Container internal port             |
+| `DATABASE_PATH`                | `/app/data/wamr.db`  | Database path inside container      |
+| `JWT_SECRET`                   | _(default provided)_ | **⚠️ Change for production!**       |
+| `ENCRYPTION_KEY`               | _(default provided)_ | **⚠️ Change for production!**       |
+| `ADMIN_USERNAME`               | `admin`              | Admin username                      |
+| `ADMIN_PASSWORD`               | `wamr123456`         | **⚠️ Change immediately!**          |
+| `CORS_ORIGIN`                  | `*`                  | Allowed CORS origins                |
+| `WHATSAPP_SESSION_PATH`        | `/app/.wwebjs_auth`  | WhatsApp session path               |
+| `RATE_LIMIT_WINDOW_MS`         | `900000`             | Rate limit window (15 min)          |
+| `RATE_LIMIT_MAX_REQUESTS`      | `100`                | Max requests per window             |
+| `LOGIN_RATE_LIMIT_MAX`         | `5`                  | Max login attempts                  |
+| `MEDIA_MONITORING_INTERVAL_MS` | `300000`             | Monitoring interval (5 min)         |
+| `LOG_LEVEL`                    | `info`               | Logging level                       |
+| `LOG_PRETTY`                   | `false`              | Pretty print logs                   |
+| `DATA_PATH`                    | `./data`             | Host path for database              |
+| `WWEBJS_PATH`                  | `./.wwebjs_auth`     | Host path for WhatsApp session      |
+
+### Build from Source
+
+If you want to build the image yourself:
+
+```bash
+# Clone the repository
+git clone https://github.com/techieanant/wamr.git
+cd wamr
+
+# Setup environment
+cp .env.example .env.prod
+# Edit .env.prod with your settings
+
+# Build and run
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Network Access Configuration
+
+WAMR can work on both local network (HTTP) and reverse proxy (HTTPS) simultaneously:
+
+**For Local Network Access:**
+
+- Set `CORS_ORIGIN=*` in environment variables
+- Access via `http://YOUR_SERVER_IP:9002`
+
+**For Reverse Proxy (HTTPS) Access:**
+
+- Set `CORS_ORIGIN=*` or specify your domain: `CORS_ORIGIN=https://wamr.yourdomain.com`
+- Configure your reverse proxy (Nginx Proxy Manager, Caddy, Traefik) to forward to port 9002
+- The backend has `trust proxy` enabled to handle X-Forwarded-Proto headers
+
+**Both at the same time:**
+
+- Use `CORS_ORIGIN=*` to allow access from any origin
+- Access locally via HTTP and remotely via HTTPS reverse proxy
+
+### Alternative Deployment (Using docker-compose.yml)
+
+If you prefer using the legacy method with docker-compose.yml and a single `.env` file:
+
+**1. Setup Environment Variables**
 
 ```bash
 cp .env.example .env
@@ -90,15 +199,15 @@ LOG_LEVEL=info
 LOG_PRETTY=false
 ```
 
-**Important**: No need to configure `VITE_API_URL` or `CORS_ORIGIN` - the frontend uses relative paths (`/api`) since it's served from the same origin.
+**Important**: No need to configure `VITE_API_URL` - the frontend uses relative paths (`/api`) since it's served from the same origin. Configure `CORS_ORIGIN=*` if accessing via reverse proxy or local network.
 
-### 2. Build and Run
+**2. Build and Run**
 
 ```bash
 # Build the Docker image
 npm run docker:build
 
-# Start the container
+# Start the container (uses docker-compose.yml)
 npm run docker:up
 
 # View logs
@@ -108,7 +217,7 @@ npm run docker:logs
 npm run docker:down
 ```
 
-### 3. Access the Application
+**3. Access the Application**
 
 Everything is available on a single port (default 4000, or your configured PORT):
 
@@ -116,99 +225,35 @@ Everything is available on a single port (default 4000, or your configured PORT)
 - **API**: `http://192.168.1.12:9000/api`
 - **Health Check**: `http://192.168.1.12:9000/health`
 
-### 4. Persistent Data
+**4. Persistent Data**
 
 Docker volumes are automatically created for:
 
 - `wamr-data`: SQLite database
 - `wamr-whatsapp-auth`: WhatsApp session data
 
+---
+
 ### Benefits of Combined Container
 
 - ✅ Simpler deployment (one container serving everything)
-- ✅ No CORS configuration needed (same origin)
-- ✅ No URL configuration needed (uses relative paths)
 - ✅ Smaller resource footprint
 - ✅ Single port to expose
 - ✅ Real-time WebSocket updates work seamlessly
 - ✅ Faster build times with optimized Dockerfile
 
-## Turborepo Commands
+## Configuration Reference
 
-The monorepo uses Turborepo for efficient task orchestration. **Use these commands directly (not `npm run`):**
+📖 For complete environment variable documentation, see [ENVIRONMENT.md](ENVIRONMENT.md).
 
-```bash
-# Development
-npm run dev              # Run all services in parallel
-npm run backend:dev      # Run backend only
-npm run frontend:dev     # Run frontend only
+📖 For development setup and commands, see [README.md](README.md).
 
-# Building
-npm run build            # Build all packages
-npm run backend:build    # Build backend only
-npm run frontend:build   # Build frontend only
-
-# Testing & Quality
-npm run test             # Run all tests
-npm run lint             # Lint all packages
-npm run format           # Format all code
-npm run format:check     # Check code formatting
-
-# Cleanup
-npm run clean            # Clean all build artifacts and caches
-```
-
-### Why Turbo?
-
-Turbo provides significant benefits over running `npm run` in each package:
-
-- **Smart Caching**: Build outputs are cached. If nothing changed, tasks are instant
-- **Parallel Execution**: Runs independent tasks simultaneously across workspaces
-- **Dependency Awareness**: Understands workspace dependencies and runs tasks in the right order
-- **Incremental Builds**: Only rebuilds what changed
-- **Task Pipeline**: Defines task relationships (e.g., test depends on build)
-
-Example: Running `npm run build` will:
-
-1. Build backend (has no dependencies)
-2. Build frontend in parallel (if no shared dependencies)
-3. Use cached results if source code hasn't changed
-
-### Turbo vs Individual Commands
-
-❌ **Don't do this:**
+**Generate Security Keys:**
 
 ```bash
-cd backend && npm run dev
-cd frontend && npm run dev  # In another terminal
+openssl rand -base64 32  # JWT_SECRET
+openssl rand -hex 32     # ENCRYPTION_KEY
 ```
-
-✅ **Do this:**
-
-```bash
-npm run dev  # Runs both with one command
-```
-
-The difference: Turbo manages both processes, handles logs better, and provides intelligent caching.
-
-## Environment Variables
-
-### Required
-
-- `JWT_SECRET` - JWT signing secret (generate with: `openssl rand -base64 32`)
-- `ENCRYPTION_KEY` - 64 hex character encryption key (generate with: `openssl rand -hex 32`)
-- `ADMIN_PASSWORD` - Admin user password (change from default!)
-
-### Optional
-
-- `PORT` - Application port (default: 4000)
-- `ADMIN_USERNAME` - Admin username (default: admin)
-- `LOG_LEVEL` - Logging level: debug, info, warn, error (default: info)
-- `LOG_PRETTY` - Pretty print logs in dev (default: true, set false for production)
-- `RATE_LIMIT_WINDOW_MS` - Rate limit window in milliseconds (default: 900000 = 15 min)
-- `RATE_LIMIT_MAX_REQUESTS` - Max requests per window (default: 100)
-- `LOGIN_RATE_LIMIT_MAX` - Max login attempts per window (default: 5)
-- `MEDIA_MONITORING_INTERVAL_MS` - Interval to check for completed media requests (default: 300000 = 5 min)
 
 ## Health Checks
 

@@ -1,0 +1,39 @@
+name: wamr
+services:
+  wamr:
+    container_name: wamr
+    image: ghcr.io/techieanant/wamr:latest
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-9002}:9000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-9000}
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/wamr.db}
+      - JWT_SECRET=${JWT_SECRET:-3qv6thWNpfw9H+lRw7u0jyNGVkZx6xcC71r/EPY62Ck=}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-96a4f9ff8eb54b577abf567609167e381b40bb9d2308e574a235bd90c13b5133}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-wamr123456}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - WHATSAPP_SESSION_PATH=${WHATSAPP_SESSION_PATH:-/app/.wwebjs_auth}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
+      - LOGIN_RATE_LIMIT_MAX=${LOGIN_RATE_LIMIT_MAX:-5}
+      - MEDIA_MONITORING_INTERVAL_MS=${MEDIA_MONITORING_INTERVAL_MS:-300000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_PRETTY=${LOG_PRETTY:-false}
+    volumes:
+      - ${DATA_PATH:-./data}:/app/data
+      - ${WWEBJS_PATH:-./.wwebjs_auth}:/app/.wwebjs_auth
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:9000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
