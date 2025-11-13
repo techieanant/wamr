@@ -50,6 +50,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
+# Copy root package.json (for version info)
+COPY package.json ./package.json
+
 # Copy backend package files
 COPY backend/package*.json ./
 

@@ -14,12 +14,20 @@ const __dirname = dirname(__filename);
  */
 export async function getSystemInfo(_req: Request, res: Response): Promise<void> {
   try {
-    // Read version from package.json
+    // Read version from root package.json (monorepo root)
     let version = '1.0.0';
     let schemaVersion = '1.0.0';
 
     try {
-      const packageJsonPath = join(__dirname, '../../../package.json');
+      // In Docker: /app/package.json
+      // In dev: backend/src/api/controllers -> ../../../../package.json
+      let packageJsonPath = join(__dirname, '../../../../package.json');
+
+      // Check if we're in Docker (built files are in /app/dist)
+      if (__dirname.includes('/app/dist')) {
+        packageJsonPath = '/app/package.json';
+      }
+
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
       version = packageJson.version || '1.0.0';
       schemaVersion = packageJson.schemaVersion || '1.0.0';
