@@ -24,6 +24,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -48,6 +52,7 @@ jobs:
             type=semver,pattern={{major}}
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.package-version.outputs.version }},enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v5
