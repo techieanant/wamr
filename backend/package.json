@@ -68,7 +68,7 @@
     "@typescript-eslint/parser": "^7.2.0",
     "@vitest/coverage-v8": "^1.4.0",
     "drizzle-kit": "^0.24.0",
-    "esbuild": "^0.19.12",
+    "esbuild": "^0.27.0",
     "eslint": "^8.57.0",
     "prettier": "^3.2.5",
     "tsx": "^4.7.1",
