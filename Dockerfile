@@ -50,10 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy root package.json (for version info)
-COPY package.json ./package.json
-
-# Copy backend package files
+# Copy backend package files (including lock file for exact dependency versions)
 COPY backend/package*.json ./
 
 # Install production dependencies

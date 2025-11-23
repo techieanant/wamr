@@ -106,51 +106,67 @@ export function useWhatsApp() {
     if (!socketConnected) return;
 
     // Listen to 'whatsapp:status' events (connection state changes with phone number)
-    const cleanupStatus = on('whatsapp:status', (data: WhatsAppStatusEvent) => {
-      queryClient.setQueryData(
-        ['whatsapp', 'status'],
-        (old: WhatsAppConnection | undefined): WhatsAppConnection => {
-          const status = data.status.toUpperCase() as WhatsAppConnection['status'];
-          const isConnected = data.status === 'connected';
+    const cleanupStatus = on(
+      'whatsapp:status',
+      (data: WhatsAppStatusEvent | WhatsAppStatusEvent[]) => {
+        // Handle array-wrapped data from Socket.IO
+        const statusData = Array.isArray(data) ? data[0] : data;
 
-          if (old) {
-            return {
-              ...old,
-              isConnected,
-              status,
-              phoneNumber: data.phoneNumber || old.phoneNumber || null,
-            };
+        logger.debug('📱 Received whatsapp:status event:', statusData);
+
+        queryClient.setQueryData(
+          ['whatsapp', 'status'],
+          (old: WhatsAppConnection | undefined): WhatsAppConnection => {
+            const status = statusData.status.toUpperCase() as WhatsAppConnection['status'];
+            const isConnected = statusData.status === 'connected';
+
+            const newData: WhatsAppConnection = old
+              ? {
+                  ...old,
+                  isConnected,
+                  status,
+                  phoneNumber: statusData.phoneNumber || old.phoneNumber || null,
+                }
+              : {
+                  isConnected,
+                  status,
+                  phoneNumber: statusData.phoneNumber || null,
+                  lastConnectedAt: null,
+                  filterType: null,
+                  filterValue: null,
+                  autoApprovalMode: 'auto_approve',
+                };
+
+            logger.debug('📝 Updated query data:', { old, new: newData });
+            return newData;
           }
+        );
 
-          return {
-            isConnected,
-            status,
-            phoneNumber: data.phoneNumber || null,
-            lastConnectedAt: null,
-            filterType: null,
-            filterValue: null,
-            autoApprovalMode: 'auto_approve',
-          };
+        // When connection completes, refetch full status to get filter settings
+        if (statusData.status === 'connected') {
+          logger.debug('Received connected status, forcing immediate refetch');
+          queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'], refetchType: 'none' });
         }
-      );
-
-      // When connection completes, refetch full status to get filter settings
-      if (data.status === 'connected') {
-        queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'], refetchType: 'none' });
       }
-    });
+    );
 
     // Listen to 'status-change' events (loading progress updates)
-    const cleanupStatusChange = on('status-change', (data) => {
-      if (!data.status) return;
+    const cleanupStatusChange = on('status-change', (data: unknown) => {
+      // Handle array-wrapped data from Socket.IO
+      const statusData = (Array.isArray(data) ? data[0] : data) as {
+        status?: string;
+        progress?: number;
+      };
+
+      if (!statusData.status) return;
 
       queryClient.setQueryData(
         ['whatsapp', 'status'],
         (old: WhatsAppConnection | undefined): WhatsAppConnection => {
-          const status = data.status.toUpperCase() as WhatsAppConnection['status'];
-          const isConnected = data.status === 'connected';
+          const status = statusData.status.toUpperCase() as WhatsAppConnection['status'];
+          const isConnected = statusData.status === 'connected';
 
           if (old) {
             return { ...old, isConnected, status };
@@ -169,7 +185,7 @@ export function useWhatsApp() {
       );
 
       // When loading reaches 100%, wait a bit then refetch to get final connected status
-      if (data.status === 'loading' && data.progress === 100) {
+      if (statusData.status === 'loading' && statusData.progress === 100) {
         logger.debug('Loading reached 100%, scheduling status refetch...');
         setTimeout(() => {
           queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });

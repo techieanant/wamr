@@ -455,4 +455,68 @@ describe('OverseerrClient', () => {
       await expect(client.getSonarrServers()).rejects.toThrow('Failed to fetch servers');
     });
   });
+
+  describe('getTvDetails', () => {
+    it('should return TV show details with season information', async () => {
+      const mockResponse = {
+        data: {
+          id: 1399,
+          name: 'Game of Thrones',
+          overview: 'Seven noble families fight for control of the mythical land of Westeros.',
+          seasons: [
+            {
+              id: 3624,
+              seasonNumber: 1,
+              name: 'Season 1',
+              episodeCount: 10,
+              airDate: '2011-04-17',
+              overview: 'The first season of Game of Thrones',
+              posterPath: '/season1.jpg',
+            },
+            {
+              id: 3625,
+              seasonNumber: 2,
+              name: 'Season 2',
+              episodeCount: 10,
+              airDate: '2012-04-01',
+              overview: 'The second season of Game of Thrones',
+              posterPath: '/season2.jpg',
+            },
+          ],
+          mediaInfo: {
+            id: 1,
+            tmdbId: 1399,
+            tvdbId: 121361,
+            status: 4, // Partially available
+            requests: [],
+            seasons: [
+              {
+                id: 1,
+                seasonNumber: 1,
+                status: 5, // Season 1 is available
+              },
+              {
+                id: 2,
+                seasonNumber: 2,
+                status: 3, // Season 2 is processing
+              },
+            ],
+          },
+        },
+      };
+      mockAxiosInstance.get.mockResolvedValue(mockResponse);
+
+      const result = await client.getTvDetails(1399);
+
+      expect(result).toEqual(mockResponse.data);
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/v1/tv/1399');
+    });
+
+    it('should throw error when fetching TV details fails', async () => {
+      const mockError = new Error('TV show not found');
+      mockAxiosInstance.get.mockRejectedValue(mockError);
+
+      await expect(client.getTvDetails(99999)).rejects.toThrow('TV show not found');
+    });
+  });
 });

@@ -361,6 +361,7 @@ describe('RequestApprovalService', () => {
             serverId: 1,
             profileId: 1,
             rootFolder: '/movies',
+            seasons: 'all', // Added: default to 'all' when no selectedSeasons
           });
         });
       });

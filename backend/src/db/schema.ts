@@ -52,13 +52,22 @@ export const conversationSessions = sqliteTable(
     id: text('id').primaryKey(), // UUID v4
     phoneNumberHash: text('phone_number_hash').notNull(),
     state: text('state', {
-      enum: ['IDLE', 'SEARCHING', 'AWAITING_SELECTION', 'AWAITING_CONFIRMATION', 'PROCESSING'],
+      enum: [
+        'IDLE',
+        'SEARCHING',
+        'AWAITING_SELECTION',
+        'AWAITING_SEASON_SELECTION',
+        'AWAITING_CONFIRMATION',
+        'PROCESSING',
+      ],
     }).notNull(),
     mediaType: text('media_type', { enum: ['movie', 'series'] }),
     searchQuery: text('search_query'),
     searchResults: text('search_results', { mode: 'json' }), // JSON array
     selectedResultIndex: integer('selected_result_index'),
     selectedResult: text('selected_result', { mode: 'json' }), // JSON object
+    availableSeasons: text('available_seasons', { mode: 'json' }), // JSON array of season info
+    selectedSeasons: text('selected_seasons', { mode: 'json' }), // JSON array of season numbers
     createdAt: text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
@@ -124,6 +133,10 @@ export const requestHistory = sqliteTable(
     tvdbId: integer('tvdb_id'),
     serviceType: text('service_type', { enum: ['radarr', 'sonarr', 'overseerr'] }),
     serviceConfigId: integer('service_config_id'),
+    selectedSeasons: text('selected_seasons', { mode: 'json' }), // JSON array of season numbers for series requests
+    notifiedSeasons: text('notified_seasons', { mode: 'json' }), // JSON array of season numbers that user has been notified about
+    notifiedEpisodes: text('notified_episodes', { mode: 'json' }), // JSON object: {"1": [1,2,3], "2": [1]} - season -> episode numbers notified
+    totalSeasons: integer('total_seasons'), // Total number of available seasons (for detecting new releases)
     status: text('status', {
       enum: ['PENDING', 'APPROVED', 'REJECTED', 'SUBMITTED', 'FAILED'],
     }).notNull(),

@@ -13,6 +13,10 @@ import {
   deserializeSearchResults,
   serializeSelectedResult,
   deserializeSelectedResult,
+  serializeAvailableSeasons,
+  deserializeAvailableSeasons,
+  serializeSelectedSeasons,
+  deserializeSelectedSeasons,
 } from '../models/conversation-session.model.js';
 import { logger } from '../config/logger.js';
 
@@ -40,6 +44,10 @@ export class ConversationSessionRepository {
         searchResults: serializeSearchResults(input.searchResults || null) as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selectedResult: serializeSelectedResult(input.selectedResult || null) as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        availableSeasons: serializeAvailableSeasons(input.availableSeasons || null) as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        selectedSeasons: serializeSelectedSeasons(input.selectedSeasons || null) as any,
       })
       .returning();
 
@@ -124,6 +132,16 @@ export class ConversationSessionRepository {
         updates.selectedResult !== undefined
           ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (serializeSelectedResult(updates.selectedResult) as any)
+          : undefined,
+      availableSeasons:
+        updates.availableSeasons !== undefined
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (serializeAvailableSeasons(updates.availableSeasons) as any)
+          : undefined,
+      selectedSeasons:
+        updates.selectedSeasons !== undefined
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (serializeSelectedSeasons(updates.selectedSeasons) as any)
           : undefined,
     };
 
@@ -237,6 +255,8 @@ export class ConversationSessionRepository {
       ...session,
       searchResults: deserializeSearchResults(session.searchResults),
       selectedResult: deserializeSelectedResult(session.selectedResult),
+      availableSeasons: deserializeAvailableSeasons(session.availableSeasons),
+      selectedSeasons: deserializeSelectedSeasons(session.selectedSeasons),
     };
   }
 }

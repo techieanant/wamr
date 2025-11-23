@@ -13,6 +13,7 @@ export interface MediaRequest {
   tvdbId?: number;
   serviceType?: ServiceType;
   serviceConfigId?: number;
+  selectedSeasons?: number[];
   status: RequestStatus;
   submittedAt?: string;
   errorMessage?: string;

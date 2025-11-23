@@ -229,7 +229,14 @@ function setupGracefulShutdown(httpServer: HttpServer): void {
  */
 async function main(): Promise<void> {
   try {
-    logger.info('Starting WAMR backend...');
+    logger.info(
+      {
+        logLevel: env.LOG_LEVEL,
+        nodeEnv: env.NODE_ENV,
+        port: env.PORT,
+      },
+      'Starting WAMR backend...'
+    );
 
     // Start server
     const httpServer = await startServer();

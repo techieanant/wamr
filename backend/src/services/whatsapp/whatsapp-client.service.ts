@@ -15,6 +15,7 @@ class WhatsAppClientService {
   private client: InstanceType<typeof Client> | null = null;
   private isInitializing = false;
   private hasCalledReady = false; // Track if ready callback has been called for current connection
+  private initializationTimeout: NodeJS.Timeout | null = null;
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: Message) => void) | null = null;
   private readyCallback: (() => void) | null = null;
@@ -62,6 +63,15 @@ class WhatsAppClientService {
     }
 
     try {
+      logger.debug(
+        {
+          sessionPath: env.WHATSAPP_SESSION_PATH,
+          clientId: 'wamr-admin',
+          nodeEnv: process.env.NODE_ENV,
+        },
+        'Creating WhatsApp client with configuration'
+      );
+
       this.client = new Client({
         authStrategy: new LocalAuth({
           dataPath: env.WHATSAPP_SESSION_PATH,
@@ -78,15 +88,36 @@ class WhatsAppClientService {
             '--no-zygote',
             '--disable-gpu',
           ],
+          // Don't set executablePath - let whatsapp-web.js find Chrome automatically
+          // The npm install will download the correct Chrome version
         },
       });
 
+      logger.debug('WhatsApp Client instance created, setting up event handlers...');
       this.setupEventHandlers();
 
+      // Set a timeout for initialization (60 seconds)
+      // If client doesn't emit 'ready' or 'qr' within this time, assume restoration failed
+      this.initializationTimeout = setTimeout(async () => {
+        if (this.isInitializing && !this.isReady()) {
+          logger.error(
+            'WhatsApp initialization timeout - session restoration appears to have failed'
+          );
+          await this.clearSessionAndRestart();
+        }
+      }, 60000); // 60 second timeout
+
+      logger.debug('Calling client.initialize()...');
       await this.client.initialize();
       logger.info('WhatsApp client.initialize() completed, waiting for ready event...');
     } catch (error) {
-      logger.error({ error }, 'Failed to initialize WhatsApp client');
+      const errorDetails = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        type: error instanceof Error ? error.constructor.name : typeof error,
+        error: error,
+      };
+      logger.error(errorDetails, 'Failed to initialize WhatsApp client');
       this.isInitializing = false;
       this.client = null;
       throw error;
@@ -128,6 +159,12 @@ class WhatsAppClientService {
     this.client.on('qr', async (qr: string) => {
       logger.info('QR code generated');
 
+      // Clear initialization timeout since we got a QR code (client is working)
+      if (this.initializationTimeout) {
+        clearTimeout(this.initializationTimeout);
+        this.initializationTimeout = null;
+      }
+
       try {
         // Update connection status
         await this.updateConnectionStatus('CONNECTING');
@@ -157,6 +194,12 @@ class WhatsAppClientService {
     this.client.on('ready', async () => {
       logger.info('WhatsApp client is ready');
       this.isInitializing = false; // Reset flag on successful connection
+
+      // Clear initialization timeout since we're ready
+      if (this.initializationTimeout) {
+        clearTimeout(this.initializationTimeout);
+        this.initializationTimeout = null;
+      }
 
       try {
         // Get connected phone number
@@ -201,11 +244,18 @@ class WhatsAppClientService {
     });
 
     // Authentication failure
-    this.client.on('auth_failure', (error: Error) => {
-      logger.error({ error }, 'WhatsApp authentication failed');
-      this.updateConnectionStatus('DISCONNECTED').catch((err) => {
-        logger.error({ error: err }, 'Failed to update connection status');
-      });
+    this.client.on('auth_failure', async (error: Error) => {
+      logger.error({ error }, 'WhatsApp authentication failed - will clear session and retry');
+      this.isInitializing = false;
+
+      try {
+        await this.updateConnectionStatus('DISCONNECTED');
+
+        // Clear the failed session and try fresh
+        await this.clearSessionAndRestart();
+      } catch (err) {
+        logger.error({ error: err }, 'Failed to handle auth failure');
+      }
     });
 
     // Disconnected event
@@ -363,6 +413,12 @@ class WhatsAppClientService {
         stackTrace: new Error().stack,
       });
 
+      // Clear initialization timeout
+      if (this.initializationTimeout) {
+        clearTimeout(this.initializationTimeout);
+        this.initializationTimeout = null;
+      }
+
       if (this.client) {
         logger.info('Disconnecting WhatsApp client...');
         await this.client.destroy();
@@ -401,6 +457,77 @@ class WhatsAppClientService {
     } catch (error) {
       logger.error({ error }, 'Error disconnecting WhatsApp client');
       throw error;
+    }
+  }
+
+  /**
+   * Clear failed session and restart with fresh QR code
+   * Called when session restoration fails or times out
+   */
+  private async clearSessionAndRestart(): Promise<void> {
+    try {
+      logger.info('Clearing failed session and restarting with fresh QR code...');
+
+      // Clear timeout if it exists
+      if (this.initializationTimeout) {
+        clearTimeout(this.initializationTimeout);
+        this.initializationTimeout = null;
+      }
+
+      // Destroy existing client if any
+      if (this.client) {
+        try {
+          await this.client.destroy();
+        } catch (err) {
+          logger.warn({ err }, 'Error destroying client during session clear');
+        }
+        this.client = null;
+      }
+
+      this.isInitializing = false;
+
+      // Kill any zombie Chromium processes
+      try {
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        await execAsync('pkill -f "puppeteer-core/.local-chromium" || true');
+        logger.info('Killed zombie Chromium processes');
+      } catch (err) {
+        logger.warn({ err }, 'Failed to kill Chromium processes');
+      }
+
+      // Wait for processes to fully terminate
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Delete session files
+      const sessionPath = env.WHATSAPP_SESSION_PATH;
+      const fs = await import('fs/promises');
+
+      try {
+        await fs.rm(sessionPath, { recursive: true, force: true });
+        logger.info({ sessionPath }, 'Deleted failed session directory');
+      } catch (err) {
+        logger.warn({ err, sessionPath }, 'Failed to delete session directory (may not exist)');
+      }
+
+      // Wait a bit more before reinitializing
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Emit disconnected status
+      const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
+      qrCodeEmitterService.emitConnectionStatus('disconnected');
+
+      // Reinitialize to get fresh QR code
+      logger.info('Reinitializing WhatsApp client for fresh QR code...');
+      await this.initialize();
+    } catch (error) {
+      logger.error({ error }, 'Error clearing session and restarting');
+      this.isInitializing = false;
+
+      // Emit error status to frontend
+      const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
+      qrCodeEmitterService.emitConnectionStatus('disconnected');
     }
   }
 

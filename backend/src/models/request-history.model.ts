@@ -55,6 +55,10 @@ export interface UpdateRequestHistory {
   errorMessage?: string | null;
   adminNotes?: string | null;
   conversationLog?: ConversationLogMessage[] | null;
+  selectedSeasons?: number[] | null;
+  notifiedSeasons?: number[] | null;
+  notifiedEpisodes?: Record<string, number[]> | null;
+  totalSeasons?: number | null;
   updatedAt?: string;
 }
 

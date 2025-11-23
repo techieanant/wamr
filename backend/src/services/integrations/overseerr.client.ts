@@ -65,6 +65,33 @@ interface OverseerrRequestResponse {
   seasons: unknown[];
 }
 
+interface OverseerrTvDetails {
+  id: number;
+  name: string;
+  overview: string;
+  seasons: Array<{
+    id: number;
+    seasonNumber: number;
+    name: string;
+    episodeCount: number;
+    airDate?: string;
+    overview?: string;
+    posterPath?: string;
+  }>;
+  mediaInfo?: {
+    id: number;
+    tmdbId: number;
+    tvdbId?: number;
+    status: number; // 1 = unknown, 2 = pending, 3 = processing, 4 = partially available, 5 = available
+    requests?: unknown[];
+    seasons?: Array<{
+      id: number;
+      seasonNumber: number;
+      status: number; // Same as media status codes
+    }>;
+  };
+}
+
 interface OverseerrRadarrServer {
   id: number;
   name: string;
@@ -324,6 +351,22 @@ export class OverseerrClient {
       }));
     } catch (error) {
       logger.error({ error }, 'Failed to fetch Overseerr Sonarr servers');
+      throw error;
+    }
+  }
+
+  /**
+   * Get TV show details including season availability
+   */
+  async getTvDetails(tvId: number): Promise<OverseerrTvDetails> {
+    try {
+      const response = await this.client.get<OverseerrTvDetails>(`/api/v1/tv/${tvId}`);
+
+      logger.debug({ tvId, name: response.data.name }, 'Fetched TV show details from Overseerr');
+
+      return response.data;
+    } catch (error) {
+      logger.error({ error, tvId }, 'Failed to fetch TV show details from Overseerr');
       throw error;
     }
   }

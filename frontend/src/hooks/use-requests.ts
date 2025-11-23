@@ -115,49 +115,52 @@ export function useRequests(page: number = 1, limit: number = 50, status?: Reque
     if (!socketConnected) return;
 
     // Listen to 'request:new' events (new requests created)
-    const cleanupNew = on('request:new', () => {
+    const cleanupNew = on('request:new', (data: unknown) => {
       // Invalidate and refetch requests query to show new request immediately
       queryClient.invalidateQueries({
         queryKey: ['requests'],
         refetchType: 'active', // Force refetch for active queries
       });
+
+      // Return the new request data for the caller to use (e.g., show toast)
+      return data;
     });
 
     // Listen to 'request:status-update' events (request status changed)
-    const cleanupStatusUpdate = on(
-      'request:status-update',
-      (data: {
+    const cleanupStatusUpdate = on('request:status-update', (data: unknown) => {
+      // Handle array-wrapped data from Socket.IO
+      const statusData = (Array.isArray(data) ? data[0] : data) as {
         requestId: number;
         status: string;
         previousStatus: string;
         errorMessage?: string;
         timestamp: string;
-      }) => {
-        // Update the specific request in all queries
-        queryClient.setQueriesData(
-          { queryKey: ['requests'] },
-          (oldData: RequestsResponse | undefined): RequestsResponse | undefined => {
-            if (!oldData) return oldData;
+      };
 
-            return {
-              ...oldData,
-              requests: oldData.requests.map((request) =>
-                request.id === data.requestId
-                  ? {
-                      ...request,
-                      status: data.status as RequestStatus,
-                      errorMessage: data.errorMessage,
-                    }
-                  : request
-              ),
-            };
-          }
-        );
+      // Update the specific request in all queries
+      queryClient.setQueriesData(
+        { queryKey: ['requests'] },
+        (oldData: RequestsResponse | undefined): RequestsResponse | undefined => {
+          if (!oldData) return oldData;
 
-        // Also invalidate to ensure consistency
-        queryClient.invalidateQueries({ queryKey: ['requests'], refetchType: 'none' });
-      }
-    );
+          return {
+            ...oldData,
+            requests: oldData.requests.map((request) =>
+              request.id === statusData.requestId
+                ? {
+                    ...request,
+                    status: statusData.status as RequestStatus,
+                    errorMessage: statusData.errorMessage,
+                  }
+                : request
+            ),
+          };
+        }
+      );
+
+      // Also invalidate to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['requests'], refetchType: 'none' });
+    });
 
     return () => {
       cleanupNew();
@@ -189,6 +192,9 @@ export function useRequests(page: number = 1, limit: number = 50, status?: Reque
     updateError: updateStatusMutation.error,
     approveError: approveMutation.error,
     rejectError: rejectMutation.error,
+
+    // Socket connection for external toast handling
+    socket: { on, isConnected: socketConnected },
   };
 }
 

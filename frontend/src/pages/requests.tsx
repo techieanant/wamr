@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRequests } from '../hooks/use-requests';
 import { useToast } from '../hooks/use-toast';
 import type { RequestStatus } from '../types/request.types';
@@ -56,7 +56,23 @@ export default function RequestsPage() {
     isApproving,
     rejectRequest,
     isRejecting,
+    socket,
   } = useRequests(page, 50, statusFilter === 'ALL' ? undefined : statusFilter);
+
+  // Listen for new request events and show toast
+  useEffect(() => {
+    if (!socket.isConnected) return;
+
+    const cleanup = socket.on('request:new', (data: unknown) => {
+      const requestData = data as { title?: string; user?: string };
+      toast({
+        title: 'New Request Received',
+        description: `${requestData.title || 'A new media request'} from user ${requestData.user || 'Unknown'}`,
+      });
+    });
+
+    return cleanup;
+  }, [socket, toast]);
 
   const handleDelete = (requestId: number) => {
     setRequestToDelete(requestId);
@@ -261,6 +277,17 @@ export default function RequestsPage() {
                       <Badge variant="outline">
                         {request.mediaType === 'movie' ? '🎬 Movie' : '📺 Series'}
                       </Badge>
+                      {request.mediaType === 'series' &&
+                        request.selectedSeasons &&
+                        request.selectedSeasons.length > 0 && (
+                          <div className="mt-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {request.selectedSeasons.length === 1
+                                ? `S${request.selectedSeasons[0]}`
+                                : `${request.selectedSeasons.length} seasons`}
+                            </Badge>
+                          </div>
+                        )}
                     </TableCell>
                     <TableCell>
                       {request.serviceType ? (
@@ -424,6 +451,12 @@ export default function RequestsPage() {
               placeholder="Enter reason for rejection..."
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isRejecting) {
+                  e.preventDefault();
+                  confirmReject();
+                }
+              }}
               className="mt-2"
             />
           </div>

@@ -11,7 +11,8 @@ import { logger } from '../../config/logger.js';
 const STATE_TRANSITIONS: Record<ConversationState, ConversationState[]> = {
   IDLE: ['SEARCHING', 'IDLE'], // Allow self-transition for cancel/timeout
   SEARCHING: ['AWAITING_SELECTION', 'IDLE'], // IDLE for no results
-  AWAITING_SELECTION: ['AWAITING_CONFIRMATION', 'IDLE'], // IDLE for cancel
+  AWAITING_SELECTION: ['AWAITING_SEASON_SELECTION', 'AWAITING_CONFIRMATION', 'IDLE'], // Season selection for TV series
+  AWAITING_SEASON_SELECTION: ['AWAITING_CONFIRMATION', 'IDLE'], // IDLE for cancel
   AWAITING_CONFIRMATION: ['PROCESSING', 'IDLE'], // IDLE for cancel
   PROCESSING: ['IDLE'],
 };
@@ -24,6 +25,7 @@ export type StateMachineAction =
   | { type: 'SEARCH_COMPLETED'; results: NormalizedResult[] }
   | { type: 'SEARCH_FAILED' }
   | { type: 'SELECT_RESULT'; index: number; result: NormalizedResult }
+  | { type: 'SELECT_SEASONS'; seasons: number[] | 'all' }
   | { type: 'CONFIRM' }
   | { type: 'REJECT' }
   | { type: 'PROCESSING_COMPLETED' }
@@ -93,6 +95,9 @@ export class StateMachine {
 
       case 'SELECT_RESULT':
         return this.handleSelectResult(currentState);
+
+      case 'SELECT_SEASONS':
+        return this.handleSelectSeasons(currentState);
 
       case 'CONFIRM':
         return this.handleConfirm(currentState);
@@ -178,7 +183,8 @@ export class StateMachine {
 
   /**
    * Handle SELECT_RESULT action
-   * AWAITING_SELECTION → AWAITING_CONFIRMATION
+   * AWAITING_SELECTION → AWAITING_CONFIRMATION (for movies)
+   * AWAITING_SELECTION → AWAITING_SEASON_SELECTION (for TV series)
    */
   private handleSelectResult(currentState: ConversationState): StateTransitionResult {
     if (currentState !== 'AWAITING_SELECTION') {
@@ -186,6 +192,28 @@ export class StateMachine {
         newState: currentState,
         valid: false,
         error: 'Can only select result from AWAITING_SELECTION state',
+      };
+    }
+
+    // Note: The actual decision of which state to go to (AWAITING_SEASON_SELECTION vs AWAITING_CONFIRMATION)
+    // is made in the conversation service based on media type
+    // This just validates that either transition is valid
+    return {
+      newState: currentState,
+      valid: true,
+    };
+  }
+
+  /**
+   * Handle SELECT_SEASONS action
+   * AWAITING_SEASON_SELECTION → AWAITING_CONFIRMATION
+   */
+  private handleSelectSeasons(currentState: ConversationState): StateTransitionResult {
+    if (currentState !== 'AWAITING_SEASON_SELECTION') {
+      return {
+        newState: currentState,
+        valid: false,
+        error: 'Can only select seasons from AWAITING_SEASON_SELECTION state',
       };
     }
 
@@ -256,6 +284,7 @@ export class StateMachine {
       IDLE: 'No active conversation',
       SEARCHING: 'Searching for media',
       AWAITING_SELECTION: 'Waiting for user to select from results',
+      AWAITING_SEASON_SELECTION: 'Waiting for user to select seasons',
       AWAITING_CONFIRMATION: 'Waiting for user confirmation',
       PROCESSING: 'Submitting request to media service',
     };
@@ -274,7 +303,11 @@ export class StateMachine {
    * Check if state requires user input
    */
   requiresUserInput(state: ConversationState): boolean {
-    return state === 'AWAITING_SELECTION' || state === 'AWAITING_CONFIRMATION';
+    return (
+      state === 'AWAITING_SELECTION' ||
+      state === 'AWAITING_SEASON_SELECTION' ||
+      state === 'AWAITING_CONFIRMATION'
+    );
   }
 
   /**
@@ -285,6 +318,7 @@ export class StateMachine {
       IDLE: 'Media request (e.g., "I want to watch Inception")',
       SEARCHING: 'Please wait...',
       AWAITING_SELECTION: 'Selection number (1-5) or CANCEL',
+      AWAITING_SEASON_SELECTION: 'Season numbers (e.g., "1,2,3" or "all") or CANCEL',
       AWAITING_CONFIRMATION: 'YES to confirm or NO to cancel',
       PROCESSING: 'Please wait...',
     };

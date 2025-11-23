@@ -127,7 +127,14 @@ class SocketClient {
     if (import.meta.env.DEV) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.socket.onAny((eventName, ...args: any[]) => {
-        logger.debug('Socket received event:', eventName, args);
+        logger.debug('🔵 Socket received event:', eventName, args);
+
+        // Try manually calling handlers to test
+        if (eventName === 'whatsapp:status') {
+          logger.warn('⚠️ whatsapp:status event received, checking if handlers will fire...');
+          // The socket.on handlers should fire automatically, but let's verify
+        }
+
         if (eventName === 'whatsapp:qr') {
           logger.debug('whatsapp:qr event data details:', JSON.stringify(args, null, 2));
         }
@@ -155,6 +162,7 @@ class SocketClient {
       }
       return;
     }
+    logger.debug(`📝 Registering handler for event: ${String(event)}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.socket.on(event, handler as any);
   }

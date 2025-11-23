@@ -47,7 +47,12 @@ class MessageHandlerService {
       const session = await conversationSessionRepository.findByPhoneHash(phoneNumberHash);
       if (
         session &&
-        ['AWAITING_SELECTION', 'AWAITING_CONFIRMATION', 'PROCESSING'].includes(session.state)
+        [
+          'AWAITING_SELECTION',
+          'AWAITING_SEASON_SELECTION',
+          'AWAITING_CONFIRMATION',
+          'PROCESSING',
+        ].includes(session.state)
       ) {
         logger.debug('Bypassing filter for interactive session', {
           state: session.state,
@@ -122,7 +127,7 @@ class MessageHandlerService {
       // Unknown filter type, process message
       return { shouldProcess: true, cleanedMessage: message };
     } catch (error) {
-      logger.error('Error checking message filter', { error });
+      logger.error({ err: error }, 'Error checking message filter');
       // On error, allow message through
       return { shouldProcess: true, cleanedMessage: message };
     }
@@ -187,10 +192,7 @@ class MessageHandlerService {
         state: response.state,
       });
     } catch (error) {
-      logger.error('Failed to handle incoming message', {
-        error,
-        from: message.from,
-      });
+      logger.error({ err: error, from: message.from }, 'Failed to handle incoming message');
 
       // Try to send error message to user
       try {
@@ -202,7 +204,7 @@ class MessageHandlerService {
           );
         }
       } catch (sendError) {
-        logger.error('Failed to send error message', { error: sendError });
+        logger.error({ err: sendError }, 'Failed to send error message');
       }
     }
   }

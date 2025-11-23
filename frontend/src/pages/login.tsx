@@ -23,7 +23,7 @@ export function LoginPage() {
     try {
       await login({ username, password });
       navigate('/dashboard');
-    } catch (err) {
+    } catch {
       // Error is handled by the auth store
     } finally {
       setIsLoading(false);

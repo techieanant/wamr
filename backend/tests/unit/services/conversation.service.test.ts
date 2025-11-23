@@ -589,7 +589,8 @@ describe('ConversationService', () => {
         phoneNumberHash,
         phoneNumber,
         session.selectedResult,
-        'service1'
+        'service1',
+        undefined // selectedSeasons - not set in this test
       );
       expect(conversationSessionRepository.update).toHaveBeenCalledWith(sessionId, {
         state: 'IDLE',

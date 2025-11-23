@@ -521,6 +521,7 @@ describe('Requests Controller', () => {
         serverId: 2,
         profileId: 1,
         rootFolder: '/tv',
+        seasons: 'all', // Added: default to 'all' when no selectedSeasons
       });
       expect(requestHistoryRepository.update).toHaveBeenCalledWith(1, {
         status: 'SUBMITTED',

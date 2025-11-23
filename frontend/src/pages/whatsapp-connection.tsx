@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { QRCodeDisplay } from '../components/whatsapp/qr-code-display';
 import { ConnectionStatus } from '../components/whatsapp/connection-status';
 import { MessageFilterForm } from '../components/whatsapp/message-filter-form';
-import { Smartphone, Loader2 } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw } from 'lucide-react';
 import type { MessageFilterType } from '../types/whatsapp.types';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -19,6 +19,24 @@ export default function WhatsAppConnection() {
   const [hasClickedConnect, setHasClickedConnect] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
+  // On mount, check if already connected via API
+  useEffect(() => {
+    if (status?.status === 'CONNECTED') {
+      setRealtimeConnected(true);
+      setHasClickedConnect(false);
+    }
+  }, [status?.status]);
+
+  // Poll for status when socket connects (to catch any missed events)
+  useEffect(() => {
+    if (socketConnected) {
+      const timer = setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [socketConnected, queryClient]);
+
   // Listen for real-time connection status via WebSocket
   useEffect(() => {
     if (!socketConnected) {
@@ -26,9 +44,12 @@ export default function WhatsAppConnection() {
     }
 
     const cleanup = on('whatsapp:status', (data) => {
+      // Handle array-wrapped data from Socket.IO
+      const statusData = Array.isArray(data) ? data[0] : data;
+
       // Status updates handled by TanStack Query now
 
-      if (data.status === 'connected') {
+      if (statusData.status === 'connected') {
         setRealtimeConnected(true);
         setHasClickedConnect(false); // Hide QR immediately
 
@@ -42,7 +63,7 @@ export default function WhatsAppConnection() {
             description: 'Your WhatsApp account has been successfully connected.',
           });
         }, 500);
-      } else if (data.status === 'loading' && data.progress === 100) {
+      } else if (statusData.status === 'loading' && statusData.progress === 100) {
         // When loading reaches 100%, it means connection is about to complete
         // Force refetch to get the latest status
         setTimeout(() => {
@@ -145,16 +166,26 @@ export default function WhatsAppConnection() {
         </div>
 
         {!isConnected && !isConnecting_status && !isLoading_status && (
-          <Button size="lg" onClick={handleConnect} disabled={isConnecting}>
-            {isConnecting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              'Connect WhatsApp'
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="lg" onClick={handleConnect} disabled={isConnecting}>
+              {isConnecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                'Connect WhatsApp'
+              )}
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] })}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh Status
+            </Button>
+          </div>
         )}
       </div>
 

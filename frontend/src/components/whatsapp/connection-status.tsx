@@ -20,49 +20,80 @@ export function ConnectionStatus() {
   const [loadingProgress, setLoadingProgress] = useState<number | undefined>();
   const [loadingMessage, setLoadingMessage] = useState<string | undefined>();
 
+  // Poll for status when socket connects (to catch any missed events)
+  useEffect(() => {
+    if (socketConnected) {
+      const timer = setTimeout(() => {
+        // Force a status refetch when socket connects to catch missed events
+        const queryClient = (window as unknown as Record<string, unknown>).__queryClient;
+        if (queryClient && typeof queryClient === 'object' && 'refetchQueries' in queryClient) {
+          (
+            queryClient as { refetchQueries: (opts: { queryKey: string[] }) => void }
+          ).refetchQueries({ queryKey: ['whatsapp', 'status'] });
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [socketConnected]);
+
   // Listen for real-time status updates via WebSocket
   useEffect(() => {
     if (!socketConnected) return;
 
     // Handle whatsapp:status events
-    const cleanupStatus = on('whatsapp:status', (data: WhatsAppStatusEvent) => {
-      logger.debug('Received whatsapp:status:', data);
+    const cleanupStatus = on(
+      'whatsapp:status',
+      (data: WhatsAppStatusEvent | WhatsAppStatusEvent[]) => {
+        // Handle array-wrapped data from Socket.IO
+        const statusData = Array.isArray(data) ? data[0] : data;
 
-      setRealtimeStatus(data.status);
-      if (data.phoneNumber) {
-        setPhoneNumber(data.phoneNumber);
-      }
-      if (data.progress !== undefined) {
-        setLoadingProgress(data.progress);
-      }
-      if (data.message) {
-        setLoadingMessage(data.message);
-      }
+        logger.debug('Received whatsapp:status:', statusData);
 
-      // Clear loading indicators when connected or disconnected
-      if (data.status === 'connected' || data.status === 'disconnected') {
-        setLoadingProgress(undefined);
-        setLoadingMessage(undefined);
+        setRealtimeStatus(statusData.status);
+        if (statusData.phoneNumber) {
+          setPhoneNumber(statusData.phoneNumber);
+        }
+        if (statusData.progress !== undefined) {
+          setLoadingProgress(statusData.progress);
+        }
+        if (statusData.message) {
+          setLoadingMessage(statusData.message);
+        }
+
+        // Clear loading indicators when connected or disconnected
+        if (statusData.status === 'connected' || statusData.status === 'disconnected') {
+          setLoadingProgress(undefined);
+          setLoadingMessage(undefined);
+        }
       }
-    });
+    );
 
     // Handle status-change events (includes loading progress)
-    const cleanupStatusChange = on('status-change', (data) => {
-      logger.debug('Received status-change:', data);
+    const cleanupStatusChange = on('status-change', (data: unknown) => {
+      // Handle array-wrapped data from Socket.IO
+      const statusData = Array.isArray(data)
+        ? data[0]
+        : (data as { status?: string; progress?: number; message?: string });
 
-      const statusValue = data.status as 'connected' | 'disconnected' | 'connecting' | 'loading';
+      logger.debug('Received status-change:', statusData);
+
+      const statusValue = statusData.status as
+        | 'connected'
+        | 'disconnected'
+        | 'connecting'
+        | 'loading';
       setRealtimeStatus(statusValue);
 
-      if (data.progress !== undefined) {
-        setLoadingProgress(data.progress);
+      if (statusData.progress !== undefined) {
+        setLoadingProgress(statusData.progress);
 
         // When loading reaches 100%, automatically transition to connected after a short delay
-        if (data.progress === 100) {
+        if (statusData.progress === 100) {
           logger.debug('Loading reached 100%, will transition to connected shortly');
         }
       }
-      if (data.message) {
-        setLoadingMessage(data.message);
+      if (statusData.message) {
+        setLoadingMessage(statusData.message);
       }
 
       // Clear loading indicators when connected or disconnected

@@ -236,11 +236,15 @@ export const approveRequest = async (
             throw new Error('No Sonarr server configured in Overseerr');
           }
 
+          // Get selected seasons (stored as JSON in database)
+          const selectedSeasons = request.selectedSeasons as number[] | null;
+
           await client.requestSeries({
             mediaId: request.tmdbId,
             serverId: defaultServer.id,
             profileId: 1,
             rootFolder: '/tv',
+            seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
           });
         }
       } else if (service.serviceType === 'radarr' && request.mediaType === 'movie') {

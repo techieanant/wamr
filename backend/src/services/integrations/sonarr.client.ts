@@ -33,6 +33,13 @@ interface SonarrSeries {
   seasons: Array<{
     seasonNumber: number;
     monitored: boolean;
+    statistics?: {
+      episodeFileCount: number;
+      episodeCount: number;
+      totalEpisodeCount: number;
+      sizeOnDisk: number;
+      percentOfEpisodes: number;
+    };
   }>;
   ratings?: {
     votes: number;
@@ -51,6 +58,22 @@ interface SonarrSeries {
     sizeOnDisk: number;
     percentOfEpisodes: number; // Percentage of episodes downloaded
   };
+}
+
+interface SonarrEpisode {
+  id: number;
+  seriesId: number;
+  tvdbId: number;
+  episodeFileId: number; // 0 if not downloaded, >0 if downloaded
+  seasonNumber: number;
+  episodeNumber: number;
+  title: string;
+  airDate?: string;
+  airDateUtc?: string;
+  overview?: string;
+  hasFile: boolean; // True if episode file exists
+  monitored: boolean;
+  unverifiedSceneNumbering: boolean;
 }
 
 interface SonarrSystemStatus {
@@ -303,6 +326,65 @@ export class SonarrClient {
       return series || null;
     } catch (error) {
       logger.error({ error, tvdbId }, 'Failed to fetch Sonarr series by TVDB ID');
+      throw error;
+    }
+  }
+
+  /**
+   * Get all episodes for a series
+   * Returns episodes grouped by season with file availability status
+   */
+  async getEpisodesBySeries(seriesId: number): Promise<SonarrEpisode[]> {
+    try {
+      logger.debug({ seriesId }, 'Fetching episodes from Sonarr');
+
+      const response = await this.client.get<SonarrEpisode[]>('/api/v3/episode', {
+        params: { seriesId },
+      });
+
+      logger.debug({ seriesId, episodeCount: response.data.length }, 'Sonarr episodes fetched');
+
+      return response.data;
+    } catch (error) {
+      logger.error({ error, seriesId }, 'Failed to fetch Sonarr episodes');
+      throw error;
+    }
+  }
+
+  /**
+   * Get available episodes grouped by season
+   * Returns only episodes that have files (hasFile: true)
+   */
+  async getAvailableEpisodesBySeason(seriesId: number): Promise<Record<number, number[]>> {
+    try {
+      const episodes = await this.getEpisodesBySeries(seriesId);
+
+      // Filter for episodes with files and group by season
+      const episodesBySeason: Record<number, number[]> = {};
+
+      for (const episode of episodes) {
+        if (episode.hasFile && episode.seasonNumber > 0) {
+          // Exclude specials (season 0)
+          if (!episodesBySeason[episode.seasonNumber]) {
+            episodesBySeason[episode.seasonNumber] = [];
+          }
+          episodesBySeason[episode.seasonNumber].push(episode.episodeNumber);
+        }
+      }
+
+      // Sort episode numbers within each season
+      for (const seasonNum in episodesBySeason) {
+        episodesBySeason[seasonNum].sort((a, b) => a - b);
+      }
+
+      logger.debug(
+        { seriesId, seasons: Object.keys(episodesBySeason).length },
+        'Available episodes grouped by season'
+      );
+
+      return episodesBySeason;
+    } catch (error) {
+      logger.error({ error, seriesId }, 'Failed to get available episodes by season');
       throw error;
     }
   }

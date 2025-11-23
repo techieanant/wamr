@@ -23,7 +23,8 @@ export class RequestApprovalService {
     phoneNumberHash: string,
     phoneNumber: string | undefined,
     selectedResult: NormalizedResult,
-    serviceConfigId: number
+    serviceConfigId: number,
+    selectedSeasons?: number[]
   ): Promise<{ success: boolean; errorMessage?: string; status: string }> {
     try {
       // Get auto-approval mode from the active WhatsApp connection (admin's connection)
@@ -62,6 +63,7 @@ export class RequestApprovalService {
           tvdbId: selectedResult.tvdbId ?? undefined,
           serviceType,
           serviceConfigId,
+          selectedSeasons,
           status: 'REJECTED',
           adminNotes: 'Auto-rejected by system settings',
         });
@@ -95,6 +97,7 @@ export class RequestApprovalService {
           tvdbId: selectedResult.tvdbId ?? undefined,
           serviceType,
           serviceConfigId,
+          selectedSeasons,
           status: 'PENDING',
         });
 
@@ -123,7 +126,8 @@ export class RequestApprovalService {
           service.baseUrl,
           encryptionService.decrypt(service.apiKeyEncrypted),
           service.qualityProfileId ?? 1,
-          service.rootFolderPath || (mediaType === 'movie' ? '/movies' : '/tv')
+          service.rootFolderPath || (mediaType === 'movie' ? '/movies' : '/tv'),
+          selectedSeasons
         );
 
         if (result.success) {
@@ -138,6 +142,7 @@ export class RequestApprovalService {
             tvdbId: selectedResult.tvdbId ?? undefined,
             serviceType,
             serviceConfigId,
+            selectedSeasons,
             status: 'SUBMITTED',
             submittedAt: new Date().toISOString(),
           });
@@ -171,6 +176,7 @@ export class RequestApprovalService {
             tvdbId: selectedResult.tvdbId ?? undefined,
             serviceType,
             serviceConfigId,
+            selectedSeasons,
             status: 'FAILED',
             errorMessage: result.errorMessage,
             submittedAt: new Date().toISOString(),
@@ -214,7 +220,8 @@ export class RequestApprovalService {
     baseUrl: string,
     apiKey: string,
     qualityProfileId: number,
-    rootFolderPath: string
+    rootFolderPath: string,
+    selectedSeasons?: number[]
   ): Promise<{ success: boolean; errorMessage?: string }> {
     try {
       const mediaType = selectedResult.mediaType;
@@ -249,6 +256,7 @@ export class RequestApprovalService {
             serverId: defaultServer.id,
             profileId: qualityProfileId,
             rootFolder: rootFolderPath,
+            seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
           });
         }
       } else if (serviceType === 'radarr' && mediaType === 'movie') {

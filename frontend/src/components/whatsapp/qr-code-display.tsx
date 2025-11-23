@@ -21,24 +21,26 @@ export function QRCodeDisplay() {
       return () => clearInterval(checkConnection);
     }
 
-    // Listen for QR code events
-    const handleAnyEvent = (eventName: string, data: { qrCode?: string; timestamp?: string }) => {
-      if (eventName === 'whatsapp:qr') {
-        if (data && data.qrCode) {
-          setQrCode(data.qrCode);
-          setLastUpdate(new Date(data.timestamp || Date.now()));
-        }
+    // Listen for QR code events using specific event listener
+    // Note: Socket.IO sometimes wraps single parameters in an array
+    const handleQRCode = (
+      data: { qrCode?: string; timestamp?: string } | { qrCode?: string; timestamp?: string }[]
+    ) => {
+      // Handle both array and direct object formats
+      const qrData = Array.isArray(data) ? data[0] : data;
+
+      if (qrData && qrData.qrCode) {
+        setQrCode(qrData.qrCode);
+        setLastUpdate(new Date(qrData.timestamp || Date.now()));
       }
-      // Note: We don't clear the QR code on 'connected' status here
-      // The parent component will unmount this component when connected
     };
 
-    // Listen with onAny
-    rawSocket.onAny(handleAnyEvent);
+    // Listen for the specific event
+    rawSocket.on('whatsapp:qr', handleQRCode);
 
     return () => {
       clearInterval(checkConnection);
-      rawSocket.offAny(handleAnyEvent);
+      rawSocket.off('whatsapp:qr', handleQRCode);
       // Reset QR code state on unmount
       setQrCode(null);
     };

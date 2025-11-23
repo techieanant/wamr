@@ -72,7 +72,7 @@ export class ConversationService {
     }
 
     // Parse user intent
-    const intent = intentParser.parse(message);
+    const intent = intentParser.parse(message, session.state);
     logger.info(
       { sessionId: session.id, intent, sessionState: session.state },
       '🔍 DEBUG: Parsed user intent'
@@ -127,6 +127,10 @@ export class ConversationService {
       case 'AWAITING_SELECTION':
         logger.info({ sessionId: session.id }, '🔍 DEBUG: Calling handleAwaitingSelection');
         return this.handleAwaitingSelection(session, intent);
+
+      case 'AWAITING_SEASON_SELECTION':
+        logger.info({ sessionId: session.id }, '🔍 DEBUG: Calling handleAwaitingSeasonSelection');
+        return this.handleAwaitingSeasonSelection(session, intent);
 
       case 'AWAITING_CONFIRMATION':
         logger.info({ sessionId: session.id }, '🔍 DEBUG: Calling handleAwaitingConfirmation');
@@ -316,6 +320,116 @@ export class ConversationService {
     // Get selected result (convert to 0-indexed)
     const selectedResult = results[selectionNumber - 1];
 
+    // Check if this is a TV series - if so, fetch season details and ask for season selection
+    if (selectedResult.mediaType === 'series' && selectedResult.tmdbId) {
+      try {
+        // Get Overseerr service configuration
+        const overseerrConfigs = await mediaServiceConfigRepository.findByType('overseerr');
+        const overseerrConfig = overseerrConfigs.find((c) => c.enabled);
+
+        if (overseerrConfig && overseerrConfig.apiKeyEncrypted) {
+          // Fetch TV details including season information from Overseerr
+          const { OverseerrClient } = await import('../integrations/overseerr.client.js');
+          const { encryptionService } = await import('../encryption/encryption.service.js');
+
+          const apiKey = encryptionService.decrypt(overseerrConfig.apiKeyEncrypted);
+          const client = new OverseerrClient(overseerrConfig.baseUrl, apiKey);
+          const tvDetails = await client.getTvDetails(selectedResult.tmdbId);
+
+          logger.debug(
+            {
+              sessionId: session.id,
+              tmdbId: selectedResult.tmdbId,
+              hasTvDetails: !!tvDetails,
+              hasMediaInfo: !!tvDetails?.mediaInfo,
+              hasSeasons: !!tvDetails?.seasons,
+              seasonsLength: tvDetails?.seasons?.length,
+              hasMediaInfoSeasons: !!tvDetails?.mediaInfo?.seasons,
+              mediaInfoSeasonsLength: tvDetails?.mediaInfo?.seasons?.length,
+            },
+            'TV details fetched - checking season data'
+          );
+
+          // Use top-level seasons array (has episode counts and details)
+          // and optionally merge with mediaInfo.seasons for availability status
+          if (tvDetails && tvDetails.seasons && tvDetails.seasons.length > 0) {
+            // Filter out season 0 (specials) and get only regular seasons
+            const regularSeasons: import('../../models/conversation-session.model.js').SeasonInfo[] =
+              tvDetails.seasons
+                .filter((s: any) => s.seasonNumber > 0)
+                .map((s: any) => ({
+                  seasonNumber: s.seasonNumber,
+                  name: s.name || `Season ${s.seasonNumber}`,
+                  episodeCount: s.episodeCount || 0,
+                  airDate: s.airDate,
+                  overview: s.overview,
+                }));
+
+            if (regularSeasons.length > 0) {
+              // Transition to AWAITING_SEASON_SELECTION
+              const action: StateMachineAction = {
+                type: 'SELECT_RESULT',
+                index: selectionNumber - 1,
+                result: selectedResult,
+              };
+
+              const transitionResult = stateMachine.processAction(session.state, action);
+
+              if (!transitionResult.valid) {
+                logger.error(
+                  { sessionId: session.id, error: transitionResult.error },
+                  'Invalid state transition for SELECT_RESULT (TV series)'
+                );
+                return this.createResponse(
+                  session,
+                  'An error occurred. Please try again.',
+                  'AWAITING_SELECTION'
+                );
+              }
+
+              // Update session with season information
+              await conversationSessionRepository.update(session.id, {
+                state: 'AWAITING_SEASON_SELECTION',
+                selectedResultIndex: selectionNumber - 1,
+                selectedResult,
+                availableSeasons: regularSeasons,
+              });
+
+              // Generate season selection message
+              const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
+              let seasonMessage =
+                `📺 *${selectedResult.title}${yearStr}*\n\n` + `Available seasons:\n\n`;
+
+              regularSeasons.forEach((season) => {
+                seasonMessage += `Season ${season.seasonNumber}: ${season.name} (${season.episodeCount} episodes)\n`;
+              });
+
+              seasonMessage +=
+                `\n` +
+                `Which season(s) would you like to download?\n\n` +
+                `Reply with:\n` +
+                `• Season numbers (e.g., "1", "1,2,3")\n` +
+                `• "all" for all seasons\n` +
+                `• "cancel" to start over`;
+
+              return this.createResponse(session, seasonMessage, 'AWAITING_SEASON_SELECTION');
+            }
+          }
+        }
+
+        logger.warn(
+          { sessionId: session.id, tmdbId: selectedResult.tmdbId },
+          'No season information available for TV series, proceeding with confirmation'
+        );
+      } catch (error) {
+        logger.error(
+          { sessionId: session.id, error, tmdbId: selectedResult.tmdbId },
+          'Failed to fetch TV season details, proceeding with confirmation'
+        );
+      }
+    }
+
+    // For movies or if season fetch failed, proceed to confirmation
     // Transition to AWAITING_CONFIRMATION
     const action: StateMachineAction = {
       type: 'SELECT_RESULT',
@@ -354,6 +468,102 @@ export class ConversationService {
     const confirmationMessage =
       `${emoji} You selected:\n\n` +
       `*${selectedResult.title}${yearStr}*${seasonInfo}\n\n` +
+      `${selectedResult.overview || 'No description available.'}\n\n` +
+      `Reply *YES* to confirm or *NO* to cancel.`;
+
+    return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
+  }
+
+  /**
+   * Handle AWAITING_SEASON_SELECTION state - expecting season numbers or "all"
+   */
+  private async handleAwaitingSeasonSelection(
+    session: ConversationSessionModel,
+    intent: IntentResult
+  ): Promise<ConversationResponse> {
+    if (intent.intent !== 'season_selection' || !intent.seasons) {
+      return this.createResponse(
+        session,
+        'Please select seasons by entering:\n\n' +
+          '• Numbers separated by commas (e.g., "1,2,3")\n' +
+          '• A single season number (e.g., "1")\n' +
+          '• "all" for all available seasons\n\n' +
+          'Or reply *CANCEL* to go back.',
+        'AWAITING_SEASON_SELECTION'
+      );
+    }
+
+    // Validate selected seasons against available seasons
+    const availableSeasons = session.availableSeasons || [];
+
+    if (intent.seasons !== 'all') {
+      const invalidSeasons = intent.seasons.filter(
+        (seasonNum) => !availableSeasons.some((s) => s.seasonNumber === seasonNum)
+      );
+
+      if (invalidSeasons.length > 0) {
+        return this.createResponse(
+          session,
+          `⚠️ Invalid season(s): ${invalidSeasons.join(', ')}\n\n` +
+            `Available seasons: ${availableSeasons.map((s) => s.seasonNumber).join(', ')}\n\n` +
+            'Please try again or reply *CANCEL* to go back.',
+          'AWAITING_SEASON_SELECTION'
+        );
+      }
+    }
+
+    // Transition to AWAITING_CONFIRMATION
+    const action: StateMachineAction = {
+      type: 'SELECT_SEASONS',
+      seasons: intent.seasons,
+    };
+
+    const transitionResult = stateMachine.processAction(session.state, action);
+
+    if (!transitionResult.valid) {
+      logger.error(
+        { sessionId: session.id, error: transitionResult.error },
+        'Invalid state transition for SELECT_SEASONS'
+      );
+      return this.createResponse(
+        session,
+        'An error occurred. Please try again.',
+        'AWAITING_SEASON_SELECTION'
+      );
+    }
+
+    // Update session with selected seasons
+    await conversationSessionRepository.update(session.id, {
+      state: 'AWAITING_CONFIRMATION',
+      selectedSeasons:
+        intent.seasons === 'all' ? availableSeasons.map((s) => s.seasonNumber) : intent.seasons,
+    });
+
+    // Generate confirmation message
+    const selectedResult = session.selectedResult;
+    if (!selectedResult) {
+      logger.error({ sessionId: session.id }, 'No selected result found in session');
+      return this.resetToIdle(session, 'An error occurred. Please start over.');
+    }
+
+    const emoji = '📺';
+    const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
+
+    // Build season summary
+    let seasonSummary: string;
+    if (intent.seasons === 'all') {
+      seasonSummary = `All ${availableSeasons.length} seasons`;
+    } else {
+      seasonSummary =
+        intent.seasons.length === 1
+          ? `Season ${intent.seasons[0]}`
+          : `Seasons ${intent.seasons.join(', ')}`;
+    }
+
+    const confirmationMessage =
+      `${emoji} You selected:\n\n` +
+      `*${selectedResult.title}${yearStr}*\n` +
+      `📺 ${seasonSummary}\n\n` +
       `${selectedResult.overview || 'No description available.'}\n\n` +
       `Reply *YES* to confirm or *NO* to cancel.`;
 
@@ -660,7 +870,8 @@ export class ConversationService {
         phoneNumberHash,
         phoneNumber,
         selectedResult,
-        service.id
+        service.id,
+        session.selectedSeasons ?? undefined
       );
 
       // Note: The request approval service already sends WhatsApp notifications to the user,

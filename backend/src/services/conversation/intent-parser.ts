@@ -5,11 +5,18 @@ import { logger } from '../../config/logger.js';
  * Intent detection result
  */
 export interface IntentResult {
-  intent: 'media_request' | 'selection' | 'confirmation' | 'cancel' | 'unknown';
+  intent:
+    | 'media_request'
+    | 'selection'
+    | 'confirmation'
+    | 'cancel'
+    | 'season_selection'
+    | 'unknown';
   mediaType?: MediaType;
   query?: string;
   selectionNumber?: number;
   confirmed?: boolean;
+  seasons?: 'all' | number[];
 }
 
 /**
@@ -77,13 +84,22 @@ export class IntentParser {
   /**
    * Parse a message and determine the user's intent
    */
-  parse(message: string): IntentResult {
+  parse(message: string, currentState?: string): IntentResult {
     const normalizedMessage = message.toLowerCase().trim();
 
     // Check for cancellation intent (highest priority)
     if (this.isCancelIntent(normalizedMessage)) {
       logger.debug({ message }, 'Detected cancel intent');
       return { intent: 'cancel' };
+    }
+
+    // Check for season selection if in AWAITING_SEASON_SELECTION state
+    if (currentState === 'AWAITING_SEASON_SELECTION') {
+      const seasonSelection = this.parseSeasonSelection(normalizedMessage);
+      if (seasonSelection !== null) {
+        logger.debug({ message, seasons: seasonSelection }, 'Detected season selection intent');
+        return { intent: 'season_selection', seasons: seasonSelection };
+      }
     }
 
     // Check for numeric selection (e.g., "1", "2", etc.)
@@ -278,6 +294,42 @@ export class IntentParser {
     }
 
     return { mediaType, query };
+  }
+
+  /**
+   * Parse season selection from message
+   * Accepts: "all", "1", "1,2,3", "1, 2, 3"
+   */
+  private parseSeasonSelection(message: string): 'all' | number[] | null {
+    // Check for "all" keyword
+    if (/^\s*all\s*$/i.test(message)) {
+      return 'all';
+    }
+
+    // Check for comma-separated numbers: "1,2,3" or "1, 2, 3"
+    const commaMatch = message.match(/^\s*(\d+\s*(?:,\s*\d+\s*)*)\s*$/);
+    if (commaMatch) {
+      const seasons = commaMatch[1]
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n) && n > 0);
+
+      if (seasons.length > 0) {
+        // Remove duplicates and sort
+        return [...new Set(seasons)].sort((a, b) => a - b);
+      }
+    }
+
+    // Check for single number
+    const singleMatch = message.match(/^\s*(\d+)\s*$/);
+    if (singleMatch) {
+      const season = parseInt(singleMatch[1], 10);
+      if (season > 0) {
+        return [season];
+      }
+    }
+
+    return null;
   }
 
   /**
