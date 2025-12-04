@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useContacts } from '../hooks/use-contacts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Edit, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Edit, Trash2, UserPlus, Users, X, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -19,9 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 
 export default function ContactsPage() {
-  const { contacts, isLoading, updateContact, deleteContact, createContact } = useContacts();
+  const { contacts, isLoading, updateContact, deleteContact, createContact, isDeleting } =
+    useContacts();
   const [newPhone, setNewPhone] = useState('');
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -31,6 +42,8 @@ export default function ContactsPage() {
   const [sortBy, setSortBy] = useState<'created_desc' | 'created_asc' | 'name_asc' | 'name_desc'>(
     'created_desc'
   );
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const startEdit = (id: number, name?: string | null, phone?: string | null) => {
@@ -49,8 +62,15 @@ export default function ContactsPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm('Delete contact?')) {
-      deleteContact(id);
+    setContactToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (contactToDelete) {
+      deleteContact(contactToDelete);
+      setDeleteDialogOpen(false);
+      setContactToDelete(null);
     }
   };
 
@@ -325,6 +345,36 @@ export default function ContactsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this contact from the database. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setContactToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-500 hover:bg-red-600"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

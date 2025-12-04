@@ -16,6 +16,8 @@ export interface WhatsAppConnection {
   filterType: MessageFilterType;
   filterValue: string | null;
   autoApprovalMode: AutoApprovalMode;
+  exceptionsEnabled: boolean;
+  exceptionContacts: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +31,8 @@ export interface CreateWhatsAppConnection {
   lastConnectedAt?: Date;
   qrCodeGeneratedAt?: Date;
   autoApprovalMode?: AutoApprovalMode;
+  exceptionsEnabled?: boolean;
+  exceptionContacts?: string[];
 }
 
 /**
@@ -39,6 +43,8 @@ export interface UpdateWhatsAppConnection {
   lastConnectedAt?: Date | null;
   qrCodeGeneratedAt?: Date | null;
   autoApprovalMode?: AutoApprovalMode;
+  exceptionsEnabled?: boolean;
+  exceptionContacts?: string[];
 }
 
 /**
@@ -52,6 +58,8 @@ export interface WhatsAppConnectionResponse {
   filterType: MessageFilterType;
   filterValue: string | null;
   autoApprovalMode: AutoApprovalMode;
+  exceptionsEnabled: boolean;
+  exceptionContacts: string[];
   createdAt: Date;
   isConnected: boolean;
 }

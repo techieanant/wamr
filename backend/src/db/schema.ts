@@ -33,6 +33,9 @@ export const whatsappConnections = sqliteTable(
     autoApprovalMode: text('auto_approval_mode', { enum: ['auto_approve', 'auto_deny', 'manual'] })
       .notNull()
       .default('auto_approve'),
+    // Exceptions configuration
+    exceptionsEnabled: integer('exceptions_enabled', { mode: 'boolean' }).notNull().default(false),
+    exceptionContacts: text('exception_contacts', { mode: 'json' }).$type<string[]>().default([]),
     createdAt: text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
@@ -199,3 +202,25 @@ export const contacts = sqliteTable(
 
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
+
+// Settings Table (stores application settings)
+export const settings = sqliteTable(
+  'settings',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    key: text('key').notNull().unique(),
+    value: text('value', { mode: 'json' }),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => ({
+    keyIdx: index('idx_settings_key').on(table.key),
+  })
+);
+
+export type Setting = typeof settings.$inferSelect;
+export type NewSetting = typeof settings.$inferInsert;

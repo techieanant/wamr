@@ -137,6 +137,8 @@ export function useWhatsApp() {
                   filterType: null,
                   filterValue: null,
                   autoApprovalMode: 'auto_approve',
+                  exceptionsEnabled: false,
+                  exceptionContacts: [],
                 };
 
             logger.debug('📝 Updated query data:', { old, new: newData });
@@ -182,6 +184,8 @@ export function useWhatsApp() {
             filterType: null,
             filterValue: null,
             autoApprovalMode: 'auto_approve',
+            exceptionsEnabled: false,
+            exceptionContacts: [],
           };
         }
       );

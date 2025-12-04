@@ -41,6 +41,8 @@ export const getStatus = async (
         filterType: activeConnection.filterType,
         filterValue: activeConnection.filterValue,
         autoApprovalMode: activeConnection.autoApprovalMode,
+        exceptionsEnabled: activeConnection.exceptionsEnabled,
+        exceptionContacts: activeConnection.exceptionContacts,
       });
       return;
     }
@@ -78,6 +80,8 @@ export const getStatus = async (
       filterType: connection.filterType,
       filterValue: connection.filterValue,
       autoApprovalMode: connection.autoApprovalMode,
+      exceptionsEnabled: connection.exceptionsEnabled,
+      exceptionContacts: connection.exceptionContacts,
     });
   } catch (error) {
     logger.error({ error }, 'Failed to get WhatsApp status');
@@ -262,6 +266,69 @@ export const updateAutoApprovalMode = async (
     });
   } catch (error) {
     logger.error({ error }, 'Failed to update auto-approval mode');
+    next(error);
+  }
+};
+
+/**
+ * Update exceptions configuration
+ */
+export const updateExceptions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { exceptionsEnabled, exceptionContacts } = req.body;
+
+    logger.debug({ body: req.body }, 'Received exceptions update request');
+
+    if (typeof exceptionsEnabled !== 'boolean') {
+      res.status(400).json({
+        success: false,
+        message: 'exceptionsEnabled must be a boolean',
+      });
+      return;
+    }
+
+    if (!Array.isArray(exceptionContacts)) {
+      res.status(400).json({
+        success: false,
+        message: 'exceptionContacts must be an array',
+      });
+      return;
+    }
+
+    // Get the active connection
+    const connection = await whatsappConnectionRepository.getActive();
+
+    if (!connection) {
+      res.status(404).json({
+        success: false,
+        message: 'No WhatsApp connection found',
+      });
+      return;
+    }
+
+    // Update exceptions
+    await whatsappConnectionRepository.update(connection.id, {
+      exceptionsEnabled,
+      exceptionContacts,
+    });
+
+    logger.info(
+      { exceptionsEnabled, exceptionContactsCount: exceptionContacts.length },
+      'Exceptions updated'
+    );
+
+    res.json({
+      success: true,
+      message: 'Exceptions updated successfully',
+      exceptionsEnabled,
+      exceptionContacts,
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to update exceptions');
     next(error);
   }
 };

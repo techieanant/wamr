@@ -35,6 +35,7 @@ export const listServices = async (
       maxResults: service.maxResults,
       qualityProfileId: service.qualityProfileId,
       rootFolderPath: service.rootFolderPath,
+      hasApiKey: !!service.apiKeyEncrypted,
       createdAt: service.createdAt.toISOString(),
       updatedAt: service.updatedAt.toISOString(),
     }));

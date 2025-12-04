@@ -33,10 +33,21 @@ export class RequestApprovalService {
       // not per-user. The phoneNumberHash is for the requester, not the admin.
       const connection = await whatsappConnectionRepository.getActive();
       const autoApprovalMode = connection?.autoApprovalMode || 'auto_approve';
+      const exceptionsEnabled = connection?.exceptionsEnabled || false;
+      const exceptionContacts = connection?.exceptionContacts || [];
+
+      // Check if this requester is in the exceptions list
+      const isException = exceptionsEnabled && exceptionContacts.includes(phoneNumberHash);
 
       logger.info(
-        { phoneNumberHash, autoApprovalMode, connectionId: connection?.id },
-        'Processing request with approval mode'
+        {
+          phoneNumberHash,
+          autoApprovalMode,
+          exceptionsEnabled,
+          isException,
+          connectionId: connection?.id,
+        },
+        'Processing request with approval mode and exceptions'
       );
 
       const phoneNumberEncrypted = phoneNumber ? encryptionService.encrypt(phoneNumber) : undefined;
@@ -51,8 +62,20 @@ export class RequestApprovalService {
 
       const serviceType: ServiceType = service.serviceType;
 
-      // Handle based on approval mode
-      if (autoApprovalMode === 'auto_deny') {
+      // Determine effective approval mode considering exceptions
+      let effectiveApprovalMode = autoApprovalMode;
+      if (exceptionsEnabled && isException) {
+        if (autoApprovalMode === 'auto_approve') {
+          effectiveApprovalMode = 'manual';
+        } else if (autoApprovalMode === 'manual') {
+          effectiveApprovalMode = 'auto_approve';
+        } else if (autoApprovalMode === 'auto_deny') {
+          effectiveApprovalMode = 'auto_approve';
+        }
+      }
+
+      // Handle based on effective approval mode
+      if (effectiveApprovalMode === 'auto_deny') {
         // Auto-deny: Create REJECTED request and notify user
         const request = await requestHistoryRepository.create({
           phoneNumberHash,
@@ -87,7 +110,7 @@ export class RequestApprovalService {
         });
 
         return { success: false, errorMessage: 'Request auto-rejected', status: 'REJECTED' };
-      } else if (autoApprovalMode === 'manual') {
+      } else if (effectiveApprovalMode === 'manual') {
         // Manual mode: Create PENDING request
         const request = await requestHistoryRepository.create({
           phoneNumberHash,

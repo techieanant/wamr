@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Blocks } from 'lucide-react';
+import { Plus, Blocks, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { ServiceList } from '../components/services';
 import { ServiceForm } from '../components/services';
 import { useServices } from '../hooks/use-services';
@@ -45,8 +46,23 @@ export function ServiceConfigPage() {
     );
   }
 
+  const servicesWithoutApiKey =
+    servicesData?.services.filter((service) => service.enabled && !service.hasApiKey) || [];
+
   return (
     <div className="container mx-auto space-y-6 p-4 md:p-6">
+      {/* API Key Warning Banner */}
+      {servicesWithoutApiKey.length > 0 && (
+        <Alert className="border-orange-200 bg-orange-50">
+          <AlertTriangle className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-800">
+            <strong>API Keys Required:</strong> {servicesWithoutApiKey.length} enabled service(s)
+            need API keys configured before they can process requests. Please edit each service to
+            add the missing API keys.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">

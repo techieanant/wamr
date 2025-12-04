@@ -62,6 +62,8 @@ describe('RequestApprovalService', () => {
     filterType: null,
     filterValue: null,
     autoApprovalMode: 'auto_approve' as const,
+    exceptionsEnabled: false,
+    exceptionContacts: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -570,6 +572,301 @@ describe('RequestApprovalService', () => {
 
         expect(result.success).toBe(true);
         expect(result.status).toBe('SUBMITTED');
+      });
+    });
+
+    describe('exceptions', () => {
+      const exceptionPhoneHash = 'exception-hash';
+      const normalPhoneHash = 'normal-hash';
+
+      describe('auto_approve mode with exceptions enabled', () => {
+        beforeEach(() => {
+          vi.mocked(whatsappConnectionRepository.getActive).mockResolvedValue({
+            ...mockConnection,
+            autoApprovalMode: 'auto_approve',
+            exceptionsEnabled: true,
+            exceptionContacts: [exceptionPhoneHash],
+          });
+          vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(mockServiceConfig);
+        });
+
+        it('should treat exception contacts as manual approval', async () => {
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'PENDING',
+          } as any);
+
+          const result = await service.createAndProcessRequest(
+            exceptionPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'PENDING',
+          });
+
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
+            phoneNumberHash: exceptionPhoneHash,
+            phoneNumberEncrypted: 'encrypted-phone',
+            mediaType: 'movie',
+            title: 'Test Movie',
+            year: 2023,
+            tmdbId: 12345,
+            tvdbId: 67890,
+            serviceType: 'radarr',
+            serviceConfigId: 1,
+            status: 'PENDING',
+          });
+
+          expect(whatsappClientService.sendMessage).toHaveBeenCalledWith(
+            phoneNumber,
+            expect.stringContaining('⏳ Your request is pending approval')
+          );
+        });
+
+        it('should treat normal contacts as auto-approve', async () => {
+          vi.mocked(encryptionService.decrypt).mockReturnValue('decrypted-key');
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'SUBMITTED',
+          } as any);
+
+          const mockRadarrClient = {
+            addMovie: vi.fn().mockResolvedValue(undefined),
+          };
+          vi.mocked(RadarrClient).mockImplementation(() => mockRadarrClient as any);
+
+          const result = await service.createAndProcessRequest(
+            normalPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'SUBMITTED',
+          });
+
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
+            phoneNumberHash: normalPhoneHash,
+            phoneNumberEncrypted: 'encrypted-phone',
+            mediaType: 'movie',
+            title: 'Test Movie',
+            year: 2023,
+            tmdbId: 12345,
+            tvdbId: 67890,
+            serviceType: 'radarr',
+            serviceConfigId: 1,
+            status: 'SUBMITTED',
+            submittedAt: expect.any(String),
+          });
+        });
+      });
+
+      describe('manual mode with exceptions enabled', () => {
+        beforeEach(() => {
+          vi.mocked(whatsappConnectionRepository.getActive).mockResolvedValue({
+            ...mockConnection,
+            autoApprovalMode: 'manual',
+            exceptionsEnabled: true,
+            exceptionContacts: [exceptionPhoneHash],
+          });
+          vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(mockServiceConfig);
+        });
+
+        it('should treat exception contacts as auto-approve', async () => {
+          vi.mocked(encryptionService.decrypt).mockReturnValue('decrypted-key');
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'SUBMITTED',
+          } as any);
+
+          const mockRadarrClient = {
+            addMovie: vi.fn().mockResolvedValue(undefined),
+          };
+          vi.mocked(RadarrClient).mockImplementation(() => mockRadarrClient as any);
+
+          const result = await service.createAndProcessRequest(
+            exceptionPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'SUBMITTED',
+          });
+
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
+            phoneNumberHash: exceptionPhoneHash,
+            phoneNumberEncrypted: 'encrypted-phone',
+            mediaType: 'movie',
+            title: 'Test Movie',
+            year: 2023,
+            tmdbId: 12345,
+            tvdbId: 67890,
+            serviceType: 'radarr',
+            serviceConfigId: 1,
+            status: 'SUBMITTED',
+            submittedAt: expect.any(String),
+          });
+        });
+
+        it('should treat normal contacts as manual approval', async () => {
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'PENDING',
+          } as any);
+
+          const result = await service.createAndProcessRequest(
+            normalPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'PENDING',
+          });
+
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
+            phoneNumberHash: normalPhoneHash,
+            phoneNumberEncrypted: 'encrypted-phone',
+            mediaType: 'movie',
+            title: 'Test Movie',
+            year: 2023,
+            tmdbId: 12345,
+            tvdbId: 67890,
+            serviceType: 'radarr',
+            serviceConfigId: 1,
+            status: 'PENDING',
+          });
+        });
+      });
+
+      describe('auto_deny mode with exceptions enabled', () => {
+        beforeEach(() => {
+          vi.mocked(whatsappConnectionRepository.getActive).mockResolvedValue({
+            ...mockConnection,
+            autoApprovalMode: 'auto_deny',
+            exceptionsEnabled: true,
+            exceptionContacts: [exceptionPhoneHash],
+          });
+          vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(mockServiceConfig);
+        });
+
+        it('should treat exception contacts as auto-approve', async () => {
+          vi.mocked(encryptionService.decrypt).mockReturnValue('decrypted-key');
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'SUBMITTED',
+          } as any);
+
+          const mockRadarrClient = {
+            addMovie: vi.fn().mockResolvedValue(undefined),
+          };
+          vi.mocked(RadarrClient).mockImplementation(() => mockRadarrClient as any);
+
+          const result = await service.createAndProcessRequest(
+            exceptionPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'SUBMITTED',
+          });
+
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
+            phoneNumberHash: exceptionPhoneHash,
+            phoneNumberEncrypted: 'encrypted-phone',
+            mediaType: 'movie',
+            title: 'Test Movie',
+            year: 2023,
+            tmdbId: 12345,
+            tvdbId: 67890,
+            serviceType: 'radarr',
+            serviceConfigId: 1,
+            status: 'SUBMITTED',
+            submittedAt: expect.any(String),
+          });
+        });
+
+        it('should treat normal contacts as auto-deny', async () => {
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'REJECTED',
+          } as any);
+
+          const result = await service.createAndProcessRequest(
+            normalPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: false,
+            errorMessage: 'Request auto-rejected',
+            status: 'REJECTED',
+          });
+
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
+            phoneNumberHash: normalPhoneHash,
+            phoneNumberEncrypted: 'encrypted-phone',
+            mediaType: 'movie',
+            title: 'Test Movie',
+            year: 2023,
+            tmdbId: 12345,
+            tvdbId: 67890,
+            serviceType: 'radarr',
+            serviceConfigId: 1,
+            status: 'REJECTED',
+            adminNotes: 'Auto-rejected by system settings',
+          });
+        });
+      });
+
+      describe('exceptions disabled', () => {
+        it('should ignore exception contacts when exceptions are disabled', async () => {
+          vi.mocked(whatsappConnectionRepository.getActive).mockResolvedValue({
+            ...mockConnection,
+            autoApprovalMode: 'auto_approve',
+            exceptionsEnabled: false,
+            exceptionContacts: [exceptionPhoneHash],
+          });
+          vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(mockServiceConfig);
+          vi.mocked(encryptionService.decrypt).mockReturnValue('decrypted-key');
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'SUBMITTED',
+          } as any);
+
+          const mockRadarrClient = {
+            addMovie: vi.fn().mockResolvedValue(undefined),
+          };
+          vi.mocked(RadarrClient).mockImplementation(() => mockRadarrClient as any);
+
+          const result = await service.createAndProcessRequest(
+            exceptionPhoneHash,
+            phoneNumber,
+            mockSelectedResult,
+            1
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'SUBMITTED',
+          });
+        });
       });
     });
   });

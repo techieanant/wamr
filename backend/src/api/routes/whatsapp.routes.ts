@@ -43,4 +43,10 @@ router.put('/filter', whatsappController.updateMessageFilter);
  */
 router.put('/auto-approval', whatsappController.updateAutoApprovalMode);
 
+/**
+ * PUT /api/whatsapp/exceptions
+ * Update exceptions configuration
+ */
+router.put('/exceptions', whatsappController.updateExceptions);
+
 export default router;

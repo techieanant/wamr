@@ -85,6 +85,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: null,
         filterValue: null,
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-01T00:00:00.000Z'),
         updatedAt: new Date('2023-01-01T00:00:00.000Z'),
       });
@@ -139,6 +141,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: null,
         filterValue: null,
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-01T00:00:00.000Z'),
         updatedAt: new Date('2023-01-01T00:00:00.000Z'),
       });
@@ -215,6 +219,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: null,
         filterValue: null,
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-01T00:00:00.000Z'),
         updatedAt: new Date('2023-01-02T00:00:00.000Z'),
       });
@@ -258,6 +264,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: null,
         filterValue: null,
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-02T00:00:00.000Z'),
         updatedAt: new Date('2023-01-02T00:00:00.000Z'),
       });
@@ -301,12 +309,14 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: null,
         filterValue: null,
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-01T00:00:00.000Z'),
         updatedAt: new Date('2023-01-02T00:00:00.000Z'),
       });
     });
 
-    it('should return undefined when connection not found', async () => {
+    it('should update connection successfully', async () => {
       mockedDb.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -372,6 +382,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: 'prefix',
         filterValue: 'test',
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-01T00:00:00.000Z'),
         updatedAt: new Date('2023-01-02T00:00:00.000Z'),
       });
@@ -431,6 +443,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: null,
         filterValue: null,
         autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-01T00:00:00.000Z'),
         updatedAt: new Date('2023-01-01T00:00:00.000Z'),
       });
@@ -443,6 +457,8 @@ describe('WhatsAppConnectionRepository', () => {
         filterType: 'keyword',
         filterValue: 'approve',
         autoApprovalMode: 'manual',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
         createdAt: new Date('2023-01-02T00:00:00.000Z'),
         updatedAt: new Date('2023-01-02T00:00:00.000Z'),
       });

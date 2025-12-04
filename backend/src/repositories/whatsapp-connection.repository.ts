@@ -57,6 +57,12 @@ export class WhatsAppConnectionRepository {
             connections[0].lastConnectedAt?.toISOString() ||
             null,
           qrCodeGeneratedAt: data.qrCodeGeneratedAt?.toISOString() || null,
+          autoApprovalMode: data.autoApprovalMode || connections[0].autoApprovalMode,
+          exceptionsEnabled: data.exceptionsEnabled ?? connections[0].exceptionsEnabled,
+          exceptionContacts:
+            data.exceptionContacts !== undefined
+              ? data.exceptionContacts
+              : connections[0].exceptionContacts,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(whatsappConnections.id, connections[0].id))
@@ -86,7 +92,7 @@ export class WhatsAppConnectionRepository {
     id: number,
     data: UpdateWhatsAppConnection
   ): Promise<WhatsAppConnection | undefined> {
-    const updateData: Record<string, string | null> = {
+    const updateData: Record<string, string | number | null | string[]> = {
       updatedAt: new Date().toISOString(),
     };
 
@@ -101,6 +107,12 @@ export class WhatsAppConnectionRepository {
     }
     if (data.autoApprovalMode !== undefined) {
       updateData.autoApprovalMode = data.autoApprovalMode;
+    }
+    if (data.exceptionsEnabled !== undefined) {
+      updateData.exceptionsEnabled = data.exceptionsEnabled ? 1 : 0;
+    }
+    if (data.exceptionContacts !== undefined) {
+      updateData.exceptionContacts = data.exceptionContacts;
     }
 
     const result = await db
@@ -165,6 +177,8 @@ export class WhatsAppConnectionRepository {
       filterValue: row.filterValue,
       autoApprovalMode:
         (row.autoApprovalMode as 'auto_approve' | 'auto_deny' | 'manual') || 'auto_approve',
+      exceptionsEnabled: Boolean(row.exceptionsEnabled),
+      exceptionContacts: Array.isArray(row.exceptionContacts) ? row.exceptionContacts : [],
       createdAt: new Date(row.createdAt),
       updatedAt: new Date(row.updatedAt),
     };

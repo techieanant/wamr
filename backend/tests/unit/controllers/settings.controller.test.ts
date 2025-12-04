@@ -36,6 +36,24 @@ vi.mock('../../../src/repositories/request-history.repository', () => {
     RequestHistoryRepository: vi.fn().mockImplementation(() => mockRepo),
   };
 });
+vi.mock('../../../src/repositories/contact.repository', () => {
+  const mockRepo = {
+    findAll: vi.fn(),
+    upsert: vi.fn(),
+  };
+  return {
+    ContactRepository: vi.fn().mockImplementation(() => mockRepo),
+  };
+});
+vi.mock('../../../src/repositories/setting.repository', () => {
+  const mockRepo = {
+    findAll: vi.fn(),
+    upsert: vi.fn(),
+  };
+  return {
+    SettingRepository: vi.fn().mockImplementation(() => mockRepo),
+  };
+});
 vi.mock('../../../src/config/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -64,6 +82,8 @@ import {
   changePassword,
   exportData,
   importData,
+  getSettings,
+  updateSetting,
 } from '../../../src/api/controllers/settings.controller';
 import { logger } from '../../../src/config/logger';
 import bcrypt from 'bcrypt';
@@ -81,11 +101,17 @@ const MediaServiceConfigRepository = (
 const RequestHistoryRepository = (
   await import('../../../src/repositories/request-history.repository')
 ).RequestHistoryRepository;
+const ContactRepository = (await import('../../../src/repositories/contact.repository'))
+  .ContactRepository;
+const SettingRepository = (await import('../../../src/repositories/setting.repository'))
+  .SettingRepository;
 
 const mockAdminUserRepo = new AdminUserRepository() as any;
 const mockWhatsAppRepo = new WhatsAppConnectionRepository() as any;
 const mockServiceConfigRepo = new MediaServiceConfigRepository() as any;
 const mockRequestHistoryRepo = new RequestHistoryRepository() as any;
+const mockContactRepo = new ContactRepository() as any;
+const mockSettingRepo = new SettingRepository() as any;
 
 describe('Settings Controller', () => {
   let mockRequest: Partial<Request & { user?: { userId: number } }>;
@@ -283,10 +309,31 @@ describe('Settings Controller', () => {
           updatedAt: new Date('2023-01-01'),
         },
       ];
+      const mockContacts = [
+        {
+          id: 1,
+          phoneNumberHash: 'hash123',
+          phoneNumberEncrypted: 'encrypted-phone',
+          contactName: 'Test User',
+          createdAt: '2023-01-01T00:00:00.000Z',
+          updatedAt: '2023-01-01T00:00:00.000Z',
+        },
+      ];
+      const mockSettings = [
+        {
+          id: 1,
+          key: 'wamr-ui-theme',
+          value: 'dark',
+          createdAt: '2023-01-01T00:00:00.000Z',
+          updatedAt: '2023-01-01T00:00:00.000Z',
+        },
+      ];
 
       mockWhatsAppRepo.findAll.mockResolvedValue([mockWhatsAppConnection]);
       mockServiceConfigRepo.findAll.mockResolvedValue(mockServices);
       mockRequestHistoryRepo.findAll.mockResolvedValue(mockRequests);
+      mockContactRepo.findAll.mockResolvedValue(mockContacts);
+      mockSettingRepo.findAll.mockResolvedValue(mockSettings);
 
       await exportData(mockRequest as any, mockResponse as Response, mockNext);
 
@@ -298,13 +345,18 @@ describe('Settings Controller', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         data: {
-          version: '1.0.0',
+          version: '1.0.3',
           exportedAt: expect.any(String),
           data: {
             whatsappConnection: {
               phoneNumberHash: 'hash123',
               status: 'connected',
               lastConnectedAt: mockWhatsAppConnection.lastConnectedAt,
+              filterType: undefined,
+              filterValue: undefined,
+              autoApprovalMode: undefined,
+              exceptionsEnabled: undefined,
+              exceptionContacts: undefined,
             },
             services: [
               {
@@ -321,6 +373,8 @@ describe('Settings Controller', () => {
             requests: [
               {
                 phoneNumberHash: 'hash123',
+                phoneNumberEncrypted: undefined,
+                contactName: undefined,
                 mediaType: 'movie',
                 title: 'Test Movie',
                 year: 2023,
@@ -328,7 +382,12 @@ describe('Settings Controller', () => {
                 tvdbId: null,
                 serviceType: 'radarr',
                 serviceConfigId: 1,
+                selectedSeasons: undefined,
+                notifiedSeasons: undefined,
+                notifiedEpisodes: undefined,
+                totalSeasons: undefined,
                 status: 'PENDING',
+                conversationLog: undefined,
                 submittedAt: null,
                 errorMessage: null,
                 adminNotes: null,
@@ -336,6 +395,18 @@ describe('Settings Controller', () => {
                 updatedAt: mockRequests[0].updatedAt,
               },
             ],
+            contacts: [
+              {
+                phoneNumberHash: 'hash123',
+                phoneNumberEncrypted: 'encrypted-phone',
+                contactName: 'Test User',
+                createdAt: '2023-01-01T00:00:00.000Z',
+                updatedAt: '2023-01-01T00:00:00.000Z',
+              },
+            ],
+            settings: {
+              'wamr-ui-theme': 'dark',
+            },
           },
         },
       });
@@ -357,6 +428,8 @@ describe('Settings Controller', () => {
       mockWhatsAppRepo.findAll.mockResolvedValue([]);
       mockServiceConfigRepo.findAll.mockResolvedValue([]);
       mockRequestHistoryRepo.findAll.mockResolvedValue([]);
+      mockContactRepo.findAll.mockResolvedValue([]);
+      mockSettingRepo.findAll.mockResolvedValue([]);
 
       await exportData(mockRequest as any, mockResponse as Response, mockNext);
 
@@ -365,6 +438,8 @@ describe('Settings Controller', () => {
         data: expect.objectContaining({
           data: expect.objectContaining({
             whatsappConnection: null,
+            contacts: [],
+            settings: {},
           }),
         }),
       });
@@ -384,7 +459,7 @@ describe('Settings Controller', () => {
   describe('importData', () => {
     it('should import data successfully', async () => {
       const importDataPayload = {
-        version: '1.0.0',
+        version: '1.0.3',
         data: {
           services: [
             {
@@ -414,6 +489,16 @@ describe('Settings Controller', () => {
               adminNotes: null,
             },
           ],
+          contacts: [
+            {
+              phoneNumberHash: 'hash123',
+              phoneNumberEncrypted: 'encrypted-phone',
+              contactName: 'Test User',
+            },
+          ],
+          settings: {
+            'wamr-ui-theme': 'dark',
+          },
         },
       };
       mockRequest.body = importDataPayload;
@@ -461,18 +546,20 @@ describe('Settings Controller', () => {
         adminNotes: null,
       });
       expect(logger.info).toHaveBeenCalledWith(
-        { userId: 1, imported: { services: 1, requests: 1 } },
+        { userId: 1, imported: { services: 1, contacts: 1, requests: 1, settings: 1 } },
         'Data imported successfully'
       );
       expect(mockResponse.status).toHaveBeenCalledWith(200);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         message: 'Data imported successfully',
-        imported: { services: 1, requests: 1 },
+        imported: { services: 1, contacts: 1, requests: 1, settings: 1 },
         notes: {
           services:
             'Services must be reconfigured with API keys. Only settings were updated for existing services.',
           whatsappConnection: 'WhatsApp connection must be re-established manually.',
+          contacts: 'Contacts have been restored.',
+          settings: 'Application settings have been restored.',
         },
       });
     });
@@ -512,13 +599,13 @@ describe('Settings Controller', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Unsupported schema version: 2.0.0. Expected: 1.0.0',
+        message: 'Unsupported schema version: 2.0.0. Expected: 1.0.3',
       });
     });
 
     it('should skip existing requests during import', async () => {
       const importDataPayload = {
-        version: '1.0.0',
+        version: '1.0.3',
         data: {
           services: [],
           requests: [
@@ -568,15 +655,21 @@ describe('Settings Controller', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         message: 'Data imported successfully',
-        imported: { services: 0, requests: 0 },
-        notes: expect.any(Object),
+        imported: { services: 0, contacts: 0, requests: 0, settings: 0 },
+        notes: {
+          services:
+            'Services must be reconfigured with API keys. Only settings were updated for existing services.',
+          whatsappConnection: 'WhatsApp connection must be re-established manually.',
+          contacts: 'Contacts have been restored.',
+          settings: 'Application settings have been restored.',
+        },
       });
     });
 
     it('should call next on error', async () => {
       const error = new Error('Database error');
       mockRequest.body = {
-        version: '1.0.0',
+        version: '1.0.3',
         data: {
           services: [
             {
@@ -599,6 +692,119 @@ describe('Settings Controller', () => {
       await importData(mockRequest as any, mockResponse as Response, mockNext);
 
       expect(logger.error).toHaveBeenCalledWith({ error }, 'Error importing data');
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('getSettings', () => {
+    it('should return all settings successfully', async () => {
+      const mockSettings = [
+        {
+          id: 1,
+          key: 'wamr-ui-theme',
+          value: 'dark',
+          createdAt: new Date('2023-01-01'),
+          updatedAt: new Date('2023-01-01'),
+        },
+        {
+          id: 2,
+          key: 'wamr-notifications',
+          value: true,
+          createdAt: new Date('2023-01-01'),
+          updatedAt: new Date('2023-01-01'),
+        },
+      ];
+
+      mockSettingRepo.findAll.mockResolvedValue(mockSettings);
+
+      await getSettings(mockRequest as any, mockResponse as Response, mockNext);
+
+      expect(mockSettingRepo.findAll).toHaveBeenCalled();
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          'wamr-ui-theme': 'dark',
+          'wamr-notifications': true,
+        },
+      });
+    });
+
+    it('should return 401 when user is not authenticated', async () => {
+      mockRequest.user = undefined;
+
+      await getSettings(mockRequest as any, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(401);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Unauthorized',
+      });
+    });
+
+    it('should call next on error', async () => {
+      const error = new Error('Database error');
+      mockSettingRepo.findAll.mockRejectedValue(error);
+
+      await getSettings(mockRequest as any, mockResponse as Response, mockNext);
+
+      expect(logger.error).toHaveBeenCalledWith({ error }, 'Error getting settings');
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('updateSetting', () => {
+    it('should update setting successfully', async () => {
+      const mockSetting = {
+        id: 1,
+        key: 'wamr-ui-theme',
+        value: 'light',
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01'),
+      };
+
+      mockRequest.params = { key: 'wamr-ui-theme' };
+      mockRequest.body = { value: 'light' };
+
+      mockSettingRepo.upsert.mockResolvedValue(mockSetting);
+
+      await updateSetting(mockRequest as any, mockResponse as Response, mockNext);
+
+      expect(mockSettingRepo.upsert).toHaveBeenCalledWith({
+        key: 'wamr-ui-theme',
+        value: 'light',
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockSetting,
+      });
+    });
+
+    it('should return 401 when user is not authenticated', async () => {
+      mockRequest.user = undefined;
+      mockRequest.params = { key: 'wamr-ui-theme' };
+      mockRequest.body = { value: 'light' };
+
+      await updateSetting(mockRequest as any, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(401);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Unauthorized',
+      });
+    });
+
+    it('should call next on error', async () => {
+      const error = new Error('Database error');
+      mockRequest.params = { key: 'wamr-ui-theme' };
+      mockRequest.body = { value: 'light' };
+
+      mockSettingRepo.upsert.mockRejectedValue(error);
+
+      await updateSetting(mockRequest as any, mockResponse as Response, mockNext);
+
+      expect(logger.error).toHaveBeenCalledWith({ error }, 'Error updating setting');
       expect(mockNext).toHaveBeenCalledWith(error);
     });
   });

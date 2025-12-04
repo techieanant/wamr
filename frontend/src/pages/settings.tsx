@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/use-auth';
 import { useToast } from '../hooks/use-toast';
+import { useWhatsApp } from '../hooks/use-whatsapp';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -8,6 +9,13 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +38,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../hooks/use-theme';
 import { apiClient } from '../services/api.client';
-import { useWhatsApp } from '../hooks/use-whatsapp';
+import { useContacts } from '../hooks/use-contacts';
 import type { AutoApprovalMode } from '../types/whatsapp.types';
 
 interface SystemInfo {
@@ -52,11 +60,14 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const { status: whatsappStatus } = useWhatsApp();
+  const { contacts } = useContacts();
   const queryClient = useQueryClient();
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     Notification.permission === 'granted'
   );
   const [autoApprovalMode, setAutoApprovalMode] = useState<AutoApprovalMode>('auto_approve');
+  const [exceptionsEnabled, setExceptionsEnabled] = useState(false);
+  const [exceptionContacts, setExceptionContacts] = useState<string[]>([]);
   const [isUpdatingApprovalMode, setIsUpdatingApprovalMode] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -67,6 +78,43 @@ export default function SettingsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch settings from backend on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = (await apiClient.get('/api/settings')) as {
+          data: Record<string, string | number | boolean | null>;
+        };
+        const settings = response.data;
+
+        // Set theme from backend if available
+        if (settings['wamr-ui-theme']) {
+          const themeValue = settings['wamr-ui-theme'] as string;
+          if (['dark', 'light', 'system'].includes(themeValue)) {
+            setTheme(themeValue as 'dark' | 'light' | 'system');
+          }
+        } else {
+          // Save current theme if not saved
+          await apiClient.put('/api/settings/wamr-ui-theme', { value: theme });
+        }
+
+        // Set notifications from backend if available
+        if (settings['wamr-notifications'] !== undefined) {
+          const notificationsValue = Boolean(settings['wamr-notifications']);
+          setNotificationsEnabled(notificationsValue);
+          localStorage.setItem('wamr-notifications', notificationsValue ? 'true' : 'false');
+        } else {
+          // Save current notifications if not saved
+          await apiClient.put('/api/settings/wamr-notifications', { value: notificationsEnabled });
+          localStorage.setItem('wamr-notifications', notificationsEnabled ? 'true' : 'false');
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch system info on component mount
   useEffect(() => {
@@ -81,12 +129,46 @@ export default function SettingsPage() {
     fetchSystemInfo();
   }, []);
 
-  // Initialize auto approval mode from WhatsApp status
+  // Load WhatsApp connection settings on component mount
   useEffect(() => {
-    if (whatsappStatus?.autoApprovalMode) {
+    if (whatsappStatus) {
       setAutoApprovalMode(whatsappStatus.autoApprovalMode);
+      setExceptionsEnabled(whatsappStatus.exceptionsEnabled);
+      setExceptionContacts(whatsappStatus.exceptionContacts);
     }
   }, [whatsappStatus]);
+
+  // Initialize notifications from localStorage and backend
+  useEffect(() => {
+    const savedNotifications = localStorage.getItem('wamr-notifications');
+    if (savedNotifications === 'true') {
+      setNotificationsEnabled(true);
+    }
+  }, []);
+
+  // Sync theme changes to backend
+  useEffect(() => {
+    const syncThemeToBackend = async () => {
+      try {
+        await apiClient.put('/api/settings/wamr-ui-theme', { value: theme });
+      } catch (error) {
+        console.error('Failed to sync theme to backend:', error);
+      }
+    };
+    syncThemeToBackend();
+  }, [theme]);
+
+  // Sync notifications changes to backend
+  useEffect(() => {
+    const syncNotificationsToBackend = async () => {
+      try {
+        await apiClient.put('/api/settings/wamr-notifications', { value: notificationsEnabled });
+      } catch (error) {
+        console.error('Failed to sync notifications to backend:', error);
+      }
+    };
+    syncNotificationsToBackend();
+  }, [notificationsEnabled]);
 
   const handleLogout = () => {
     logout();
@@ -151,6 +233,41 @@ export default function SettingsPage() {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to update approval mode.';
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingApprovalMode(false);
+    }
+  };
+
+  const handleExceptionsChange = async (enabled: boolean, contacts?: string[]) => {
+    setIsUpdatingApprovalMode(true);
+    try {
+      await apiClient.put('/api/whatsapp/exceptions', {
+        exceptionsEnabled: enabled,
+        exceptionContacts: contacts || exceptionContacts,
+      });
+
+      // Update local state
+      setExceptionsEnabled(enabled);
+      if (contacts) {
+        setExceptionContacts(contacts);
+      }
+
+      // Invalidate WhatsApp status query to refetch
+      queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'] });
+
+      toast({
+        title: 'Exceptions Updated',
+        description: enabled
+          ? `Exceptions enabled with ${contacts?.length || exceptionContacts.length} contact(s)`
+          : 'Exceptions disabled',
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update exceptions.';
       toast({
         title: 'Error',
         description: errorMessage,
@@ -464,6 +581,78 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </RadioGroup>
+
+              {/* Exceptions Configuration */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="exceptions-enabled">Enable Exceptions</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Allow specific contacts to bypass the approval mode
+                    </p>
+                  </div>
+                  <Switch
+                    id="exceptions-enabled"
+                    checked={exceptionsEnabled}
+                    onCheckedChange={(enabled) => handleExceptionsChange(enabled)}
+                    disabled={isUpdatingApprovalMode}
+                  />
+                </div>
+
+                {exceptionsEnabled && (
+                  <div className="space-y-2">
+                    <Label>Exception Contacts</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Select contacts that should receive different treatment
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {contacts
+                        .filter((contact) => exceptionContacts.includes(contact.phoneNumberHash))
+                        .map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-sm text-secondary-foreground"
+                          >
+                            {contact.contactName || contact.maskedPhone}
+                            <button
+                              onClick={() => {
+                                const newContacts = exceptionContacts.filter(
+                                  (hash) => hash !== contact.phoneNumberHash
+                                );
+                                handleExceptionsChange(true, newContacts);
+                              }}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value && !exceptionContacts.includes(value)) {
+                          const newContacts = [...exceptionContacts, value];
+                          handleExceptionsChange(true, newContacts);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Add contact..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contacts
+                          .filter((contact) => !exceptionContacts.includes(contact.phoneNumberHash))
+                          .map((contact) => (
+                            <SelectItem key={contact.id} value={contact.phoneNumberHash}>
+                              {contact.contactName || contact.maskedPhone}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/50 p-6 text-center">

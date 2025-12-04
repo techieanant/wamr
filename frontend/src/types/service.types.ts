@@ -17,6 +17,7 @@ export interface ServiceConfig {
   // Radarr/Sonarr specific (null for Overseerr)
   qualityProfileId: number | null;
   rootFolderPath: string | null;
+  hasApiKey: boolean;
   createdAt: string;
   updatedAt: string;
 }

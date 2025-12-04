@@ -7,6 +7,7 @@ import {
   restart,
   updateMessageFilter,
   updateAutoApprovalMode,
+  updateExceptions,
 } from '../../../src/api/controllers/whatsapp.controller';
 import { logger } from '../../../src/config/logger';
 
@@ -438,6 +439,111 @@ describe('WhatsApp Controller', () => {
       await updateAutoApprovalMode(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(logger.error).toHaveBeenCalledWith({ error }, 'Failed to update auto-approval mode');
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('updateExceptions', () => {
+    beforeEach(() => {
+      mockRequest.body = {};
+      mockResponse.status.mockReturnThis();
+      mockResponse.json.mockReturnThis();
+    });
+
+    it('should update exceptions successfully', async () => {
+      const mockConnection = {
+        id: 1,
+        phoneNumberHash: 'hash123',
+        status: 'CONNECTED',
+        exceptionsEnabled: true,
+        exceptionContacts: ['contact1', 'contact2'],
+      };
+
+      mockRequest.body = {
+        exceptionsEnabled: true,
+        exceptionContacts: ['contact1', 'contact2'],
+      };
+
+      (whatsappConnectionRepository.getActive as Mock).mockResolvedValue(mockConnection);
+      (whatsappConnectionRepository.update as Mock).mockResolvedValue(mockConnection);
+
+      await updateExceptions(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(whatsappConnectionRepository.getActive).toHaveBeenCalled();
+      expect(whatsappConnectionRepository.update).toHaveBeenCalledWith(1, {
+        exceptionsEnabled: true,
+        exceptionContacts: ['contact1', 'contact2'],
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { exceptionsEnabled: true, exceptionContactsCount: 2 },
+        'Exceptions updated'
+      );
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Exceptions updated successfully',
+        exceptionsEnabled: true,
+        exceptionContacts: ['contact1', 'contact2'],
+      });
+    });
+
+    it('should handle empty exception contacts array', async () => {
+      const mockConnection = {
+        id: 1,
+        phoneNumberHash: 'hash123',
+        status: 'CONNECTED',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
+      };
+
+      mockRequest.body = {
+        exceptionsEnabled: false,
+        exceptionContacts: [],
+      };
+
+      (whatsappConnectionRepository.getActive as Mock).mockResolvedValue(mockConnection);
+      (whatsappConnectionRepository.update as Mock).mockResolvedValue(mockConnection);
+
+      await updateExceptions(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(whatsappConnectionRepository.update).toHaveBeenCalledWith(1, {
+        exceptionsEnabled: false,
+        exceptionContacts: [],
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        { exceptionsEnabled: false, exceptionContactsCount: 0 },
+        'Exceptions updated'
+      );
+    });
+
+    it('should return 404 when no connection found', async () => {
+      mockRequest.body = {
+        exceptionsEnabled: true,
+        exceptionContacts: ['contact1'],
+      };
+
+      (whatsappConnectionRepository.getActive as Mock).mockResolvedValue(null);
+
+      await updateExceptions(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'No WhatsApp connection found',
+      });
+    });
+
+    it('should call next on error', async () => {
+      const error = new Error('Update error');
+      mockRequest.body = {
+        exceptionsEnabled: true,
+        exceptionContacts: ['contact1'],
+      };
+
+      (whatsappConnectionRepository.getActive as Mock).mockRejectedValue(error);
+
+      await updateExceptions(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(logger.error).toHaveBeenCalledWith({ error }, 'Failed to update exceptions');
       expect(mockNext).toHaveBeenCalledWith(error);
     });
   });

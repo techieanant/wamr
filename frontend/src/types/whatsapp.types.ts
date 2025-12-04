@@ -24,6 +24,8 @@ export interface WhatsAppConnection {
   filterType: MessageFilterType;
   filterValue: string | null;
   autoApprovalMode: AutoApprovalMode;
+  exceptionsEnabled: boolean;
+  exceptionContacts: string[];
 }
 
 /**
