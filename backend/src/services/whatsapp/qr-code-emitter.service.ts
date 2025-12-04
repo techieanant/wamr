@@ -8,6 +8,7 @@ import { logger } from '../../config/logger.js';
  */
 class QRCodeEmitterService {
   private io: Server | null = null;
+  private lastQRCode: { qrCode: string; timestamp: string } | null = null;
 
   /**
    * Set Socket.IO server instance
@@ -37,6 +38,12 @@ class QRCodeEmitterService {
         },
       });
 
+      // Save last QR so new clients can request it
+      this.lastQRCode = {
+        qrCode: qrDataUrl,
+        timestamp: new Date().toISOString(),
+      };
+
       // Emit to all connected admin clients
       this.io.emit('whatsapp:qr', {
         qrCode: qrDataUrl,
@@ -47,6 +54,13 @@ class QRCodeEmitterService {
     } catch (error) {
       logger.error({ error }, 'Failed to generate or emit QR code');
     }
+  }
+
+  /**
+   * Get last known QR code (if any)
+   */
+  getLastQRCode(): { qrCode: string; timestamp: string } | null {
+    return this.lastQRCode;
   }
 
   /**

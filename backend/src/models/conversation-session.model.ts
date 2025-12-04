@@ -87,6 +87,7 @@ export interface UpdateConversationSession {
   searchResults?: NormalizedResult[] | null;
   selectedResultIndex?: number | null;
   selectedResult?: NormalizedResult | null;
+  contactName?: string | null;
   availableSeasons?: SeasonInfo[] | null;
   selectedSeasons?: number[] | null;
   updatedAt?: string;

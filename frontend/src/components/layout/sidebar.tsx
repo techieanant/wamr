@@ -7,6 +7,7 @@ const navigation = [
   { name: 'WhatsApp', href: '/whatsapp', icon: Smartphone },
   { name: 'Services', href: '/services', icon: Blocks },
   { name: 'Requests', href: '/requests', icon: FileText },
+  { name: 'Contacts', href: '/contacts', icon: FileText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

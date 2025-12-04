@@ -18,6 +18,7 @@ export enum SocketEvents {
   // Request Notifications
   REQUEST_NEW = 'request:new',
   REQUEST_STATUS_UPDATE = 'request:status-update',
+  REQUEST_CONTACT_UPDATE = 'request:contact-update',
 
   // System Events
   SYSTEM_ERROR = 'system:error',
@@ -195,6 +196,18 @@ export class WebSocketService {
       logger.error({ error }, 'Failed to send connection status to new client');
     }
 
+    // If there is a last cached QR code, send it to the newly connected client
+    try {
+      const { qrCodeEmitterService } = await import('../whatsapp/qr-code-emitter.service.js');
+      const lastQr = qrCodeEmitterService.getLastQRCode();
+      if (lastQr) {
+        socket.emit('whatsapp:qr', lastQr);
+        logger.info({ socketId: socket.id }, 'Sent last known QR code to new client');
+      }
+    } catch (error) {
+      logger.debug({ error }, 'No cached QR code to send to new client');
+    }
+
     // Handle disconnect
     socket.on('disconnect', (reason) => {
       this.authenticatedSockets.delete(socket.id);
@@ -215,6 +228,25 @@ export class WebSocketService {
       this.emit(SocketEvents.WHATSAPP_RESTART, {
         userId: socket.data.user?.userId,
       });
+    });
+
+    // Allow clients to request the latest QR explicitly
+    socket.on(SocketEvents.QR_REQUIRED, async () => {
+      try {
+        const { qrCodeEmitterService } = await import('../whatsapp/qr-code-emitter.service.js');
+        const lastQr = qrCodeEmitterService.getLastQRCode();
+        if (lastQr) {
+          socket.emit('whatsapp:qr', lastQr);
+        } else {
+          // Emit a null payload so the client knows there's no cached QR
+          socket.emit('whatsapp:qr', {
+            qrCode: null,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        logger.error({ error }, 'Failed to return cached QR code');
+      }
     });
   }
 

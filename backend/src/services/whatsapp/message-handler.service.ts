@@ -147,6 +147,11 @@ class MessageHandlerService {
         return;
       }
 
+      // Extract contact name from message (pushname or notifyName)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const contactName =
+        (message as any)._data?.notifyName || (message as any)._data?.pushname || null;
+
       // Extract message body
       const messageBody = message.body?.trim();
       if (!messageBody) {
@@ -158,6 +163,7 @@ class MessageHandlerService {
 
       logger.info('Processing message', {
         phoneNumber: phoneNumber.slice(-4),
+        contactName: contactName || 'Unknown',
         messageLength: messageBody.length,
       });
 
@@ -179,7 +185,8 @@ class MessageHandlerService {
       const response = await conversationService.processMessage(
         phoneNumberHash,
         cleanedMessage,
-        phoneNumber
+        phoneNumber,
+        contactName
       );
 
       // Send response back to user
@@ -189,6 +196,7 @@ class MessageHandlerService {
 
       logger.info('Message processed successfully', {
         phoneNumber: phoneNumber.slice(-4),
+        contactName: contactName || 'Unknown',
         state: response.state,
       });
     } catch (error) {

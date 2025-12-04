@@ -17,11 +17,13 @@ import servicesRoutes from './api/routes/services.routes';
 import requestsRoutes from './api/routes/requests.routes';
 import settingsRoutes from './api/routes/settings.routes';
 import systemRoutes from './api/routes/system.routes';
+import contactsRoutes from './api/routes/contacts.routes';
 import { whatsappClientService } from './services/whatsapp/whatsapp-client.service';
 import { qrCodeEmitterService } from './services/whatsapp/qr-code-emitter.service';
 import { whatsappSessionService } from './services/whatsapp/whatsapp-session.service';
 import { messageHandlerService } from './services/whatsapp/message-handler.service';
 import { mediaMonitoringService } from './services/media-monitoring/media-monitoring.service';
+import { migrate } from './database/migrate';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,6 +97,8 @@ function createApp(): Express {
   // Register settings routes
   app.use('/api/settings', settingsRoutes);
 
+  // Register contacts routes
+  app.use('/api/contacts', contactsRoutes);
   // Register system routes
   app.use('/api/system', systemRoutes);
 
@@ -237,6 +241,9 @@ async function main(): Promise<void> {
       },
       'Starting WAMR backend...'
     );
+
+    // Run database migrations before starting the server
+    await migrate();
 
     // Start server
     const httpServer = await startServer();

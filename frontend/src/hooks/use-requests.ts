@@ -162,9 +162,39 @@ export function useRequests(page: number = 1, limit: number = 50, status?: Reque
       queryClient.invalidateQueries({ queryKey: ['requests'], refetchType: 'none' });
     });
 
+    // Listen to 'request:contact-update' events (contact name changed for a phone hash)
+    const cleanupContactUpdate = on('request:contact-update', (data: unknown) => {
+      const contactData = (Array.isArray(data) ? data[0] : data) as {
+        phoneNumberHash: string;
+        contactName: string;
+        timestamp: string;
+      };
+
+      // Update all queries data to attach contact name where phoneNumberHash matches
+      queryClient.setQueriesData(
+        { queryKey: ['requests'] },
+        (oldData: RequestsResponse | undefined): RequestsResponse | undefined => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            requests: oldData.requests.map((request) =>
+              request.phoneNumberHash === contactData.phoneNumberHash
+                ? { ...request, contactName: contactData.contactName }
+                : request
+            ),
+          };
+        }
+      );
+
+      // Also refetch to ensure other aggregations are up-to-date
+      queryClient.invalidateQueries({ queryKey: ['requests'], refetchType: 'none' });
+    });
+
     return () => {
       cleanupNew();
       cleanupStatusUpdate();
+      cleanupContactUpdate();
     };
   }, [on, socketConnected, queryClient]);
 

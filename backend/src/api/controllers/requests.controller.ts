@@ -37,8 +37,26 @@ export const getAllRequests = async (
     const endIndex = startIndex + limit;
     const paginatedRequests = requests.slice(startIndex, endIndex);
 
+    // Add requester phone number (decrypted, unmasked) to each request
+    const requestsWithPhone = paginatedRequests.map((request) => {
+      let requesterPhone: string | undefined;
+      if (request.phoneNumberEncrypted) {
+        try {
+          const decrypted = encryptionService.decrypt(request.phoneNumberEncrypted);
+          requesterPhone = decrypted;
+        } catch (error) {
+          logger.warn({ requestId: request.id }, 'Failed to decrypt phone number');
+          requesterPhone = undefined;
+        }
+      }
+      return {
+        ...request,
+        requesterPhone,
+      };
+    });
+
     res.json({
-      requests: paginatedRequests,
+      requests: requestsWithPhone,
       pagination: {
         page,
         limit,
@@ -75,7 +93,22 @@ export const getRequestById = async (
       return;
     }
 
-    res.json(request);
+    // Add requester phone number (decrypted, unmasked)
+    let requesterPhone: string | undefined;
+    if (request.phoneNumberEncrypted) {
+      try {
+        const decrypted = encryptionService.decrypt(request.phoneNumberEncrypted);
+        requesterPhone = decrypted;
+      } catch (error) {
+        logger.warn({ requestId }, 'Failed to decrypt phone number');
+        requesterPhone = undefined;
+      }
+    }
+
+    res.json({
+      ...request,
+      requesterPhone,
+    });
   } catch (error) {
     logger.error({ error, requestId: req.params.id }, 'Failed to get request');
     next(error);

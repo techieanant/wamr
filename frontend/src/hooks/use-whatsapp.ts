@@ -114,10 +114,12 @@ export function useWhatsApp() {
 
         logger.debug('📱 Received whatsapp:status event:', statusData);
 
+        if (!statusData.status) return;
+
         queryClient.setQueryData(
           ['whatsapp', 'status'],
           (old: WhatsAppConnection | undefined): WhatsAppConnection => {
-            const status = statusData.status.toUpperCase() as WhatsAppConnection['status'];
+            const status = (statusData.status ?? '').toUpperCase() as WhatsAppConnection['status'];
             const isConnected = statusData.status === 'connected';
 
             const newData: WhatsAppConnection = old
@@ -165,7 +167,7 @@ export function useWhatsApp() {
       queryClient.setQueryData(
         ['whatsapp', 'status'],
         (old: WhatsAppConnection | undefined): WhatsAppConnection => {
-          const status = statusData.status.toUpperCase() as WhatsAppConnection['status'];
+          const status = (statusData.status ?? '').toUpperCase() as WhatsAppConnection['status'];
           const isConnected = statusData.status === 'connected';
 
           if (old) {

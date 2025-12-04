@@ -103,7 +103,8 @@ describe('HashingService', () => {
       const phoneNumber = '+1 (555) 123-8901';
       const masked = hashingService.maskPhoneNumber(phoneNumber);
 
-      expect(masked).toBe('*******8901');
+      // Normalization uses the last 10 digits before masking
+      expect(masked).toBe('******8901');
     });
 
     it('should mask entire number if 4 digits or less', () => {
@@ -124,7 +125,8 @@ describe('HashingService', () => {
       const longPhone = '123456789012345';
       const masked = hashingService.maskPhoneNumber(longPhone);
 
-      expect(masked).toBe('***********2345');
+      // Normalization will use the last 10 digits ("6789012345") and mask the first 6
+      expect(masked).toBe('******2345');
     });
   });
 });

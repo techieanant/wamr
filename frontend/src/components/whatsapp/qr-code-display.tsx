@@ -1,50 +1,41 @@
 import { useEffect, useState } from 'react';
-import { socketClient } from '../../services/socket.client';
+// socketClient usage removed; use useSocket hook instead
+import { useSocket } from '../../hooks/use-socket';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Loader2 } from 'lucide-react';
 
 export function QRCodeDisplay() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [isConnected, setIsConnected] = useState(socketClient.isConnected());
+  const { on, emit, isConnected } = useSocket();
 
   useEffect(() => {
-    // Update connection status
-    const checkConnection = setInterval(() => {
-      setIsConnected(socketClient.isConnected());
-    }, 1000);
+    if (!isConnected) return;
 
-    // Get raw socket and listen directly
-    const rawSocket = socketClient.getRawSocket();
-
-    if (!rawSocket) {
-      return () => clearInterval(checkConnection);
-    }
-
-    // Listen for QR code events using specific event listener
-    // Note: Socket.IO sometimes wraps single parameters in an array
     const handleQRCode = (
       data: { qrCode?: string; timestamp?: string } | { qrCode?: string; timestamp?: string }[]
     ) => {
-      // Handle both array and direct object formats
       const qrData = Array.isArray(data) ? data[0] : data;
-
       if (qrData && qrData.qrCode) {
         setQrCode(qrData.qrCode);
         setLastUpdate(new Date(qrData.timestamp || Date.now()));
       }
     };
 
-    // Listen for the specific event
-    rawSocket.on('whatsapp:qr', handleQRCode);
+    const cleanup = on('whatsapp:qr', handleQRCode);
+
+    // Ensure we ask for the latest cached QR on connect (in case the server emitted it before we subscribed)
+    try {
+      emit('qr-required');
+    } catch (err) {
+      // ignore emit errors; we'll receive QR events if the server has them
+    }
 
     return () => {
-      clearInterval(checkConnection);
-      rawSocket.off('whatsapp:qr', handleQRCode);
-      // Reset QR code state on unmount
+      if (cleanup) cleanup();
       setQrCode(null);
     };
-  }, []);
+  }, [isConnected, on, emit]);
 
   if (!isConnected) {
     return (

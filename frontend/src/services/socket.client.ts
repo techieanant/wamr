@@ -33,6 +33,11 @@ export interface ServerToClientEvents {
     errorMessage?: string;
     timestamp: string;
   }) => void;
+  'request:contact-update': (data: {
+    phoneNumberHash: string;
+    contactName: string | null;
+    timestamp: string;
+  }) => void;
 
   // System events
   'system:error': (data: { message: string; code?: string }) => void;

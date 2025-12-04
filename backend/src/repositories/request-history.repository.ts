@@ -1,5 +1,6 @@
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
+import { contactRepository } from './contact.repository.js';
 import { requestHistory } from '../db/schema.js';
 import {
   RequestHistoryModel,
@@ -48,6 +49,47 @@ export class RequestHistoryRepository {
   }
 
   /**
+   * Attach contactName to request models using the contacts table (read-time mapping).
+   * The contacts table is the source of truth - it always overrides the database value.
+   */
+  private async attachContactNames(requests: RequestHistoryModel[]): Promise<void> {
+    if (!requests || requests.length === 0) return;
+
+    const uniqueHashes = Array.from(
+      new Set(requests.map((r) => r.phoneNumberHash).filter(Boolean))
+    );
+    if (uniqueHashes.length === 0) return;
+
+    const map = new Map<string, string | null>();
+    try {
+      const contacts = await contactRepository.findByPhoneHashes(uniqueHashes);
+      for (const c of contacts) {
+        map.set(c.phoneNumberHash, c.contactName ?? null);
+      }
+      // Ensure hashes without contacts get a null entry
+      for (const h of uniqueHashes) {
+        if (!map.has(h)) map.set(h, null);
+      }
+    } catch (err) {
+      logger.warn({ error: err }, 'Failed to batch load contacts for phone hashes');
+      for (const h of uniqueHashes) {
+        map.set(h, null);
+      }
+    }
+
+    for (const req of requests) {
+      // If a contact exists for this phone hash, use it as the single source of truth
+      if (map.has(req.phoneNumberHash)) {
+        const contactName = map.get(req.phoneNumberHash);
+        // Override the database value with the contacts table value
+        // This ensures any updates to contacts are immediately reflected
+        req.contactName = contactName || req.contactName;
+      }
+      // If no contact exists, keep the original database value (WhatsApp pushname)
+    }
+  }
+
+  /**
    * Find request by ID
    */
   async findById(id: number): Promise<RequestHistoryModel | null> {
@@ -57,7 +99,9 @@ export class RequestHistoryRepository {
       return null;
     }
 
-    return this.mapToModel(requests[0]);
+    const model = this.mapToModel(requests[0]);
+    await this.attachContactNames([model]);
+    return model;
   }
 
   /**
@@ -122,6 +166,7 @@ export class RequestHistoryRepository {
       .offset(offset);
 
     const data = requests.map((request) => this.mapToModel(request));
+    await this.attachContactNames(data);
     const totalPages = Math.ceil(total / pageSize);
 
     return {
@@ -161,6 +206,93 @@ export class RequestHistoryRepository {
     logger.info({ requestId: id, updates: Object.keys(updates) }, 'Updated request history');
 
     return this.mapToModel(updatedRequests[0]);
+  }
+
+  /**
+   * Update contact name for all requests with the given phoneNumberHash and currently null contactName
+   */
+  async updateContactNameForPhone(
+    phoneNumberHash: string,
+    contactName: string,
+    overwrite: boolean = false
+  ): Promise<number> {
+    const now = new Date().toISOString();
+    // By default set contactName only when currently NULL; allow optional overwrite via parameter
+    const whereClause = overwrite
+      ? sql`${requestHistory.phoneNumberHash} = ${phoneNumberHash}`
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sql`${requestHistory.phoneNumberHash} = ${phoneNumberHash} AND ${requestHistory.contactName} IS NULL`;
+
+    const result = await db
+      .update(requestHistory)
+      .set({ contactName, updatedAt: now })
+      .where(whereClause);
+
+    if (result.changes > 0) {
+      logger.info(
+        { phoneNumberHash, contactName, count: result.changes },
+        'Updated contact name for previous requests'
+      );
+    }
+
+    return result.changes;
+  }
+
+  /**
+   * Clear contact name for all requests matching a phone number hash (used when contact phone changes)
+   */
+  async clearContactNameForPhone(phoneNumberHash: string): Promise<number> {
+    const now = new Date().toISOString();
+    const result = await db
+      .update(requestHistory)
+      .set({ contactName: null, updatedAt: now })
+      .where(eq(requestHistory.phoneNumberHash, phoneNumberHash));
+
+    if (result.changes > 0) {
+      logger.info(
+        { phoneNumberHash, count: result.changes },
+        'Cleared contact name for previous requests'
+      );
+    }
+
+    return result.changes;
+  }
+
+  // NOTE: 'updatePhoneNumberHash' is defined below with safe logging; don't re-add duplicate here.
+
+  /**
+   * Get distinct phone number hashes currently present in request_history
+   */
+  async getDistinctPhoneNumberHashes(): Promise<string[]> {
+    // raw select distinct - drizzle query builder is flexible but raw approach is fine here
+    const rows = await db
+      .select({ hash: sql`DISTINCT ${requestHistory.phoneNumberHash}` })
+      .from(requestHistory);
+    return rows.map((r: { hash: unknown }) => String(r.hash));
+  }
+
+  /**
+   * Update phone number hash for all requests (used when a contact's phone number changes)
+   */
+  async updatePhoneNumberHash(oldHash: string, newHash: string): Promise<number> {
+    const now = new Date().toISOString();
+    const result = await db
+      .update(requestHistory)
+      .set({ phoneNumberHash: newHash, updatedAt: now })
+      .where(eq(requestHistory.phoneNumberHash, oldHash));
+
+    if (result.changes > 0) {
+      logger.info(
+        {
+          oldHash: oldHash.substring(0, 8),
+          newHash: newHash.substring(0, 8),
+          count: result.changes,
+        },
+        'Updated phone number hash for requests'
+      );
+    }
+
+    return result.changes;
   }
 
   /**
@@ -220,7 +352,9 @@ export class RequestHistoryRepository {
       .orderBy(desc(requestHistory.createdAt))
       .limit(limit);
 
-    return requests.map((request) => this.mapToModel(request));
+    const models = requests.map((request) => this.mapToModel(request));
+    await this.attachContactNames(models);
+    return models;
   }
 
   /**
@@ -233,7 +367,9 @@ export class RequestHistoryRepository {
       .where(and(sql`${requestHistory.status} IN ('PENDING', 'FAILED')`))
       .orderBy(desc(requestHistory.createdAt));
 
-    return requests.map((request) => this.mapToModel(request));
+    const models = requests.map((request) => this.mapToModel(request));
+    await this.attachContactNames(models);
+    return models;
   }
 
   /**
@@ -248,7 +384,9 @@ export class RequestHistoryRepository {
       .where(eq(requestHistory.status, status))
       .orderBy(desc(requestHistory.createdAt));
 
-    return requests.map((request) => this.mapToModel(request));
+    const models = requests.map((request) => this.mapToModel(request));
+    await this.attachContactNames(models);
+    return models;
   }
 
   /**
@@ -256,8 +394,9 @@ export class RequestHistoryRepository {
    */
   async findAll(): Promise<RequestHistoryModel[]> {
     const requests = await db.select().from(requestHistory).orderBy(desc(requestHistory.createdAt));
-
-    return requests.map((request) => this.mapToModel(request));
+    const models = requests.map((request) => this.mapToModel(request));
+    await this.attachContactNames(models);
+    return models;
   }
 
   /**

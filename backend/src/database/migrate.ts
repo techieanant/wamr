@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 import dotenv from 'dotenv';
 import { logger } from '../config/logger';
+import { runPhoneHashMigration } from '../services/migrations/phone-hash-migration.js';
 
 // Get the directory name in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -53,7 +54,11 @@ async function migrate(): Promise<void> {
     let appliedCount = 0;
     for (const file of files) {
       const filePath = join(MIGRATIONS_DIR, file);
-      const sql = readFileSync(filePath, 'utf-8');
+      let sql = readFileSync(filePath, 'utf-8');
+      // Some environments (drizzle-cli) insert statement breakpoint markers like
+      // '--> statement-breakpoint' which are not valid SQL for sqlite. Strip those
+      // markers before executing the SQL file directly.
+      sql = sql.replace(/-->\s*statement-breakpoint/g, '');
       const hash = file; // Use filename as hash for simplicity
 
       if (appliedHashes.has(hash)) {
@@ -71,9 +76,35 @@ async function migrate(): Promise<void> {
 
         appliedCount++;
         logger.info({ file }, 'Migration applied successfully');
-      } catch (error) {
-        logger.error({ error, file }, 'Migration failed');
-        throw error;
+      } catch (error: unknown) {
+        const errMsg = (error as Error)?.message || String(error);
+        // If the table/index already exists, assume migration was previously applied
+        // and record it in the migrations table so we don't re-apply it.
+        if (/already exists/i.test(errMsg) || /duplicate column name/i.test(errMsg)) {
+          logger.warn(
+            { file, errMsg },
+            'Migration appears to be already applied; marking as applied'
+          );
+          try {
+            sqlite
+              .prepare('INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)')
+              .run(hash, Date.now());
+            appliedCount++;
+          } catch (innerErr) {
+            logger.error(
+              { innerErr },
+              'Failed to mark migration as applied after "already exists"'
+            );
+            throw error; // Re-throw
+          }
+        } else {
+          logger.error({ error: errMsg, file }, 'Migration failed');
+          logger.debug(
+            { sql: sql.slice(0, 1000) },
+            'Failed SQL (truncated to 1000 chars for inspection)'
+          );
+          throw error;
+        }
       }
     }
 
@@ -89,6 +120,13 @@ async function migrate(): Promise<void> {
     console.log('\n✅ Database migrations completed!');
     // eslint-disable-next-line no-console
     console.log(`   Applied ${appliedCount} migration(s)\n`);
+
+    // Run post-migration tasks (phone hash migration)
+    try {
+      await runPhoneHashMigration();
+    } catch (err) {
+      logger.warn({ err }, 'Phone hash migration failed after DB migrations');
+    }
   } catch (error) {
     logger.error({ error }, 'Database migration failed');
     throw error;

@@ -61,6 +61,61 @@
   }
 }
 
+/* DayPicker custom styles to improve multi-range visuals */
+.rdp-root {
+  /* Use app primary color as accent */
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-range_middle-background-color: rgb(59 130 246 / 0.08); /* soft blue */
+  --rdp-range_start-background: hsl(var(--primary));
+  --rdp-range_end-background: hsl(var(--primary));
+  --rdp-selected-color: var(--primary-foreground);
+}
+
+/* Range styles: middle is a pale background, start/end are filled circles */
+.rdp-root .day-range-middle {
+  background-color: var(--rdp-range_middle-background-color);
+}
+.rdp-root .day-range-start .rdp-day_button,
+.rdp-root .day-range-end .rdp-day_button {
+  background-color: var(--rdp-accent-color);
+  color: hsl(var(--primary-foreground));
+}
+.rdp-root .day-range-start .rdp-day_button {
+  border-top-left-radius: 9999px;
+  border-bottom-left-radius: 9999px;
+}
+.rdp-root .day-range-end .rdp-day_button {
+  border-top-right-radius: 9999px;
+  border-bottom-right-radius: 9999px;
+}
+
+/* Ensure range middle covers the full width of the cell */
+.rdp-root .day-range-middle .rdp-day_button {
+  background: transparent;
+}
+
+/* Make the selected start and end more visible — rounded filled pills with subtle shadow */
+.rdp-root .day-range-start .rdp-day_button,
+.rdp-root .day-range-end .rdp-day_button {
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04) inset, 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* Keep middle transparent so range background is visible but clickable */
+.rdp-root .day-range-middle .rdp-day_button:hover {
+  background: rgba(59,130,246,0.08);
+}
+
+/* Hover states: only on selectable (not disabled) days */
+.rdp-root .rdp-day_button:not(.rdp-day_selected):hover:not([aria-disabled="true"]) {
+  background-color: rgba(59,130,246,0.06);
+}
+
+/* Disabled days should not be selectable and have muted cursor */
+.rdp-root .rdp-day_button[aria-disabled="true"], .rdp-root .rdp-day_button.rdp-day_disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 @layer base {
   * {
     @apply border-border;
