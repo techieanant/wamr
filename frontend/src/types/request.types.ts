@@ -6,6 +6,8 @@ export interface MediaRequest {
   id: number;
   phoneNumberHash: string;
   phoneNumberEncrypted?: string;
+  requesterPhone?: string; // Full unmasked phone number for display
+  contactName?: string | null; // WhatsApp contact name (pushname/notifyName)
   mediaType: MediaType;
   title: string;
   year?: number;

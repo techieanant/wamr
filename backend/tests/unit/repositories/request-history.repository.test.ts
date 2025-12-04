@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RequestHistoryRepository } from '../../../src/repositories/request-history.repository';
+import { contactRepository } from '../../../src/repositories/contact.repository.js';
 import { db } from '../../../src/db/index.js';
 
 vi.mock('../../../src/db/index.js', () => ({
@@ -62,6 +63,13 @@ vi.mock('../../../src/config/logger.js', () => ({
   },
 }));
 
+vi.mock('../../../src/repositories/contact.repository.js', () => ({
+  contactRepository: {
+    findByPhoneHash: vi.fn(),
+    findByPhoneHashes: vi.fn(),
+  },
+}));
+
 vi.mock('../../../src/models/request-history.model.js', () => ({
   serializeConversationLog: vi.fn((log) => JSON.stringify(log)),
   deserializeConversationLog: vi.fn((log) => (log ? JSON.parse(log) : null)),
@@ -75,6 +83,9 @@ describe('RequestHistoryRepository', () => {
     vi.clearAllMocks();
     mockedDb = db as any;
     repository = new RequestHistoryRepository();
+    // Make sure contactRepository returns no matches by default so existing tests' expectations remain valid
+    (contactRepository.findByPhoneHash as any).mockResolvedValue(null);
+    (contactRepository.findByPhoneHashes as any).mockResolvedValue([]);
   });
 
   describe('create', () => {
@@ -185,6 +196,49 @@ describe('RequestHistoryRepository', () => {
         createdAt: '2023-01-01T00:00:00.000Z',
         updatedAt: '2023-01-01T00:00:00.000Z',
       });
+    });
+
+    it('should attach contactName from contacts table', async () => {
+      const mockRequest = {
+        id: 2,
+        phoneNumberHash: 'hash456',
+        phoneNumberEncrypted: null,
+        mediaType: 'movie',
+        title: 'Test Movie 2',
+        year: 2023,
+        tmdbId: 456,
+        tvdbId: null,
+        serviceType: null,
+        serviceConfigId: null,
+        status: 'PENDING',
+        conversationLog: JSON.stringify([]),
+        submittedAt: null,
+        errorMessage: null,
+        adminNotes: null,
+        createdAt: '2023-01-02T00:00:00.000Z',
+        updatedAt: '2023-01-02T00:00:00.000Z',
+      };
+
+      mockedDb.select.mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([mockRequest]),
+        }),
+      });
+
+      const { contactRepository } = await import('../../../src/repositories/contact.repository.js');
+      (contactRepository.findByPhoneHashes as any).mockResolvedValue([
+        {
+          id: 1,
+          phoneNumberHash: 'hash456',
+          contactName: 'Alice',
+          createdAt: '2023-01-01T00:00:00.000Z',
+          updatedAt: '2023-01-01T00:00:00.000Z',
+        },
+      ]);
+
+      const result = await repository.findById(2);
+
+      expect(result?.contactName).toBe('Alice');
     });
 
     it('should return null when request not found', async () => {

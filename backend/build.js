@@ -52,4 +52,11 @@ await esbuild.build({
   outfile: 'dist/database/seed.js',
 });
 
+// Build scripts (e.g., optional scripts/migrate-phone-hashes.ts)
+await esbuild.build({
+  ...sharedConfig,
+  entryPoints: ['scripts/migrate-phone-hashes.ts'],
+  outfile: 'dist/scripts/migrate-phone-hashes.js',
+});
+
 console.log('✅ Build complete!');

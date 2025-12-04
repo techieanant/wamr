@@ -1,1 +1,15 @@
-npx lint-staged
+#!/bin/sh
+
+# Run lint-staged to attempt auto-fixing staged files where possible
+npx lint-staged || exit 1
+
+echo "\n=== Running CI-like checks (format, lint, format:check, build, security audit) ==="
+
+# Run formatting across the repo so code is auto-formatted and stage any changes
+npm run format || exit 1
+git add -A || true
+
+# Run the centralized ci script (lint, format:check, build, security audit)
+npm run ci || exit 1
+
+exit 0

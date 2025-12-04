@@ -13,11 +13,13 @@ import { useQueryClient } from '@tanstack/react-query';
 export default function WhatsAppConnection() {
   const { status, connect, updateFilter, isConnecting, isUpdatingFilter, isLoading } =
     useWhatsApp();
-  const { on, isConnected: socketConnected } = useSocket(false); // Don't auto-connect (App.tsx handles it)
+  // Ensure the page subscribes to socket events directly so we don't miss QR/status updates
+  const { on, isConnected: socketConnected } = useSocket();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [hasClickedConnect, setHasClickedConnect] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [realtimeConnecting, setRealtimeConnecting] = useState(false);
 
   // On mount, check if already connected via API
   useEffect(() => {
@@ -52,6 +54,7 @@ export default function WhatsAppConnection() {
       if (statusData.status === 'connected') {
         setRealtimeConnected(true);
         setHasClickedConnect(false); // Hide QR immediately
+        setRealtimeConnecting(false);
 
         // Force immediate refetch of full status to get filter settings
         queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
@@ -69,8 +72,13 @@ export default function WhatsAppConnection() {
         setTimeout(() => {
           queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
         }, 1000);
+      } else if (statusData.status === 'connecting') {
+        // Set a separate flag to indicate we're actively connecting and waiting on QR
+        setRealtimeConnecting(true);
+        setRealtimeConnected(false);
       } else {
         setRealtimeConnected(false);
+        setRealtimeConnecting(false);
       }
     });
 
@@ -108,7 +116,9 @@ export default function WhatsAppConnection() {
   // Show QR display if user clicked connect OR if status is CONNECTING, but NEVER if connected
   // Also check if we're actually disconnected to avoid showing QR during state transitions
   const shouldShowQR =
-    (hasClickedConnect || isConnecting_status) && !isConnected && status?.status !== 'CONNECTED';
+    (hasClickedConnect || isConnecting_status || realtimeConnecting) &&
+    !isConnected &&
+    status?.status !== 'CONNECTED';
 
   const handleConnect = () => {
     setHasClickedConnect(true);
@@ -138,7 +148,7 @@ export default function WhatsAppConnection() {
     );
   };
 
-  if (isLoading) {
+  if (isLoading && !shouldShowQR) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex min-h-[400px] items-center justify-center">

@@ -51,6 +51,7 @@ export const conversationSessions = sqliteTable(
   {
     id: text('id').primaryKey(), // UUID v4
     phoneNumberHash: text('phone_number_hash').notNull(),
+    contactName: text('contact_name'), // WhatsApp contact name (pushname/notifyName)
     state: text('state', {
       enum: [
         'IDLE',
@@ -126,6 +127,7 @@ export const requestHistory = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     phoneNumberHash: text('phone_number_hash').notNull(),
     phoneNumberEncrypted: text('phone_number_encrypted'), // Encrypted phone number for notifications (format: iv:authTag:ciphertext)
+    contactName: text('contact_name'), // WhatsApp contact name (pushname/notifyName)
     mediaType: text('media_type', { enum: ['movie', 'series'] }).notNull(),
     title: text('title').notNull(),
     year: integer('year'),
@@ -174,3 +176,26 @@ export type NewMediaServiceConfiguration = typeof mediaServiceConfigurations.$in
 
 export type RequestHistory = typeof requestHistory.$inferSelect;
 export type NewRequestHistory = typeof requestHistory.$inferInsert;
+
+// Contacts Table (stores phoneNumberHash -> contactName mapping)
+export const contacts = sqliteTable(
+  'contacts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    phoneNumberHash: text('phone_number_hash').notNull().unique(),
+    phoneNumberEncrypted: text('phone_number_encrypted'),
+    contactName: text('contact_name'),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => ({
+    phoneIdx: index('idx_contacts_phone').on(table.phoneNumberHash),
+  })
+);
+
+export type Contact = typeof contacts.$inferSelect;
+export type NewContact = typeof contacts.$inferInsert;

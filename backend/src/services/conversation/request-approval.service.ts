@@ -24,7 +24,8 @@ export class RequestApprovalService {
     phoneNumber: string | undefined,
     selectedResult: NormalizedResult,
     serviceConfigId: number,
-    selectedSeasons?: number[]
+    selectedSeasons?: number[],
+    contactName?: string
   ): Promise<{ success: boolean; errorMessage?: string; status: string }> {
     try {
       // Get auto-approval mode from the active WhatsApp connection (admin's connection)
@@ -56,6 +57,7 @@ export class RequestApprovalService {
         const request = await requestHistoryRepository.create({
           phoneNumberHash,
           phoneNumberEncrypted,
+          contactName,
           mediaType,
           title: selectedResult.title,
           year: selectedResult.year ?? undefined,
@@ -90,6 +92,7 @@ export class RequestApprovalService {
         const request = await requestHistoryRepository.create({
           phoneNumberHash,
           phoneNumberEncrypted,
+          contactName,
           mediaType,
           title: selectedResult.title,
           year: selectedResult.year ?? undefined,
@@ -135,6 +138,7 @@ export class RequestApprovalService {
           const request = await requestHistoryRepository.create({
             phoneNumberHash,
             phoneNumberEncrypted,
+            contactName,
             mediaType,
             title: selectedResult.title,
             year: selectedResult.year ?? undefined,
@@ -169,6 +173,7 @@ export class RequestApprovalService {
           const request = await requestHistoryRepository.create({
             phoneNumberHash,
             phoneNumberEncrypted,
+            contactName,
             mediaType,
             title: selectedResult.title,
             year: selectedResult.year ?? undefined,
