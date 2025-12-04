@@ -44,6 +44,8 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64
+          progress: plain
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest

@@ -17,6 +17,7 @@ COPY backend/tsconfig.json backend/build.js ./backend/
 COPY backend/src ./backend/src
 COPY backend/drizzle ./backend/drizzle
 COPY backend/drizzle.config.ts ./backend/
+COPY backend/scripts ./backend/scripts
 
 COPY frontend/tsconfig*.json frontend/vite.config.ts frontend/components.json ./frontend/
 COPY frontend/postcss.config.js frontend/tailwind.config.ts frontend/index.html ./frontend/

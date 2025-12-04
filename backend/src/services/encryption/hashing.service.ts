@@ -11,8 +11,10 @@ export class HashingService {
    * @returns SHA-256 hash (64 hex characters)
    */
   hashPhoneNumber(phoneNumber: string): string {
-    // Normalize phone number: remove +, spaces, parentheses, dashes
-    const normalized = phoneNumber.replace(/[\s\+\(\)\-]/g, '');
+    // Normalize phone number: remove all non-digit characters
+    const digits = phoneNumber.replace(/\D/g, '');
+    // Use only the last 10 digits to avoid country code and formatting differences
+    const normalized = digits.slice(-10);
 
     // Hash with SHA-256
     return crypto.createHash('sha256').update(normalized).digest('hex');
@@ -35,7 +37,8 @@ export class HashingService {
    * @returns Masked phone number (e.g., "****1234")
    */
   maskPhoneNumber(phoneNumber: string): string {
-    const normalized = phoneNumber.replace(/[\s\+\(\)\-]/g, '');
+    const digits = phoneNumber.replace(/\D/g, '');
+    const normalized = digits.slice(-10);
     if (normalized.length <= 4) {
       return '*'.repeat(normalized.length);
     }

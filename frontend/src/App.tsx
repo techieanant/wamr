@@ -10,6 +10,7 @@ import DashboardPage from './pages/dashboard';
 import WhatsAppConnection from './pages/whatsapp-connection';
 import { ServiceConfigPage } from './pages/service-config';
 import RequestsPage from './pages/requests';
+import ContactsPage from './pages/contacts';
 import SettingsPage from './pages/settings';
 import { MainLayout } from './components/layout/main-layout';
 import { Toaster } from './components/ui/toaster';
@@ -156,6 +157,17 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <RequestsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/contacts"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ContactsPage />
                 </MainLayout>
               </ProtectedRoute>
             }

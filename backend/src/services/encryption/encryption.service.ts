@@ -61,6 +61,21 @@ export class EncryptionService {
       }
 
       const [ivHex, authTagHex, ciphertext] = parts;
+
+      // Basic validation: hex lengths
+      if (!/^[0-9a-fA-F]+$/.test(ivHex) || ivHex.length !== 24) {
+        throw new Error('Invalid IV');
+      }
+      if (!/^[0-9a-fA-F]+$/.test(authTagHex) || authTagHex.length !== 32) {
+        throw new Error('Invalid authTag');
+      }
+      if (
+        !/^[0-9a-fA-F]*$/.test(ciphertext) ||
+        (ciphertext.length !== 0 && ciphertext.length % 2 !== 0)
+      ) {
+        throw new Error('Invalid ciphertext');
+      }
+
       const iv = Buffer.from(ivHex, 'hex');
       const authTag = Buffer.from(authTagHex, 'hex');
 

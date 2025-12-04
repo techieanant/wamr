@@ -1,5 +1,6 @@
 import { conversationSessionRepository } from '../../repositories/conversation-session.repository.js';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
+import { contactRepository } from '../../repositories/contact.repository.js';
 import { intentParser, IntentResult } from './intent-parser.js';
 import { stateMachine, StateMachineAction } from './state-machine.js';
 import {
@@ -10,6 +11,8 @@ import {
   getExpirationTime,
 } from '../../models/conversation-session.model.js';
 import { logger } from '../../config/logger.js';
+import { webSocketService, SocketEvents } from '../websocket/websocket.service.js';
+import { encryptionService } from '../encryption/encryption.service.js';
 import { mediaSearchService } from '../media-search/media-search.service.js';
 import { mediaServiceConfigRepository } from '../../repositories/media-service-config.repository.js';
 import { requestApprovalService } from './request-approval.service.js';
@@ -30,6 +33,8 @@ export interface ConversationResponse {
 export class ConversationService {
   // Store active phone numbers for async callbacks (sessionId -> phoneNumber)
   private activePhoneNumbers = new Map<string, string>();
+  // Store active contact names for async callbacks (sessionId -> contactName)
+  private activeContactNames = new Map<string, string>();
 
   /**
    * Process an incoming message from a user
@@ -37,9 +42,10 @@ export class ConversationService {
   async processMessage(
     phoneNumberHash: string,
     message: string,
-    phoneNumber?: string
+    phoneNumber?: string,
+    contactName?: string | null
   ): Promise<ConversationResponse> {
-    logger.info({ phoneNumberHash, message }, 'Processing incoming message');
+    logger.info({ phoneNumberHash, message, contactName }, 'Processing incoming message');
 
     // Get or create conversation session
     let session = await conversationSessionRepository.findByPhoneHash(phoneNumberHash);
@@ -51,8 +57,65 @@ export class ConversationService {
         phoneNumberHash,
         state: 'IDLE',
         expiresAt: getExpirationTime(5),
+        contactName: contactName || undefined,
       });
-      logger.info({ sessionId: session.id, phoneNumberHash }, 'Created new conversation session');
+      logger.info(
+        { sessionId: session.id, phoneNumberHash, contactName },
+        'Created new conversation session'
+      );
+      // When we create a new session and we already have a contact name (from message metadata),
+      // persist contact and backfill historical request entries so older requests show a name.
+      if (contactName) {
+        try {
+          // Persist the contact name (we intentionally do NOT write this into request_history rows).
+          const phoneNumberEncrypted = phoneNumber
+            ? encryptionService.encrypt(phoneNumber)
+            : undefined;
+          await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
+          // Emit contact update to clients so they can show contact name for matching requests
+          webSocketService.emit(SocketEvents.REQUEST_CONTACT_UPDATE, {
+            phoneNumberHash,
+            contactName,
+            timestamp: new Date().toISOString(),
+          });
+          logger.info({ phoneNumberHash, contactName }, 'Upserted contact');
+        } catch (err) {
+          logger.warn(
+            { sessionId: session.id, phoneNumberHash, contactName, error: err },
+            'Failed to persist contact on new session creation'
+          );
+        }
+      }
+    } else if (contactName && session.contactName !== contactName) {
+      // Update contact name if it changed
+      const updated = await conversationSessionRepository.update(session.id, {
+        contactName,
+      });
+      if (updated) {
+        session = updated;
+
+        try {
+          // Upsert to contacts list. Do not perform DB backfill - UI will display contact names using the
+          // contacts table when available.
+          const phoneNumberEncrypted = phoneNumber
+            ? encryptionService.encrypt(phoneNumber)
+            : undefined;
+          await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
+          // Emit a socket event so admin clients can update their cached request rows immediately
+          webSocketService.emit(SocketEvents.REQUEST_CONTACT_UPDATE, {
+            phoneNumberHash,
+            contactName,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (err) {
+          logger.warn(
+            { sessionId: session.id, phoneNumberHash, contactName, error: err },
+            'Failed to update contact repository'
+          );
+        }
+      } else {
+        logger.warn({ sessionId: session.id }, 'Failed to update contact name for session');
+      }
     }
 
     // Debug: Log session state
@@ -66,9 +129,12 @@ export class ConversationService {
       '🔍 DEBUG: Session loaded with state'
     );
 
-    // Store phone number for async callbacks
+    // Store phone number and contact name for async callbacks
     if (phoneNumber) {
       this.activePhoneNumbers.set(session.id, phoneNumber);
+    }
+    if (contactName) {
+      this.activeContactNames.set(session.id, contactName);
     }
 
     // Parse user intent
@@ -862,8 +928,9 @@ export class ConversationService {
       // Use highest priority service
       const service = enabledServices[0];
 
-      // Get phone number for this session
+      // Get phone number and contact name for this session
       const phoneNumber = this.activePhoneNumbers.get(sessionId);
+      const contactName = this.activeContactNames.get(sessionId);
 
       // Use the request approval service to handle the request
       const result = await requestApprovalService.createAndProcessRequest(
@@ -871,7 +938,8 @@ export class ConversationService {
         phoneNumber,
         selectedResult,
         service.id,
-        session.selectedSeasons ?? undefined
+        session.selectedSeasons ?? undefined,
+        contactName
       );
 
       // Note: The request approval service already sends WhatsApp notifications to the user,

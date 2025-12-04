@@ -1,6 +1,6 @@
 {
   "name": "wamr-monorepo",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "WhatsApp Media Request Manager - Monorepo",
   "workspaces": [
@@ -24,6 +24,10 @@
     "docker:down": "docker-compose --env-file .env.prod down",
     "docker:logs": "docker-compose --env-file .env.prod logs -f",
     "docker:restart": "docker-compose --env-file .env.prod restart",
+    "typecheck:backend": "cd backend && npm run typecheck",
+    "typecheck:frontend": "cd frontend && npm run typecheck",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "ci": "npm run lint && npm run format:check && npm run build",
     "prepare": "husky"
   },
   "devDependencies": {
