@@ -335,10 +335,22 @@ export class RequestApprovalService {
 
       return { success: true };
     } catch (error) {
-      logger.error({ error }, 'Error submitting to service');
+      let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Check for 409 Conflict errors specifically
+      if ((error as any)?.statusCode === 409 || (error as any)?.response?.status === 409) {
+        errorMessage = 'This movie/series is already requested or available in your library.';
+        logger.error(
+          { error, statusCode: (error as any)?.statusCode || (error as any)?.response?.status },
+          'Conflict error (409) submitting to service'
+        );
+      } else {
+        logger.error({ error }, 'Error submitting to service');
+      }
+
       return {
         success: false,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorMessage,
       };
     }
   }

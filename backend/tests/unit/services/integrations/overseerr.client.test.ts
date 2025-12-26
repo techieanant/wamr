@@ -263,6 +263,17 @@ describe('OverseerrClient', () => {
 
       await expect(client.requestMovie(movieParams)).rejects.toThrow('Request failed');
     });
+
+    it('should throw a descriptive error for 409 Conflict (duplicate request)', async () => {
+      const mockError = new Error('Request failed with status code 409');
+      (mockError as any).response = { status: 409 };
+      mockAxiosInstance.post.mockRejectedValue(mockError);
+
+      const error = await client.requestMovie(movieParams).catch((e) => e);
+
+      expect(error.message).toContain('already exists or has a pending request');
+      expect((error as any).statusCode).toBe(409);
+    });
   });
 
   describe('requestSeries', () => {
@@ -344,6 +355,17 @@ describe('OverseerrClient', () => {
       mockAxiosInstance.post.mockRejectedValue(mockError);
 
       await expect(client.requestSeries(seriesParams)).rejects.toThrow('Series request failed');
+    });
+
+    it('should throw a descriptive error for 409 Conflict (duplicate request)', async () => {
+      const mockError = new Error('Request failed with status code 409');
+      (mockError as any).response = { status: 409 };
+      mockAxiosInstance.post.mockRejectedValue(mockError);
+
+      const error = await client.requestSeries(seriesParams).catch((e) => e);
+
+      expect(error.message).toContain('already exists or has a pending request');
+      expect((error as any).statusCode).toBe(409);
     });
   });
 

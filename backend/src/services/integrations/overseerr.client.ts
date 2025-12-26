@@ -279,6 +279,21 @@ export class OverseerrClient {
 
       return response.data;
     } catch (error) {
+      // Handle specific error cases
+      if (
+        error instanceof Error &&
+        'response' in error &&
+        (error as any).response?.status === 409
+      ) {
+        const message = 'Movie already exists or has a pending request in Overseerr';
+        logger.error(
+          { mediaId: params.mediaId, message },
+          'Failed to request movie via Overseerr - Conflict (409)'
+        );
+        const conflictError = new Error(message);
+        (conflictError as any).statusCode = 409;
+        throw conflictError;
+      }
       logger.error({ error, mediaId: params.mediaId }, 'Failed to request movie via Overseerr');
       throw error;
     }
@@ -312,6 +327,21 @@ export class OverseerrClient {
 
       return response.data;
     } catch (error) {
+      // Handle specific error cases
+      if (
+        error instanceof Error &&
+        'response' in error &&
+        (error as any).response?.status === 409
+      ) {
+        const message = 'Series already exists or has a pending request in Overseerr';
+        logger.error(
+          { mediaId: params.mediaId, message },
+          'Failed to request series via Overseerr - Conflict (409)'
+        );
+        const conflictError = new Error(message);
+        (conflictError as any).statusCode = 409;
+        throw conflictError;
+      }
       logger.error({ error, mediaId: params.mediaId }, 'Failed to request series via Overseerr');
       throw error;
     }
