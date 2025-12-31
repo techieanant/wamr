@@ -19,6 +19,7 @@ export enum SocketEvents {
   REQUEST_NEW = 'request:new',
   REQUEST_STATUS_UPDATE = 'request:status-update',
   REQUEST_CONTACT_UPDATE = 'request:contact-update',
+  REQUEST_DELETED = 'request:deleted',
 
   // System Events
   SYSTEM_ERROR = 'system:error',

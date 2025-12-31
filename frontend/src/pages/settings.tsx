@@ -35,10 +35,14 @@ import {
   Upload,
   Key,
   CheckCircle,
+  MessageSquare,
+  Phone,
+  Send,
 } from 'lucide-react';
 import { useTheme } from '../hooks/use-theme';
 import { apiClient } from '../services/api.client';
 import { useContacts } from '../hooks/use-contacts';
+import { useAdminNotification } from '../hooks/use-admin-notification';
 import type { AutoApprovalMode } from '../types/whatsapp.types';
 
 interface SystemInfo {
@@ -62,6 +66,15 @@ export default function SettingsPage() {
   const { status: whatsappStatus } = useWhatsApp();
   const { contacts } = useContacts();
   const queryClient = useQueryClient();
+  const {
+    config: adminNotifConfig,
+    setPhoneAsync,
+    isSettingPhone,
+    setEnabledAsync,
+    isSettingEnabled,
+    sendTestNotificationAsync,
+    isSendingTest,
+  } = useAdminNotification();
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     Notification.permission === 'granted'
   );
@@ -78,6 +91,11 @@ export default function SettingsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Admin notification phone state
+  const [adminPhoneNumber, setAdminPhoneNumber] = useState('');
+  const [adminCountryCode, setAdminCountryCode] = useState('+1');
+  const [adminPhoneDialogOpen, setAdminPhoneDialogOpen] = useState(false);
 
   // Fetch settings from backend on mount
   useEffect(() => {
@@ -521,6 +539,157 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Admin WhatsApp Notifications */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Admin WhatsApp Notifications
+          </CardTitle>
+          <CardDescription>
+            Get notified on WhatsApp when new requests come in and approve/decline directly via
+            reply
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {whatsappStatus?.isConnected ? (
+            <div className="space-y-4">
+              {/* Enable/Disable Toggle */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="admin-whatsapp-notifications">
+                    Enable WhatsApp Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive WhatsApp notifications for new requests
+                  </p>
+                </div>
+                <Switch
+                  id="admin-whatsapp-notifications"
+                  checked={adminNotifConfig?.enabled || false}
+                  disabled={isSettingEnabled || !adminNotifConfig?.phoneNumber}
+                  onCheckedChange={async (enabled) => {
+                    try {
+                      await setEnabledAsync(enabled);
+                      toast({
+                        title: enabled ? 'Notifications Enabled' : 'Notifications Disabled',
+                        description: enabled
+                          ? 'You will now receive WhatsApp notifications for new requests.'
+                          : 'WhatsApp notifications have been disabled.',
+                      });
+                    } catch {
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to update notification settings.',
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Phone Number Configuration */}
+              <div className="space-y-2 border-t pt-4">
+                <Label>Your WhatsApp Number</Label>
+                <p className="text-sm text-muted-foreground">
+                  Set the phone number where you want to receive notifications
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {adminNotifConfig?.phoneNumber ? (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-mono text-sm">
+                        {adminNotifConfig.countryCode} {adminNotifConfig.phoneNumber}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAdminPhoneDialogOpen(true)}
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => setAdminPhoneDialogOpen(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Phone className="h-4 w-4" />
+                      Set Phone Number
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Test Notification */}
+              {adminNotifConfig?.phoneNumber && (
+                <div className="space-y-2 border-t pt-4">
+                  <Label>Test Notification</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Send a test message to verify your setup
+                  </p>
+                  <Button
+                    variant="outline"
+                    disabled={isSendingTest || !adminNotifConfig?.enabled}
+                    onClick={async () => {
+                      try {
+                        const result = await sendTestNotificationAsync();
+                        toast({
+                          title: result.success ? 'Test Sent' : 'Test Failed',
+                          description: result.message,
+                          variant: result.success ? 'default' : 'destructive',
+                        });
+                      } catch {
+                        toast({
+                          title: 'Error',
+                          description: 'Failed to send test notification.',
+                          variant: 'destructive',
+                        });
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Send className="h-4 w-4" />
+                    {isSendingTest ? 'Sending...' : 'Send Test Notification'}
+                  </Button>
+                </div>
+              )}
+
+              {/* How It Works */}
+              <div className="space-y-2 border-t pt-4">
+                <Label>How It Works</Label>
+                <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+                  <ul className="list-inside list-disc space-y-1">
+                    <li>You'll receive a WhatsApp message when a new request is pending</li>
+                    <li>
+                      Reply with <strong>APPROVE</strong> or <strong>1</strong> to approve
+                    </li>
+                    <li>
+                      Reply with <strong>DECLINE</strong> or <strong>2</strong> to decline
+                    </li>
+                    <li>
+                      Reply with <strong>DELETE</strong> or <strong>3</strong> to delete
+                    </li>
+                    <li>Add the request ID for specific actions (e.g., "approve 5")</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/50 p-6 text-center">
+              <p className="mb-2 text-sm font-medium text-muted-foreground">
+                WhatsApp Connection Required
+              </p>
+              <p className="text-sm text-muted-foreground">
+                You need an active WhatsApp connection to receive admin notifications. Please
+                connect your WhatsApp account first.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Request Approval Settings */}
       <Card>
         <CardHeader>
@@ -823,6 +992,151 @@ export default function SettingsPage() {
             </Button>
             <Button onClick={handleChangePassword} disabled={isChangingPassword}>
               {isChangingPassword ? 'Changing...' : 'Change Password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Phone Number Dialog */}
+      <Dialog open={adminPhoneDialogOpen} onOpenChange={setAdminPhoneDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Admin Phone Number</DialogTitle>
+            <DialogDescription>
+              Enter the phone number where you want to receive WhatsApp notifications, or select
+              from your contacts.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Select from contacts */}
+            <div className="space-y-2">
+              <Label>Select from Contacts</Label>
+              <Select
+                value=""
+                onValueChange={async (contactId) => {
+                  try {
+                    await setPhoneAsync({ contactId: parseInt(contactId, 10) });
+                    setAdminPhoneDialogOpen(false);
+                    toast({
+                      title: 'Phone Number Set',
+                      description: 'Admin notification phone number updated from contact.',
+                    });
+                  } catch {
+                    toast({
+                      title: 'Error',
+                      description: 'Failed to set phone number from contact.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a contact..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {contacts
+                    .filter((c) => c.phoneNumber || c.maskedPhone)
+                    .map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id.toString()}>
+                        {contact.contactName || contact.maskedPhone}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="relative flex items-center">
+              <div className="flex-grow border-t border-muted"></div>
+              <span className="mx-4 flex-shrink text-sm text-muted-foreground">OR</span>
+              <div className="flex-grow border-t border-muted"></div>
+            </div>
+
+            {/* Manual entry */}
+            <div className="space-y-2">
+              <Label>Enter Manually</Label>
+              <div className="flex gap-2">
+                <Select value={adminCountryCode} onValueChange={setAdminCountryCode}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue placeholder="+1" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="+1">+1 (US)</SelectItem>
+                    <SelectItem value="+44">+44 (UK)</SelectItem>
+                    <SelectItem value="+91">+91 (IN)</SelectItem>
+                    <SelectItem value="+61">+61 (AU)</SelectItem>
+                    <SelectItem value="+49">+49 (DE)</SelectItem>
+                    <SelectItem value="+33">+33 (FR)</SelectItem>
+                    <SelectItem value="+81">+81 (JP)</SelectItem>
+                    <SelectItem value="+86">+86 (CN)</SelectItem>
+                    <SelectItem value="+55">+55 (BR)</SelectItem>
+                    <SelectItem value="+52">+52 (MX)</SelectItem>
+                    <SelectItem value="+34">+34 (ES)</SelectItem>
+                    <SelectItem value="+39">+39 (IT)</SelectItem>
+                    <SelectItem value="+7">+7 (RU)</SelectItem>
+                    <SelectItem value="+82">+82 (KR)</SelectItem>
+                    <SelectItem value="+31">+31 (NL)</SelectItem>
+                    <SelectItem value="+46">+46 (SE)</SelectItem>
+                    <SelectItem value="+41">+41 (CH)</SelectItem>
+                    <SelectItem value="+65">+65 (SG)</SelectItem>
+                    <SelectItem value="+971">+971 (AE)</SelectItem>
+                    <SelectItem value="+966">+966 (SA)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Phone number"
+                  value={adminPhoneNumber}
+                  onChange={(e) => setAdminPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enter phone number without country code (digits only)
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAdminPhoneDialogOpen(false);
+                setAdminPhoneNumber('');
+              }}
+              disabled={isSettingPhone}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!adminPhoneNumber) {
+                  toast({
+                    title: 'Error',
+                    description: 'Please enter a phone number.',
+                    variant: 'destructive',
+                  });
+                  return;
+                }
+                try {
+                  await setPhoneAsync({
+                    phoneNumber: adminPhoneNumber,
+                    countryCode: adminCountryCode,
+                  });
+                  setAdminPhoneDialogOpen(false);
+                  setAdminPhoneNumber('');
+                  toast({
+                    title: 'Phone Number Set',
+                    description: 'Admin notification phone number updated.',
+                  });
+                } catch {
+                  toast({
+                    title: 'Error',
+                    description: 'Failed to set phone number.',
+                    variant: 'destructive',
+                  });
+                }
+              }}
+              disabled={isSettingPhone || !adminPhoneNumber}
+            >
+              {isSettingPhone ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>

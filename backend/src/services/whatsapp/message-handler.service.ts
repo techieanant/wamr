@@ -12,6 +12,7 @@ import { conversationService } from '../conversation/conversation.service';
 import { whatsappClientService } from './whatsapp-client.service';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository';
 import { conversationSessionRepository } from '../../repositories/conversation-session.repository';
+import { adminNotificationService } from '../notifications/admin-notification.service';
 
 /**
  * Service for handling incoming WhatsApp messages
@@ -166,6 +167,29 @@ class MessageHandlerService {
         contactName: contactName || 'Unknown',
         messageLength: messageBody.length,
       });
+
+      // Check if this is an admin reply for approve/decline/delete actions
+      try {
+        const adminReplyResult = await adminNotificationService.processAdminReply(
+          phoneNumber,
+          messageBody
+        );
+
+        if (adminReplyResult.handled) {
+          // This was an admin command, send the response
+          if (adminReplyResult.response) {
+            await this.sendResponse(phoneNumber, adminReplyResult.response);
+          }
+          logger.info(
+            { phoneNumber: phoneNumber.slice(-4), command: messageBody },
+            'Processed admin notification reply'
+          );
+          return;
+        }
+      } catch (adminError) {
+        logger.error({ error: adminError }, 'Error processing admin reply');
+        // Continue with normal message processing
+      }
 
       // Hash phone number for database storage
       const phoneNumberHash = hashingService.hashPhoneNumber(phoneNumber);

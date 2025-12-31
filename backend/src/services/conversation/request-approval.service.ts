@@ -9,6 +9,7 @@ import { mediaServiceConfigRepository } from '../../repositories/media-service-c
 import { encryptionService } from '../encryption/encryption.service.js';
 import { whatsappClientService } from '../whatsapp/whatsapp-client.service.js';
 import { webSocketService, SocketEvents } from '../websocket/websocket.service.js';
+import { adminNotificationService } from '../notifications/admin-notification.service.js';
 import { OverseerrClient } from '../integrations/overseerr.client.js';
 import { RadarrClient } from '../integrations/radarr.client.js';
 import { SonarrClient } from '../integrations/sonarr.client.js';
@@ -142,6 +143,16 @@ export class RequestApprovalService {
           user: phoneNumber?.slice(-4) || 'Unknown',
           status: 'PENDING',
         });
+
+        // Send admin WhatsApp notification for new pending request
+        try {
+          await adminNotificationService.notifyNewRequest(request);
+        } catch (notifyError) {
+          logger.error(
+            { error: notifyError, requestId: request.id },
+            'Failed to send admin notification'
+          );
+        }
 
         return { success: true, status: 'PENDING' };
       } else {

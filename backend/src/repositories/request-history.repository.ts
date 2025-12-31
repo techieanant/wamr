@@ -373,6 +373,26 @@ export class RequestHistoryRepository {
   }
 
   /**
+   * Get the latest pending request (for admin quick actions)
+   */
+  async findLatestPending(): Promise<RequestHistoryModel | null> {
+    const requests = await db
+      .select()
+      .from(requestHistory)
+      .where(eq(requestHistory.status, 'PENDING'))
+      .orderBy(desc(requestHistory.createdAt))
+      .limit(1);
+
+    if (requests.length === 0) {
+      return null;
+    }
+
+    const model = this.mapToModel(requests[0]);
+    await this.attachContactNames([model]);
+    return model;
+  }
+
+  /**
    * Find requests by status
    */
   async findByStatus(
