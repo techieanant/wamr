@@ -18,6 +18,13 @@ vi.mock('../../../src/repositories/request-history.repository.js', () => ({
     findById: vi.fn(),
     findAll: vi.fn(),
     update: vi.fn(),
+    findLatestPending: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/repositories/conversation-session.repository.js', () => ({
+  conversationSessionRepository: {
+    findByPhoneHash: vi.fn(),
   },
 }));
 
@@ -32,6 +39,12 @@ vi.mock('../../../src/services/encryption/encryption.service.js', () => ({
   encryptionService: {
     encrypt: vi.fn(),
     decrypt: vi.fn(),
+  },
+}));
+
+vi.mock('../../../src/services/encryption/hashing.service.js', () => ({
+  hashingService: {
+    hashPhoneNumber: vi.fn().mockReturnValue('hashed-phone-number'),
   },
 }));
 
@@ -52,6 +65,7 @@ import {
 } from '../../../src/services/notifications/admin-notification.service.js';
 import { settingRepository } from '../../../src/repositories/setting.repository.js';
 import { whatsappConnectionRepository } from '../../../src/repositories/whatsapp-connection.repository.js';
+import { conversationSessionRepository } from '../../../src/repositories/conversation-session.repository.js';
 import { whatsappClientService } from '../../../src/services/whatsapp/whatsapp-client.service.js';
 import { encryptionService } from '../../../src/services/encryption/encryption.service.js';
 
@@ -349,6 +363,8 @@ describe('AdminNotificationService', () => {
         return Promise.resolve(null);
       });
       (encryptionService.decrypt as any).mockReturnValue('+1:1234567890');
+      // Default: no active session
+      (conversationSessionRepository.findByPhoneHash as any).mockResolvedValue(null);
     });
 
     it('should return handled false when sender is not admin', async () => {
@@ -363,6 +379,33 @@ describe('AdminNotificationService', () => {
       const result = await adminNotificationService.processAdminReply('+11234567890', 'approve 1');
 
       expect(result.handled).toBe(false);
+    });
+
+    it('should return handled false when admin has active conversation session', async () => {
+      // Mock admin with an active session in AWAITING_SELECTION state
+      (conversationSessionRepository.findByPhoneHash as any).mockResolvedValue({
+        id: 'session-123',
+        phoneNumberHash: 'hashed-phone-number',
+        state: 'AWAITING_SELECTION',
+        searchResults: [{ title: 'Movie 1' }, { title: 'Movie 2' }],
+      });
+
+      // Admin sends "2" which could be interpreted as DECLINE command
+      const result = await adminNotificationService.processAdminReply('+11234567890', '2');
+
+      // Should NOT be handled as admin command, allowing normal conversation flow
+      expect(result.handled).toBe(false);
+    });
+
+    it('should process admin command when admin has no active session', async () => {
+      // No active session
+      (conversationSessionRepository.findByPhoneHash as any).mockResolvedValue(null);
+
+      // Admin sends "approve" which is an admin command
+      const result = await adminNotificationService.processAdminReply('+11234567890', 'approve');
+
+      // Should be handled (even though no pending request, it's recognized as command)
+      expect(result.handled).toBe(true);
     });
   });
 });

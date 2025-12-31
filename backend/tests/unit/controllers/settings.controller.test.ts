@@ -345,7 +345,7 @@ describe('Settings Controller', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         data: {
-          version: '1.0.3',
+          version: '1.0.4',
           exportedAt: expect.any(String),
           data: {
             whatsappConnection: {
@@ -459,7 +459,7 @@ describe('Settings Controller', () => {
   describe('importData', () => {
     it('should import data successfully', async () => {
       const importDataPayload = {
-        version: '1.0.3',
+        version: '1.0.4',
         data: {
           services: [
             {
@@ -599,13 +599,13 @@ describe('Settings Controller', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Unsupported schema version: 2.0.0. Expected: 1.0.3',
+        message: 'Unsupported schema version: 2.0.0. Expected: 1.0.4',
       });
     });
 
     it('should skip existing requests during import', async () => {
       const importDataPayload = {
-        version: '1.0.3',
+        version: '1.0.4',
         data: {
           services: [],
           requests: [
@@ -669,7 +669,7 @@ describe('Settings Controller', () => {
     it('should call next on error', async () => {
       const error = new Error('Database error');
       mockRequest.body = {
-        version: '1.0.3',
+        version: '1.0.4',
         data: {
           services: [
             {

@@ -26,9 +26,27 @@ const settingRepo = new SettingRepository();
 // Get application version from package.json
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJsonPath = join(__dirname, '../../../package.json');
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-const APP_VERSION = packageJson.version;
+
+function getAppVersion(): string {
+  try {
+    // In Docker: /app/root-package.json (root monorepo package.json)
+    // In dev: backend/src/api/controllers -> ../../../package.json (backend/package.json)
+    let packageJsonPath = join(__dirname, '../../../package.json');
+
+    // Check if we're in Docker (built files are in /app/dist)
+    if (__dirname.includes('/app/dist')) {
+      packageJsonPath = '/app/root-package.json';
+    }
+
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    return packageJson.version || '1.0.0';
+  } catch (error) {
+    logger.warn('Could not read version from package.json, using default');
+    return '1.0.0';
+  }
+}
+
+const APP_VERSION = getAppVersion();
 
 /**
  * Export schema version

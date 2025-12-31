@@ -8,7 +8,9 @@ import { logger } from '../../config/logger.js';
 import { settingRepository } from '../../repositories/setting.repository.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
+import { conversationSessionRepository } from '../../repositories/conversation-session.repository.js';
 import { encryptionService } from '../encryption/encryption.service.js';
+import { hashingService } from '../encryption/hashing.service.js';
 import { whatsappClientService } from '../whatsapp/whatsapp-client.service.js';
 import type { RequestHistory } from '../../db/schema.js';
 
@@ -286,6 +288,27 @@ class AdminNotificationService {
     const isAdmin = await this.isFromAdmin(phoneNumber);
 
     if (!isAdmin) {
+      return { handled: false };
+    }
+
+    // Check if admin has an active conversation session
+    // If so, skip admin command processing to allow normal conversation flow
+    const phoneNumberHash = hashingService.hashPhoneNumber(phoneNumber);
+    const session = await conversationSessionRepository.findByPhoneHash(phoneNumberHash);
+
+    if (
+      session &&
+      [
+        'AWAITING_SELECTION',
+        'AWAITING_SEASON_SELECTION',
+        'AWAITING_CONFIRMATION',
+        'SEARCHING',
+      ].includes(session.state)
+    ) {
+      logger.debug('Admin has active conversation session, skipping admin command processing', {
+        sessionId: session.id,
+        state: session.state,
+      });
       return { handled: false };
     }
 

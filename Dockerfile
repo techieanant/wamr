@@ -57,6 +57,9 @@ COPY backend/package*.json ./
 # Install production dependencies
 RUN npm ci --only=production && npm cache clean --force
 
+# Copy root package.json for version info at runtime (after npm ci to avoid conflicts)
+COPY package.json /app/root-package.json
+
 # Copy built backend and frontend
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/frontend/dist ./public

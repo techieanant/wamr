@@ -19,13 +19,13 @@ export async function getSystemInfo(_req: Request, res: Response): Promise<void>
     let schemaVersion = '1.0.0';
 
     try {
-      // In Docker: /app/package.json
+      // In Docker: /app/root-package.json (root monorepo package.json)
       // In dev: backend/src/api/controllers -> ../../../../package.json
       let packageJsonPath = join(__dirname, '../../../../package.json');
 
       // Check if we're in Docker (built files are in /app/dist)
       if (__dirname.includes('/app/dist')) {
-        packageJsonPath = '/app/package.json';
+        packageJsonPath = '/app/root-package.json';
       }
 
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
