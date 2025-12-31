@@ -75,14 +75,6 @@ npm run dev
 - 🐳 **Docker Ready** - Easy deployment with Docker Compose
 - 🎨 **Modern UI** - Beautiful, responsive admin dashboard with Shadcn UI
 
-### Planned Features
-
-- 📺 Multi-user support with request limits
-- 🌐 Internationalization (i18n)
-- 📊 Analytics and reporting
-- 🔔 Notification system
-- 🎭 Custom media filtering rules
-
 ## 🎯 Use Cases
 
 - **Home Media Server**: Manage family media requests
