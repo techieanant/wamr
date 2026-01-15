@@ -53,7 +53,7 @@
     "express-rate-limit": "^7.2.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "pino": "^8.19.0",
+    "pino": "^10.1.0",
     "pino-pretty": "^11.0.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.7.2",
