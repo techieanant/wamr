@@ -6,6 +6,13 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# Install git (required for GitHub package dependencies)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
+# Configure git to use HTTPS instead of SSH for GitHub
+RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
+  git config --global url."https://github.com/".insteadOf git@github.com:
+
 # Copy all package files
 COPY package*.json ./
 COPY turbo.json ./
@@ -51,11 +58,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy backend package files (including lock file for exact dependency versions)
-COPY backend/package*.json ./
+# Copy backend package files
+COPY backend/package.json ./
 
 # Install production dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 # Copy root package.json for version info at runtime (after npm ci to avoid conflicts)
 COPY package.json /app/root-package.json
@@ -70,8 +77,12 @@ COPY backend/drizzle.config.ts ./
 RUN mkdir -p /app/.wwebjs_auth /app/data && \
   chown -R pptruser:pptruser /app
 
-# Set environment - Puppeteer will auto-detect Chrome from the base image
+# Set environment
+# PUPPETEER_EXECUTABLE_PATH points to Chrome from the base Puppeteer image
+# This is needed because npm install may bring in a different puppeteer version
 ENV NODE_ENV=production
+ENV PUPPETEER_EXECUTABLE_PATH=/home/pptruser/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Expose single port
 EXPOSE 4000

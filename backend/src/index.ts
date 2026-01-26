@@ -226,8 +226,15 @@ function setupGracefulShutdown(httpServer: HttpServer): void {
     process.exit(1);
   });
 
-  process.on('unhandledRejection', (reason) => {
-    logger.fatal({ reason }, 'Unhandled promise rejection');
+  process.on('unhandledRejection', (reason, _promise) => {
+    // Extract more details for debugging
+    const details = {
+      reason,
+      reasonType: reason instanceof Error ? reason.constructor.name : typeof reason,
+      reasonMessage: reason instanceof Error ? reason.message : String(reason),
+      reasonStack: reason instanceof Error ? reason.stack : undefined,
+    };
+    logger.fatal(details, 'Unhandled promise rejection');
     process.exit(1);
   });
 }

@@ -41,6 +41,13 @@ async function restartWhatsApp(): Promise<WhatsAppActionResponse> {
 }
 
 /**
+ * Reset WhatsApp session - clears session data and requires fresh QR scan
+ */
+async function resetWhatsAppSession(): Promise<WhatsAppActionResponse> {
+  return await apiClient.post<WhatsAppActionResponse>('/api/whatsapp/reset-session');
+}
+
+/**
  * Update message filter configuration
  */
 async function updateMessageFilter(
@@ -90,6 +97,15 @@ export function useWhatsApp() {
     mutationFn: restartWhatsApp,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'] });
+    },
+  });
+
+  // Mutation to reset session (clear all session data)
+  const resetSessionMutation = useMutation({
+    mutationFn: resetWhatsAppSession,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'] });
+      queryClient.refetchQueries({ queryKey: ['whatsapp', 'status'] });
     },
   });
 
@@ -217,18 +233,21 @@ export function useWhatsApp() {
     connect: connectMutation.mutate,
     disconnect: disconnectMutation.mutate,
     restart: restartMutation.mutate,
+    resetSession: resetSessionMutation.mutate,
     updateFilter: updateFilterMutation.mutate,
 
     // Mutation states
     isConnecting: connectMutation.isPending,
     isDisconnecting: disconnectMutation.isPending,
     isRestarting: restartMutation.isPending,
+    isResettingSession: resetSessionMutation.isPending,
     isUpdatingFilter: updateFilterMutation.isPending,
 
     // Action results
     connectError: connectMutation.error,
     disconnectError: disconnectMutation.error,
     restartError: restartMutation.error,
+    resetSessionError: resetSessionMutation.error,
     updateFilterError: updateFilterMutation.error,
   };
 }

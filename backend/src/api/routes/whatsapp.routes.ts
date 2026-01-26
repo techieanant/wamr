@@ -49,4 +49,10 @@ router.put('/auto-approval', whatsappController.updateAutoApprovalMode);
  */
 router.put('/exceptions', whatsappController.updateExceptions);
 
+/**
+ * POST /api/whatsapp/reset-session
+ * Clear WhatsApp session data and force fresh QR code scan
+ */
+router.post('/reset-session', whatsappController.resetSession);
+
 export default router;

@@ -332,3 +332,27 @@ export const updateExceptions = async (
     next(error);
   }
 };
+
+/**
+ * Reset WhatsApp session - clears session data and requires fresh QR scan
+ */
+export const resetSession = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    logger.info('Resetting WhatsApp session...');
+
+    // Clear session using the service method
+    await whatsappClientService.clearSession();
+
+    res.json({
+      success: true,
+      message: 'WhatsApp session cleared. Please scan the QR code to reconnect.',
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to reset WhatsApp session');
+    next(error);
+  }
+};

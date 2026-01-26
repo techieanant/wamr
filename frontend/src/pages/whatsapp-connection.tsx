@@ -6,13 +6,32 @@ import { Button } from '../components/ui/button';
 import { QRCodeDisplay } from '../components/whatsapp/qr-code-display';
 import { ConnectionStatus } from '../components/whatsapp/connection-status';
 import { MessageFilterForm } from '../components/whatsapp/message-filter-form';
-import { Smartphone, Loader2, RefreshCw } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import type { MessageFilterType } from '../types/whatsapp.types';
 import { useQueryClient } from '@tanstack/react-query';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
 
 export default function WhatsAppConnection() {
-  const { status, connect, updateFilter, isConnecting, isUpdatingFilter, isLoading } =
-    useWhatsApp();
+  const {
+    status,
+    connect,
+    resetSession,
+    updateFilter,
+    isConnecting,
+    isResettingSession,
+    isUpdatingFilter,
+    isLoading,
+  } = useWhatsApp();
   // Ensure the page subscribes to socket events directly so we don't miss QR/status updates
   const { on, isConnected: socketConnected } = useSocket();
   const { toast } = useToast();
@@ -148,6 +167,28 @@ export default function WhatsAppConnection() {
     );
   };
 
+  const handleResetSession = () => {
+    resetSession(undefined, {
+      onSuccess: () => {
+        setHasClickedConnect(false);
+        setRealtimeConnected(false);
+        setRealtimeConnecting(false);
+        queryClient.invalidateQueries({ queryKey: ['whatsapp', 'status'] });
+        toast({
+          title: 'Session Reset',
+          description: 'WhatsApp session cleared. Click "Connect WhatsApp" to scan a new QR code.',
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: 'Reset Failed',
+          description: error instanceof Error ? error.message : 'Failed to reset WhatsApp session',
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
   if (isLoading && !shouldShowQR) {
     return (
       <div className="container mx-auto p-6">
@@ -241,6 +282,53 @@ export default function WhatsAppConnection() {
           </ul>
         </div>
       )}
+
+      {/* Troubleshooting Section */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-950">
+        <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-amber-900 dark:text-amber-100">
+          <AlertTriangle className="h-5 w-5" />
+          Troubleshooting
+        </h3>
+        <p className="mb-4 text-amber-700 dark:text-amber-300">
+          If you're experiencing connection issues, errors, or the QR code isn't working, you can
+          reset your WhatsApp session. This will clear all session data and require you to scan the
+          QR code again.
+        </p>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              className="border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900"
+              disabled={isResettingSession}
+            >
+              {isResettingSession ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Reset WhatsApp Session
+                </>
+              )}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset WhatsApp Session?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will clear all WhatsApp session data. You will need to scan the QR code again
+                to reconnect. This is useful if you're experiencing connection issues or errors.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetSession}>Reset Session</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
