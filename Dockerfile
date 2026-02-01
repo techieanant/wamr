@@ -1,17 +1,10 @@
 # Minimal Combined Build - Fast Version
-# Uses Puppeteer's pre-built Chromium image to avoid long installation
+# Baileys doesn't need Puppeteer/Chromium - it uses WebSockets directly
 
 # Build stage
 FROM node:20-slim AS builder
 
 WORKDIR /app
-
-# Install git (required for GitHub package dependencies)
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
-
-# Configure git to use HTTPS instead of SSH for GitHub
-RUN git config --global url."https://github.com/".insteadOf ssh://git@github.com/ && \
-  git config --global url."https://github.com/".insteadOf git@github.com:
 
 # Copy all package files
 COPY package*.json ./
@@ -45,15 +38,15 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm install --no-save @rollup/rollup-linux-x64-gnu
 RUN npm run build
 
-# Production stage - Use Puppeteer image with Chromium pre-installed
-FROM ghcr.io/puppeteer/puppeteer:23.11.1
+# Production stage - Use lightweight Node.js image
+FROM node:20-slim
 
-# Switch to root to install additional packages
-USER root
+# Create non-root user
+RUN groupadd -r wamr && useradd -r -g wamr wamr
 
 WORKDIR /app
 
-# Install only minimal required packages (much faster than full chromium install)
+# Install only minimal required packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   && rm -rf /var/lib/apt/lists/*
@@ -75,30 +68,21 @@ COPY backend/drizzle.config.ts ./
 
 # Create volume mount points and set proper ownership
 RUN mkdir -p /app/.wwebjs_auth /app/data && \
-  chown -R pptruser:pptruser /app
+  chown -R wamr:wamr /app
 
 # Set environment
-# PUPPETEER_EXECUTABLE_PATH points to Chrome from the base Puppeteer image
-# This is needed because npm install may bring in a different puppeteer version
 ENV NODE_ENV=production
-ENV PUPPETEER_EXECUTABLE_PATH=/home/pptruser/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Expose single port
 EXPOSE 4000
 
 # Create startup script that fixes volume permissions
-RUN echo '#!/bin/sh\nset -e\necho "Fixing volume permissions..."\nsudo chown -R pptruser:pptruser /app/data /app/.wwebjs_auth 2>/dev/null || true\necho "Running database migrations..."\nnode dist/database/migrate.js\necho "Running database seed..."\nnode dist/database/seed.js\necho "Starting server..."\nexec node dist/index.js' > /docker-entrypoint.sh && \
+RUN echo '#!/bin/sh\nset -e\necho "Fixing volume permissions..."\nchown -R wamr:wamr /app/data /app/.wwebjs_auth 2>/dev/null || true\necho "Running database migrations..."\nnode dist/database/migrate.js\necho "Running database seed..."\nnode dist/database/seed.js\necho "Starting server..."\nexec node dist/index.js' > /docker-entrypoint.sh && \
   chmod +x /docker-entrypoint.sh && \
-  chown pptruser:pptruser /docker-entrypoint.sh
-
-# Install sudo and configure pptruser to use it without password for chown
-RUN apt-get update && apt-get install -y --no-install-recommends sudo && \
-  echo "pptruser ALL=(ALL) NOPASSWD: /bin/chown" >> /etc/sudoers && \
-  rm -rf /var/lib/apt/lists/*
+  chown wamr:wamr /docker-entrypoint.sh
 
 # Switch to non-root user for security
-USER pptruser
+USER wamr
 
 # Health check (must be after USER)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \

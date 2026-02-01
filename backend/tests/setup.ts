@@ -27,27 +27,41 @@ vi.mock('../src/config/environment', () => ({
 }));
 
 // Mock external dependencies
-vi.mock('whatsapp-web.js', () => ({
-  default: {
-    Client: vi.fn().mockImplementation(() => ({
-      initialize: vi.fn(),
+vi.mock('@whiskeysockets/baileys', () => ({
+  default: vi.fn(),
+  makeWASocket: vi.fn().mockReturnValue({
+    ev: {
       on: vi.fn(),
-      destroy: vi.fn(),
-      sendMessage: vi.fn(),
-      logout: vi.fn(),
-    })),
-    LocalAuth: vi.fn(),
-    Message: vi.fn(),
-  },
-  Client: vi.fn().mockImplementation(() => ({
-    initialize: vi.fn(),
-    on: vi.fn(),
-    destroy: vi.fn(),
+      off: vi.fn(),
+      removeAllListeners: vi.fn(),
+    },
     sendMessage: vi.fn(),
     logout: vi.fn(),
-  })),
-  LocalAuth: vi.fn(),
-  Message: vi.fn(),
+    end: vi.fn(),
+  }),
+  useMultiFileAuthState: vi.fn().mockResolvedValue({
+    state: {
+      creds: {},
+      keys: {},
+    },
+    saveCreds: vi.fn(),
+  }),
+  DisconnectReason: {
+    badSession: 400,
+    connectionClosed: 428,
+    connectionLost: 408,
+    connectionReplaced: 440,
+    loggedOut: 401,
+    restartRequired: 515,
+    timedOut: 408,
+  },
+  jidDecode: vi.fn((jid) => {
+    const parts = jid?.split('@') || [];
+    return parts[0] ? { user: parts[0], server: parts[1] || 's.whatsapp.net' } : null;
+  }),
+  Browsers: {
+    ubuntu: vi.fn(() => ['Ubuntu', 'Chrome', '20.0.04']),
+  },
 }));
 
 vi.mock('socket.io', () => ({

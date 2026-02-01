@@ -128,7 +128,7 @@ WAMR includes several built-in security features:
 
 ### WhatsApp Web API
 
-- WAMR uses [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) which is unofficial
+- WAMR uses [Baileys](https://github.com/whiskeysockets/baileys) which is an unofficial WhatsApp Web API
 - WhatsApp may ban accounts that violate their Terms of Service
 - Use a dedicated WhatsApp Business account
 - Monitor for suspicious activity

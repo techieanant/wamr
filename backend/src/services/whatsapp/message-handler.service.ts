@@ -5,7 +5,8 @@
  * Handles message parsing, phone number hashing, and response sending.
  */
 
-import type { Message } from 'whatsapp-web.js';
+import type { proto } from '@whiskeysockets/baileys';
+import { jidDecode } from '@whiskeysockets/baileys';
 import { logger } from '../../config/logger';
 import { hashingService } from '../encryption/hashing.service';
 import { conversationService } from '../conversation/conversation.service';
@@ -137,27 +138,25 @@ class MessageHandlerService {
   /**
    * Handle incoming WhatsApp message
    */
-  private async handleIncomingMessage(message: Message): Promise<void> {
+  private async handleIncomingMessage(message: proto.IWebMessageInfo): Promise<void> {
     try {
       // Extract phone number from message
       const phoneNumber = this.extractPhoneNumber(message);
       if (!phoneNumber) {
         logger.warn('Could not extract phone number from message', {
-          from: message.from,
+          from: message.key.remoteJid,
         });
         return;
       }
 
-      // Extract contact name from message (pushname or notifyName)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const contactName =
-        (message as any)._data?.notifyName || (message as any)._data?.pushname || null;
+      // Extract contact name from message (pushName)
+      const contactName = message.pushName || null;
 
       // Extract message body
-      const messageBody = message.body?.trim();
+      const messageBody = this.extractMessageText(message);
       if (!messageBody) {
         logger.debug('Received empty message, ignoring', {
-          from: message.from,
+          from: message.key.remoteJid,
         });
         return;
       }
@@ -224,7 +223,7 @@ class MessageHandlerService {
         state: response.state,
       });
     } catch (error) {
-      logger.error({ err: error, from: message.from }, 'Failed to handle incoming message');
+      logger.error({ err: error, from: message.key.remoteJid }, 'Failed to handle incoming message');
 
       // Try to send error message to user
       try {
@@ -242,27 +241,61 @@ class MessageHandlerService {
   }
 
   /**
-   * Extract phone number from WhatsApp message
+   * Extract text content from Baileys message
+   */
+  private extractMessageText(message: proto.IWebMessageInfo): string | null {
+    try {
+      // Try conversation (simple text message)
+      if (message.message?.conversation) {
+        return message.message.conversation.trim();
+      }
+
+      // Try extendedTextMessage (text with formatting, replies, etc.)
+      if (message.message?.extendedTextMessage?.text) {
+        return message.message.extendedTextMessage.text.trim();
+      }
+
+      // Try imageMessage caption
+      if (message.message?.imageMessage?.caption) {
+        return message.message.imageMessage.caption.trim();
+      }
+
+      // Try videoMessage caption
+      if (message.message?.videoMessage?.caption) {
+        return message.message.videoMessage.caption.trim();
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('Error extracting message text', { error });
+      return null;
+    }
+  }
+
+  /**
+   * Extract phone number from Baileys message
    * Returns phone number in E.164 format (e.g., +1234567890)
    */
-  private extractPhoneNumber(message: Message): string | null {
+  private extractPhoneNumber(message: proto.IWebMessageInfo): string | null {
     try {
-      // Message.from format: "1234567890@c.us"
-      const from = message.from;
-      if (!from) {
+      // Message.key.remoteJid format: "1234567890@s.whatsapp.net"
+      const remoteJid = message.key.remoteJid;
+      if (!remoteJid) {
         return null;
       }
 
-      // Extract phone number part (before @c.us)
-      const phoneNumber = from.split('@')[0];
-      if (!phoneNumber) {
+      // Use jidDecode to extract phone number
+      const decoded = jidDecode(remoteJid);
+      if (!decoded?.user) {
         return null;
       }
+
+      const phoneNumber = decoded.user;
 
       // Add + prefix if not present (E.164 format)
       return phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
     } catch (error) {
-      logger.error('Error extracting phone number', { error, from: message.from });
+      logger.error('Error extracting phone number', { error, jid: message.key.remoteJid });
       return null;
     }
   }

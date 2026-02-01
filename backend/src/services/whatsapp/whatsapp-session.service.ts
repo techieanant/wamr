@@ -115,7 +115,7 @@ class WhatsAppSessionService {
 
   /**
    * Check if an existing session exists
-   * WhatsApp Web session files are stored in subdirectories
+   * Baileys stores credentials in creds.json file
    */
   private async hasExistingSession(): Promise<boolean> {
     try {
@@ -123,21 +123,15 @@ class WhatsAppSessionService {
         return false;
       }
 
-      // Check if directory has any session files/folders
-      const files = fs.readdirSync(this.sessionPath);
-
-      // Look for session-* directories (whatsapp-web.js creates these with clientId)
-      // For our setup with clientId='wamr-admin', it should be 'session-wamr-admin'
-      const hasSessionDir = files.some((file) => {
-        const filePath = path.join(this.sessionPath, file);
-        return fs.statSync(filePath).isDirectory() && file.startsWith('session-');
-      });
-
-      if (hasSessionDir) {
-        logger.debug({ files }, 'Found session directory');
+      // Check if directory has creds.json (Baileys stores auth in this file)
+      const credsPath = path.join(this.sessionPath, 'creds.json');
+      
+      if (fs.existsSync(credsPath)) {
+        logger.debug({ credsPath }, 'Found creds.json file');
+        return true;
       }
 
-      return hasSessionDir;
+      return false;
     } catch (error) {
       logger.error({ error }, 'Failed to check for existing session');
       return false;
