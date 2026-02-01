@@ -41,7 +41,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@hapi/boom": "^10.0.1",
     "@types/qrcode": "^1.5.6",
+    "@whiskeysockets/baileys": "^6.7.21",
     "axios": "^1.6.8",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.3.0",
@@ -57,11 +59,10 @@
     "pino-pretty": "^11.0.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.7.2",
-    "@whiskeysockets/baileys": "^6.7.9",
-    "@hapi/boom": "^10.0.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.52.5",
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.9",
     "@types/cookie-parser": "^1.4.7",

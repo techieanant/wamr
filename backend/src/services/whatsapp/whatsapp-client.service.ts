@@ -404,9 +404,11 @@ class WhatsAppClientService {
 
       if (this.sock) {
         logger.info('Disconnecting WhatsApp socket...');
-        // Remove all event listeners before closing
-        this.sock.ev.removeAllListeners();
-        await this.sock.end(undefined);
+        // Remove event listeners before closing
+        this.sock.ev.removeAllListeners('connection.update');
+        this.sock.ev.removeAllListeners('creds.update');
+        this.sock.ev.removeAllListeners('messages.upsert');
+        this.sock.end(undefined);
         this.sock = null;
         this.isInitializing = false;
         logger.info('WhatsApp socket closed');
@@ -449,8 +451,10 @@ class WhatsAppClientService {
       // Close existing socket if any
       if (this.sock) {
         try {
-          this.sock.ev.removeAllListeners();
-          await this.sock.end(undefined);
+          this.sock.ev.removeAllListeners('connection.update');
+          this.sock.ev.removeAllListeners('creds.update');
+          this.sock.ev.removeAllListeners('messages.upsert');
+          this.sock.end(undefined);
         } catch (err) {
           logger.warn({ err }, 'Error closing socket during session clear');
         }
@@ -617,8 +621,10 @@ class WhatsAppClientService {
       if (this.sock) {
         try {
           logger.info('Closing existing WhatsApp socket...');
-          this.sock.ev.removeAllListeners();
-          await this.sock.end(undefined);
+          this.sock.ev.removeAllListeners('connection.update');
+          this.sock.ev.removeAllListeners('creds.update');
+          this.sock.ev.removeAllListeners('messages.upsert');
+          this.sock.end(undefined);
         } catch (err) {
           logger.warn({ err }, 'Error closing socket during session clear');
         }
