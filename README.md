@@ -27,8 +27,10 @@ An open-source, self-hosted WhatsApp bot that enables users to request movies an
 ### Development Setup
 
 ```bash
-# 1. Install dependencies (use npm, not bun)
+# 1. Install dependencies (npm or bun)
 npm install
+# or
+bun install
 
 # 2. Configure environment
 cp .env.example .env.local
@@ -45,6 +47,8 @@ npm run db:seed      # Create admin user
 # 4. Start development (both backend + frontend)
 cd ..
 npm run dev
+# or
+bun dev
 ```
 
 > **⚠️ Troubleshooting:** If you encounter errors like "makeWASocket is not a function", see [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions.

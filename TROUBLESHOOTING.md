@@ -11,7 +11,7 @@ TypeError: makeWASocket is not a function
 
 ### Cause
 
-This error occurs when the `@whiskeysockets/baileys` package is not installed correctly or there's a module resolution issue.
+This error occurs when the `@whiskeysockets/baileys` package is not installed correctly or there's a module resolution issue with tsx/bun.
 
 ### Solution
 
@@ -22,12 +22,13 @@ This error occurs when the `@whiskeysockets/baileys` package is not installed co
 rm -rf node_modules package-lock.json bun.lockb
 rm -rf backend/node_modules frontend/node_modules
 
-# Reinstall with npm (recommended)
-npm install
-
-# Or if using bun
+# Reinstall with your preferred package manager
 bun install
+# or
+npm install
 ```
+
+**Note:** The code now supports both npm and bun. If you see this error, it's typically a stale dependency cache issue.
 
 #### Option 2: Verify Package Installation
 
@@ -37,6 +38,8 @@ ls -la node_modules/@whiskeysockets/baileys
 
 # If not found, install it
 cd backend
+bun add @whiskeysockets/baileys@^6.7.21 @hapi/boom@^10.0.1
+# or
 npm install @whiskeysockets/baileys@^6.7.21 @hapi/boom@^10.0.1
 ```
 
@@ -57,11 +60,11 @@ npm run dev
 
 ### Common Issues
 
-1. **Mixed package managers**: Using both npm and bun can cause conflicts
-   - Solution: Stick to one package manager (npm recommended)
+1. **tsx/bun module resolution**: The default export handling differs between tsx and node
+   - Solution: The code now uses namespace imports that work with both bun and npm
 
 2. **Cached modules**: Old cached versions might conflict
-   - Solution: Clear npm/bun cache: `npm cache clean --force` or `rm -rf ~/.bun/cache`
+   - Solution: Clear cache: `bun pm cache rm` or `npm cache clean --force`
 
 3. **Workspace hoisting**: In monorepo setups, dependencies might be hoisted incorrectly
    - Solution: Ensure backend/package.json has the dependency listed
@@ -71,8 +74,10 @@ npm run dev
 After fixing, verify the import works:
 
 ```bash
-# Quick verification using npm script
+# Quick verification using npm/bun script
 npm run verify
+# or
+bun run verify
 
 # Or run the script directly
 node scripts/verify-baileys.mjs

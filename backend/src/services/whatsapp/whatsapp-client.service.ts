@@ -1,17 +1,29 @@
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  WASocket,
-  Browsers,
-  proto,
-  jidDecode,
-} from '@whiskeysockets/baileys';
+import * as BaileysModule from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
 import { hashingService } from '../encryption/hashing.service.js';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
 import type { WhatsAppConnectionStatus } from '../../models/whatsapp-connection.model.js';
+
+// Handle both ESM default export and namespace import for tsx/bun compatibility
+const makeWASocket = 
+  (BaileysModule as any).default?.default || 
+  (BaileysModule as any).default || 
+  BaileysModule.makeWASocket;
+
+const {
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  jidDecode,
+} = BaileysModule;
+
+// Import proto as type namespace
+import type { proto } from '@whiskeysockets/baileys';
+
+// Type for WASocket
+type WASocket = ReturnType<typeof makeWASocket>;
 
 /**
  * WhatsApp client service using Baileys
@@ -136,7 +148,7 @@ class WhatsAppClientService {
     if (!this.sock) return;
 
     // Connection updates (QR code, connection status, etc.)
-    this.sock.ev.on('connection.update', async (update) => {
+    this.sock.ev.on('connection.update', async (update: any) => {
       try {
         const { connection, lastDisconnect, qr } = update;
 
@@ -279,7 +291,7 @@ class WhatsAppClientService {
     });
 
     // Messages upsert (new messages)
-    this.sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    this.sock.ev.on('messages.upsert', async ({ messages, type }: any) => {
       try {
         for (const message of messages) {
           // Skip messages from self
