@@ -78,6 +78,15 @@ class WhatsAppClientService {
         'Creating WhatsApp socket with Baileys'
       );
 
+      // Verify makeWASocket is available
+      if (typeof makeWASocket !== 'function') {
+        throw new Error(
+          `makeWASocket is not a function (type: ${typeof makeWASocket}). ` +
+          'This usually means @whiskeysockets/baileys was not installed correctly. ' +
+          'Try: rm -rf node_modules package-lock.json bun.lockb && npm install'
+        );
+      }
+
       // Load authentication state
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
