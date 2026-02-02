@@ -71,22 +71,11 @@ npm run dev
 After fixing, verify the import works:
 
 ```bash
-# Create test file
-cat > test-import.mjs << 'EOF'
-import makeWASocket from '@whiskeysockets/baileys';
-console.log('makeWASocket type:', typeof makeWASocket);
-if (typeof makeWASocket !== 'function') {
-  console.error('ERROR: Import failed!');
-  process.exit(1);
-}
-console.log('SUCCESS: Import works!');
-EOF
+# Quick verification using npm script
+npm run verify
 
-# Run test
-node test-import.mjs
-
-# Clean up
-rm test-import.mjs
+# Or run the script directly
+node scripts/verify-baileys.mjs
 ```
 
 ### Still Having Issues?
