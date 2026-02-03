@@ -260,7 +260,7 @@ This means you are free to use, modify, and distribute this software, even for c
 
 ## 🙏 Acknowledgments
 
-- [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) - WhatsApp Web API
+- [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) - WhatsApp Web API
 - [Radarr](https://radarr.video/) - Movie management
 - [Sonarr](https://sonarr.tv/) - TV series management
 - [Overseerr](https://overseerr.dev/) - Request management system

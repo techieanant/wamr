@@ -59,6 +59,7 @@ data/*.db
 !data/.gitkeep
 
 # WhatsApp session data - NEVER COMMIT THESE
+.baileys_auth/
 .wwebjs_auth/
 .wwebjs_cache/
 

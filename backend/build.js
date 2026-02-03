@@ -10,7 +10,8 @@ const sharedConfig = {
     // Don't bundle node_modules - they're installed in Docker
     'express',
     'socket.io',
-    'whatsapp-web.js',
+    '@whiskeysockets/baileys',
+    '@hapi/boom',
     'drizzle-orm',
     'better-sqlite3',
     'bcrypt',

@@ -59,6 +59,7 @@ export interface UpdateRequestHistory {
   notifiedSeasons?: number[] | null;
   notifiedEpisodes?: Record<string, number[]> | null;
   totalSeasons?: number | null;
+  phoneNumberEncrypted?: string | null;
   updatedAt?: string;
 }
 

@@ -1,6 +1,12 @@
-import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
-import type { Message } from 'whatsapp-web.js';
+import * as baileys from '@whiskeysockets/baileys';
+import type { proto } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
+
+// Baileys v7.x exports
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const makeWASocket = (baileys.default || baileys.makeWASocket) as typeof baileys.makeWASocket;
+const { DisconnectReason, useMultiFileAuthState, jidDecode } = baileys;
+type WASocket = ReturnType<typeof makeWASocket>;
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
 import { hashingService } from '../encryption/hashing.service.js';
@@ -8,26 +14,42 @@ import { whatsappConnectionRepository } from '../../repositories/whatsapp-connec
 import type { WhatsAppConnectionStatus } from '../../models/whatsapp-connection.model.js';
 
 /**
+ * Baileys message type (simplified for our use case)
+ * In Baileys v7+, messages can come from LID (@lid) or PN (@s.whatsapp.net)
+ * remoteJidAlt contains the alternative JID (PN if primary is LID, or vice versa)
+ */
+export interface BaileysMessage {
+  key: proto.IMessageKey & {
+    remoteJidAlt?: string; // Alternative JID (PN if LID, LID if PN)
+    participantAlt?: string; // Alternative participant (for groups)
+  };
+  message: proto.IMessage | null | undefined;
+  messageTimestamp: number | bigint | null | undefined;
+  pushName?: string | null;
+}
+
+/**
  * WhatsApp Web client service
- * Wraps whatsapp-web.js with session persistence and event handling
+ * Wraps @whiskeysockets/baileys with session persistence and event handling
  */
 class WhatsAppClientService {
-  private client: InstanceType<typeof Client> | null = null;
+  private sock: WASocket | null = null;
   private isInitializing = false;
   private hasCalledReady = false; // Track if ready callback has been called for current connection
   private initializationTimeout: NodeJS.Timeout | null = null;
   private qrCodeCallback: ((qr: string) => void) | null = null;
-  private messageCallback: ((message: Message) => void) | null = null;
+  private messageCallback: ((message: BaileysMessage) => void) | null = null;
   private readyCallback: (() => void) | null = null;
   private disconnectedCallback: (() => void) | null = null;
+  private saveCreds: (() => Promise<void>) | null = null;
 
   /**
    * Initialize WhatsApp client
    */
   async initialize(): Promise<void> {
-    if (this.client || this.isInitializing) {
+    if (this.sock || this.isInitializing) {
       logger.warn('WhatsApp client already initialized or initializing', {
-        hasClient: !!this.client,
+        hasClient: !!this.sock,
         isInitializing: this.isInitializing,
       });
       return;
@@ -44,17 +66,17 @@ class WhatsAppClientService {
     try {
       const fs = await import('fs/promises');
       const sessionPath = env.WHATSAPP_SESSION_PATH;
-      const sessionClientPath = `${sessionPath}/session-wamr-admin`;
+      const credsPath = `${sessionPath}/creds.json`;
 
       try {
-        await fs.stat(sessionClientPath);
+        await fs.stat(credsPath);
         logger.info(
-          { sessionClientPath, exists: true },
-          'Existing session directory found, will attempt to restore'
+          { credsPath, exists: true },
+          'Existing session credentials found, will attempt to restore'
         );
       } catch {
         logger.info(
-          { sessionClientPath, exists: false },
+          { credsPath, exists: false },
           'No existing session found, will need QR code scan'
         );
       }
@@ -66,38 +88,31 @@ class WhatsAppClientService {
       logger.debug(
         {
           sessionPath: env.WHATSAPP_SESSION_PATH,
-          clientId: 'wamr-admin',
           nodeEnv: process.env.NODE_ENV,
         },
-        'Creating WhatsApp client with configuration'
+        'Creating WhatsApp client with Baileys configuration'
       );
 
-      this.client = new Client({
-        authStrategy: new LocalAuth({
-          dataPath: env.WHATSAPP_SESSION_PATH,
-          clientId: 'wamr-admin', // Add explicit client ID for session persistence
-        }),
-        puppeteer: {
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-          ],
-          // Use Chrome from Puppeteer's cache - required for Docker with pre-installed Chrome
-          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        },
+      // Initialize multi-file auth state
+      const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
+      this.saveCreds = saveCreds;
+
+      // Create Baileys socket
+      this.sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
+        browser: ['WAMR', 'Chrome', '1.0.0'],
+        syncFullHistory: false,
+        markOnlineOnConnect: true,
+        // Disable auto-retry to handle reconnection manually
+        retryRequestDelayMs: 2000,
       });
 
-      logger.debug('WhatsApp Client instance created, setting up event handlers...');
+      logger.debug('WhatsApp Baileys socket instance created, setting up event handlers...');
       this.setupEventHandlers();
 
       // Set a timeout for initialization (60 seconds)
-      // If client doesn't emit 'ready' or 'qr' within this time, assume restoration failed
+      // If client doesn't connect within this time, assume restoration failed
       this.initializationTimeout = setTimeout(async () => {
         if (this.isInitializing && !this.isReady()) {
           logger.error(
@@ -107,9 +122,7 @@ class WhatsAppClientService {
         }
       }, 60000); // 60 second timeout
 
-      logger.debug('Calling client.initialize()...');
-      await this.client.initialize();
-      logger.info('WhatsApp client.initialize() completed, waiting for ready event...');
+      logger.info('WhatsApp Baileys client initialization started, waiting for connection...');
     } catch (error) {
       const errorDetails = {
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -119,239 +132,192 @@ class WhatsAppClientService {
       };
       logger.error(errorDetails, 'Failed to initialize WhatsApp client');
       this.isInitializing = false;
-      this.client = null;
+      this.sock = null;
       throw error;
     }
   }
 
   /**
-   * Setup event handlers
+   * Setup event handlers for Baileys
    */
   private setupEventHandlers(): void {
-    if (!this.client) return;
+    if (!this.sock) return;
 
-    // Loading screen event (track initialization progress)
-    this.client.on('loading_screen', async (percent: number, message: string) => {
-      try {
-        logger.info(`WhatsApp client loading: ${percent}% - ${message}`);
+    // Connection update event (handles QR, ready, disconnected states)
+    this.sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
 
-        // Emit loading progress to UI
-        const { webSocketService, SocketEvents } = await import(
-          '../websocket/websocket.service.js'
-        );
-        webSocketService.emit(SocketEvents.STATUS_CHANGE, {
-          status: 'loading',
-          progress: percent,
-          message,
-        });
-      } catch (error) {
-        logger.error({ error }, 'Error handling loading_screen event');
-      }
-    });
+      // Handle QR code generation
+      if (qr) {
+        logger.info('QR code generated');
 
-    // Change state event (track connection state changes)
-    this.client.on('change_state', async (state: string) => {
-      try {
-        logger.info(`WhatsApp client state changed: ${state}`);
-
-        // Emit state change to UI
-        const { webSocketService, SocketEvents } = await import(
-          '../websocket/websocket.service.js'
-        );
-        webSocketService.emit(SocketEvents.STATUS_CHANGE, {
-          status: 'loading',
-          state,
-        });
-      } catch (error) {
-        logger.error({ error }, 'Error handling change_state event');
-      }
-    });
-
-    // QR Code generation
-    this.client.on('qr', async (qr: string) => {
-      logger.info('QR code generated');
-
-      // Clear initialization timeout since we got a QR code (client is working)
-      if (this.initializationTimeout) {
-        clearTimeout(this.initializationTimeout);
-        this.initializationTimeout = null;
-      }
-
-      try {
-        // Update connection status
-        await this.updateConnectionStatus('CONNECTING');
-
-        // Emit status update via WebSocket
-        const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
-        qrCodeEmitterService.emitConnectionStatus('connecting');
-
-        // Store QR generation timestamp
-        const connections = await whatsappConnectionRepository.findAll();
-        if (connections.length > 0) {
-          await whatsappConnectionRepository.update(connections[0].id, {
-            qrCodeGeneratedAt: new Date(),
-          });
+        // Clear initialization timeout since we got a QR code (client is working)
+        if (this.initializationTimeout) {
+          clearTimeout(this.initializationTimeout);
+          this.initializationTimeout = null;
         }
 
-        // Emit QR code to connected clients via callback
-        if (this.qrCodeCallback) {
-          this.qrCodeCallback(qr);
-        }
-      } catch (error) {
-        logger.error({ error }, 'Error handling QR code event');
-      }
-    });
+        try {
+          // Update connection status
+          await this.updateConnectionStatus('CONNECTING');
 
-    // Ready event (authenticated and connected)
-    this.client.on('ready', async () => {
-      logger.info('WhatsApp client is ready');
-      this.isInitializing = false; // Reset flag on successful connection
+          // Emit status update via WebSocket
+          const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
+          qrCodeEmitterService.emitConnectionStatus('connecting');
 
-      // Clear initialization timeout since we're ready
-      if (this.initializationTimeout) {
-        clearTimeout(this.initializationTimeout);
-        this.initializationTimeout = null;
-      }
-
-      try {
-        // Get connected phone number - client.info may be null in newer versions
-        // Wait a moment for client.info to be populated
-        let phoneNumber = 'unknown';
-        let attempts = 0;
-        while (attempts < 5 && phoneNumber === 'unknown') {
-          const info = this.client?.info;
-          if (info?.wid?.user) {
-            phoneNumber = info.wid.user;
-            break;
+          // Store QR generation timestamp
+          const connections = await whatsappConnectionRepository.findAll();
+          if (connections.length > 0) {
+            await whatsappConnectionRepository.update(connections[0].id, {
+              qrCodeGeneratedAt: new Date(),
+            });
           }
-          attempts++;
-          if (attempts < 5) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
+
+          // Emit QR code to connected clients via callback
+          if (this.qrCodeCallback) {
+            this.qrCodeCallback(qr);
           }
+        } catch (error) {
+          logger.error({ error }, 'Error handling QR code event');
         }
-
-        if (phoneNumber === 'unknown') {
-          logger.warn('Could not retrieve phone number from client.info, using fallback');
-        }
-
-        const phoneHash = await hashingService.hashPhoneNumber(phoneNumber);
-
-        // Update connection status
-        await whatsappConnectionRepository.upsert({
-          phoneNumberHash: phoneHash,
-          status: 'CONNECTED',
-          lastConnectedAt: new Date(),
-        });
-
-        logger.info({ phoneHash }, 'WhatsApp connected');
-
-        // Emit status update via WebSocket (can happen multiple times, that's OK)
-        const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
-        qrCodeEmitterService.emitConnectionStatus('connected', phoneNumber);
-
-        // Notify via callback ONLY ONCE per connection session
-        if (this.readyCallback && !this.hasCalledReady) {
-          this.hasCalledReady = true;
-          logger.debug('Calling ready callback for the first time');
-          this.readyCallback();
-        } else {
-          logger.debug('Skipping ready callback (already called for this session)');
-        }
-      } catch (error) {
-        logger.error({ error }, 'Error handling ready event');
       }
-    });
 
-    // Authenticated event
-    this.client.on('authenticated', () => {
-      logger.info('WhatsApp authenticated - session will be saved');
-    });
+      // Handle connection open (ready)
+      if (connection === 'open') {
+        logger.info('WhatsApp client is ready (connection open)');
+        this.isInitializing = false;
 
-    // Remote session saved - indicates session was successfully persisted
-    this.client.on('remote_session_saved', () => {
-      logger.info('WhatsApp remote session saved successfully');
-    });
-
-    // Error event - catch internal client errors to prevent unhandled rejections
-    this.client.on('error', (error: Error) => {
-      logger.error({ error }, 'WhatsApp client error');
-      // Don't crash the app - just log the error
-      // The disconnected event handler will handle reconnection if needed
-    });
-
-    // Authentication failure
-    this.client.on('auth_failure', async (error: Error) => {
-      logger.error({ error }, 'WhatsApp authentication failed - will clear session and retry');
-      this.isInitializing = false;
-
-      try {
-        await this.updateConnectionStatus('DISCONNECTED');
-
-        // Clear the failed session and try fresh
-        await this.clearSessionAndRestart();
-      } catch (err) {
-        logger.error({ error: err }, 'Failed to handle auth failure');
-      }
-    });
-
-    // Disconnected event
-    this.client.on('disconnected', async (reason: string) => {
-      logger.warn({ reason }, 'WhatsApp disconnected');
-
-      try {
-        // Reset ready flag so callback can be called again on next connection
-        this.hasCalledReady = false;
-
-        await this.updateConnectionStatus('DISCONNECTED');
-
-        // Emit status update via WebSocket
-        const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
-        qrCodeEmitterService.emitConnectionStatus('disconnected');
-
-        // Notify via callback
-        if (this.disconnectedCallback) {
-          this.disconnectedCallback();
+        // Clear initialization timeout
+        if (this.initializationTimeout) {
+          clearTimeout(this.initializationTimeout);
+          this.initializationTimeout = null;
         }
 
-        // Attempt automatic reconnection after a short delay (unless it was a manual logout)
-        if (reason !== 'LOGOUT') {
-          logger.info('Scheduling automatic reconnection in 5 seconds...');
-          setTimeout(async () => {
-            try {
-              logger.info('Attempting automatic reconnection...');
-              this.isInitializing = false; // Reset the flag
-              this.client = null; // Clear the client reference
-              await this.initialize(); // Reinitialize the client
-              logger.info('Automatic reconnection initiated');
-            } catch (reconnectError) {
-              logger.error({ error: reconnectError }, 'Failed to reconnect automatically');
+        try {
+          // Get connected phone number from socket user
+          let phoneNumber = 'unknown';
+
+          if (this.sock?.user?.id) {
+            // Extract phone number from JID (format: 1234567890:123@s.whatsapp.net)
+            const decoded = jidDecode(this.sock.user.id);
+            if (decoded?.user) {
+              phoneNumber = decoded.user;
             }
-          }, 5000);
-        } else {
-          logger.info('Logout detected, not attempting automatic reconnection');
-          this.isInitializing = false;
-          this.client = null;
+          }
+
+          if (phoneNumber === 'unknown') {
+            logger.warn('Could not retrieve phone number from socket user, using fallback');
+          }
+
+          const phoneHash = await hashingService.hashPhoneNumber(phoneNumber);
+
+          // Update connection status
+          await whatsappConnectionRepository.upsert({
+            phoneNumberHash: phoneHash,
+            status: 'CONNECTED',
+            lastConnectedAt: new Date(),
+          });
+
+          logger.info({ phoneHash }, 'WhatsApp connected');
+
+          // Emit status update via WebSocket
+          const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
+          qrCodeEmitterService.emitConnectionStatus('connected', phoneNumber);
+
+          // Notify via callback ONLY ONCE per connection session
+          if (this.readyCallback && !this.hasCalledReady) {
+            this.hasCalledReady = true;
+            logger.debug('Calling ready callback for the first time');
+            this.readyCallback();
+          } else {
+            logger.debug('Skipping ready callback (already called for this session)');
+          }
+        } catch (error) {
+          logger.error({ error }, 'Error handling connection open event');
         }
-      } catch (error) {
-        logger.error({ error }, 'Error handling disconnected event');
+      }
+
+      // Handle connection close (disconnected)
+      if (connection === 'close') {
+        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+        logger.warn(
+          { statusCode, shouldReconnect, error: lastDisconnect?.error?.message },
+          'WhatsApp disconnected'
+        );
+
+        try {
+          // Reset ready flag so callback can be called again on next connection
+          this.hasCalledReady = false;
+
+          await this.updateConnectionStatus('DISCONNECTED');
+
+          // Emit status update via WebSocket
+          const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
+          qrCodeEmitterService.emitConnectionStatus('disconnected');
+
+          // Notify via callback
+          if (this.disconnectedCallback) {
+            this.disconnectedCallback();
+          }
+
+          // Attempt automatic reconnection after a short delay (unless it was a manual logout)
+          if (shouldReconnect) {
+            logger.info('Scheduling automatic reconnection in 5 seconds...');
+            setTimeout(async () => {
+              try {
+                logger.info('Attempting automatic reconnection...');
+                this.isInitializing = false;
+                this.sock = null;
+                await this.initialize();
+                logger.info('Automatic reconnection initiated');
+              } catch (reconnectError) {
+                logger.error({ error: reconnectError }, 'Failed to reconnect automatically');
+              }
+            }, 5000);
+          } else {
+            logger.info('Logout detected, not attempting automatic reconnection');
+            this.isInitializing = false;
+            this.sock = null;
+          }
+        } catch (error) {
+          logger.error({ error }, 'Error handling disconnected event');
+        }
       }
     });
 
-    // Message received
-    this.client.on('message', async (message: Message) => {
+    // Credentials update event - save credentials when they change
+    this.sock.ev.on('creds.update', async () => {
+      logger.debug('Credentials updated, saving...');
+      if (this.saveCreds) {
+        await this.saveCreds();
+        logger.debug('Credentials saved successfully');
+      }
+    });
+
+    // Message received event
+    this.sock.ev.on('messages.upsert', async (event) => {
       try {
-        // Only process messages from users (not from groups or status)
-        const chat = await message.getChat();
-        if (!chat.isGroup) {
-          logger.debug({ from: message.from }, 'Message received');
+        for (const message of event.messages) {
+          // Skip messages from self
+          if (message.key.fromMe) continue;
+
+          // Skip group messages - only process individual chats
+          const remoteJid = message.key.remoteJid;
+          if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') {
+            continue;
+          }
+
+          logger.debug({ from: remoteJid }, 'Message received');
 
           // Forward to message callback
           if (this.messageCallback) {
-            this.messageCallback(message);
+            this.messageCallback(message as BaileysMessage);
           }
         }
       } catch (error) {
-        logger.error({ error }, 'Error handling message event');
+        logger.error({ error }, 'Error handling messages.upsert event');
       }
     });
   }
@@ -387,21 +353,43 @@ class WhatsAppClientService {
   }
 
   /**
-   * Send message to phone number
+   * Send message to a recipient
+   * @param recipient - Can be a full JID (user@lid, user@s.whatsapp.net), phone number (+1234567890), or user ID
    */
-  async sendMessage(phoneNumber: string, message: string): Promise<void> {
-    if (!this.client || !this.isReady()) {
+  async sendMessage(recipient: string, message: string): Promise<void> {
+    if (!this.sock || !this.isReady()) {
       throw new Error('WhatsApp client is not ready');
     }
 
     try {
-      // Format phone number for WhatsApp (remove non-digits, add @c.us suffix)
-      const chatId = `${phoneNumber.replace(/\D/g, '')}@c.us`;
+      let jid: string;
 
-      await this.client.sendMessage(chatId, message);
-      logger.info({ phoneNumber: phoneNumber.slice(-4) }, 'Message sent');
+      // Check if recipient is already a full JID (contains @)
+      if (recipient.includes('@')) {
+        // Use the JID as-is (preserves @lid or @s.whatsapp.net)
+        jid = recipient;
+      } else {
+        // Recipient is a phone number or user ID - format as @s.whatsapp.net
+        const cleanRecipient = recipient.replace(/^\+/, '').replace(/\D/g, '');
+        jid = `${cleanRecipient}@s.whatsapp.net`;
+      }
+
+      logger.debug(
+        {
+          originalRecipient: recipient,
+          jid,
+          messageLength: message.length,
+        },
+        'Sending message via Baileys'
+      );
+
+      const result = await this.sock.sendMessage(jid, { text: message });
+      logger.info(
+        { recipient: recipient.slice(-4), messageId: result?.key?.id },
+        'Message sent successfully'
+      );
     } catch (error) {
-      logger.error({ error }, 'Failed to send message');
+      logger.error({ error, recipient: recipient.slice(-4) }, 'Failed to send message');
       throw error;
     }
   }
@@ -410,7 +398,7 @@ class WhatsAppClientService {
    * Check if client is ready (authenticated and connected)
    */
   isReady(): boolean {
-    return this.client?.info !== undefined;
+    return this.sock?.user !== undefined;
   }
 
   /**
@@ -424,10 +412,12 @@ class WhatsAppClientService {
    * Get masked phone number of connected account
    */
   getPhoneNumber(): string | null {
-    if (!this.client?.info?.wid?.user) {
+    if (!this.sock?.user?.id) {
       return null;
     }
-    return this.client.info.wid.user;
+    // Extract phone number from JID
+    const decoded = jidDecode(this.sock.user.id);
+    return decoded?.user || null;
   }
 
   /**
@@ -444,7 +434,7 @@ class WhatsAppClientService {
   async disconnect(): Promise<void> {
     try {
       logger.info('disconnect() called', {
-        hasClient: !!this.client,
+        hasClient: !!this.sock,
         isInitializing: this.isInitializing,
         stackTrace: new Error().stack,
       });
@@ -455,28 +445,15 @@ class WhatsAppClientService {
         this.initializationTimeout = null;
       }
 
-      if (this.client) {
+      if (this.sock) {
         logger.info('Disconnecting WhatsApp client...');
-        // Remove all event listeners before destroying to prevent memory leaks and duplicate events
-        this.client.removeAllListeners();
-        await this.client.destroy();
-        this.client = null;
+        // End the socket connection
+        this.sock.end(undefined);
+        this.sock = null;
         this.isInitializing = false;
-        logger.info('WhatsApp client destroyed');
+        logger.info('WhatsApp client disconnected');
       } else {
         logger.warn('No WhatsApp client to disconnect (updating status anyway)');
-      }
-
-      // Kill any zombie Chromium processes
-      try {
-        const { exec } = await import('child_process');
-        const { promisify } = await import('util');
-        const execAsync = promisify(exec);
-
-        await execAsync('pkill -f "puppeteer-core/.local-chromium" || true');
-        logger.info('Killed any zombie Chromium processes');
-      } catch (err) {
-        logger.warn({ err }, 'Failed to kill Chromium processes (may not exist)');
       }
 
       // DO NOT delete session files here - we want sessions to persist for automatic reconnection
@@ -512,32 +489,19 @@ class WhatsAppClientService {
         this.initializationTimeout = null;
       }
 
-      // Destroy existing client if any
-      if (this.client) {
+      // End existing socket if any
+      if (this.sock) {
         try {
-          // Remove all event listeners before destroying
-          this.client.removeAllListeners();
-          await this.client.destroy();
+          this.sock.end(undefined);
         } catch (err) {
-          logger.warn({ err }, 'Error destroying client during session clear');
+          logger.warn({ err }, 'Error ending socket during session clear');
         }
-        this.client = null;
+        this.sock = null;
       }
 
       this.isInitializing = false;
 
-      // Kill any zombie Chromium processes
-      try {
-        const { exec } = await import('child_process');
-        const { promisify } = await import('util');
-        const execAsync = promisify(exec);
-        await execAsync('pkill -f "puppeteer-core/.local-chromium" || true');
-        logger.info('Killed zombie Chromium processes');
-      } catch (err) {
-        logger.warn({ err }, 'Failed to kill Chromium processes');
-      }
-
-      // Wait for processes to fully terminate
+      // Wait for socket to fully close
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Delete session files
@@ -581,8 +545,8 @@ class WhatsAppClientService {
       // First disconnect the client
       await this.disconnect();
 
-      // Wait for Chromium to fully release file locks (2 seconds)
-      logger.info('Waiting for Chromium to release file locks...');
+      // Wait for socket to fully release file locks (2 seconds)
+      logger.info('Waiting for socket to release file locks...');
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Then delete session files
@@ -638,7 +602,7 @@ class WhatsAppClientService {
   /**
    * Register callback for message events
    */
-  onMessage(callback: (message: Message) => void): void {
+  onMessage(callback: (message: BaileysMessage) => void): void {
     this.messageCallback = callback;
   }
 
@@ -657,25 +621,23 @@ class WhatsAppClientService {
   }
 
   /**
-   * Get client instance (for advanced usage)
+   * Get socket instance (for advanced usage)
    */
-  getClient(): InstanceType<typeof Client> | null {
-    return this.client;
+  getClient(): WASocket | null {
+    return this.sock;
   }
 
   /**
    * Check if WhatsApp is currently connected
    */
   isConnected(): boolean {
-    if (!this.client) {
+    if (!this.sock) {
       return false;
     }
 
     try {
-      // whatsapp-web.js Client has a getState() method that returns the connection state
-      // @ts-ignore - getState() exists but may not be in types
-      const state = this.client.info?.wid?._serialized;
-      return !!state; // If we have a serialized WID, we're connected
+      // Check if we have a user (authenticated)
+      return !!this.sock.user?.id;
     } catch (error) {
       logger.debug({ error }, 'Error checking WhatsApp connection state');
       return false;
@@ -696,34 +658,21 @@ class WhatsAppClientService {
         this.initializationTimeout = null;
       }
 
-      // Destroy existing client if any
-      if (this.client) {
+      // End existing socket if any
+      if (this.sock) {
         try {
-          logger.info('Destroying existing WhatsApp client...');
-          this.client.removeAllListeners();
-          await this.client.destroy();
+          logger.info('Ending existing WhatsApp socket...');
+          this.sock.end(undefined);
         } catch (err) {
-          logger.warn({ err }, 'Error destroying client during session clear');
+          logger.warn({ err }, 'Error ending socket during session clear');
         }
-        this.client = null;
+        this.sock = null;
       }
 
       this.isInitializing = false;
       this.hasCalledReady = false;
 
-      // Kill any zombie Chromium processes
-      try {
-        const { exec } = await import('child_process');
-        const { promisify } = await import('util');
-        const execAsync = promisify(exec);
-        await execAsync('pkill -f "puppeteer-core/.local-chromium" || true');
-        await execAsync('pkill -f ".local-chromium" || true');
-        logger.info('Killed zombie Chromium processes');
-      } catch (err) {
-        logger.warn({ err }, 'Failed to kill Chromium processes');
-      }
-
-      // Wait for processes to fully terminate
+      // Wait for socket to fully close
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Delete session files
@@ -735,15 +684,6 @@ class WhatsAppClientService {
         logger.info({ sessionPath }, 'Deleted WhatsApp session directory');
       } catch (err) {
         logger.warn({ err, sessionPath }, 'Failed to delete session directory (may not exist)');
-      }
-
-      // Also try to delete cache directory
-      try {
-        const cachePath = './.wwebjs_cache';
-        await fs.rm(cachePath, { recursive: true, force: true });
-        logger.info({ cachePath }, 'Deleted WhatsApp cache directory');
-      } catch (err) {
-        logger.debug({ err }, 'Cache directory did not exist or could not be deleted');
       }
 
       // Update database status

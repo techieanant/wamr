@@ -27,27 +27,55 @@ vi.mock('../src/config/environment', () => ({
 }));
 
 // Mock external dependencies
-vi.mock('whatsapp-web.js', () => ({
-  default: {
-    Client: vi.fn().mockImplementation(() => ({
-      initialize: vi.fn(),
+vi.mock('@whiskeysockets/baileys', () => {
+  const mockSocket = {
+    ev: {
       on: vi.fn(),
-      destroy: vi.fn(),
-      sendMessage: vi.fn(),
-      logout: vi.fn(),
-    })),
-    LocalAuth: vi.fn(),
-    Message: vi.fn(),
-  },
-  Client: vi.fn().mockImplementation(() => ({
-    initialize: vi.fn(),
-    on: vi.fn(),
-    destroy: vi.fn(),
+    },
     sendMessage: vi.fn(),
-    logout: vi.fn(),
-  })),
-  LocalAuth: vi.fn(),
-  Message: vi.fn(),
+    end: vi.fn(),
+    user: { id: '1234567890:0@s.whatsapp.net' },
+  };
+
+  return {
+    default: vi.fn(() => mockSocket),
+    makeWASocket: vi.fn(() => mockSocket),
+    useMultiFileAuthState: vi.fn().mockResolvedValue({
+      state: {
+        creds: {},
+        keys: {},
+      },
+      saveCreds: vi.fn(),
+    }),
+    DisconnectReason: {
+      loggedOut: 401,
+      connectionClosed: 428,
+      connectionLost: 408,
+      connectionReplaced: 440,
+      timedOut: 408,
+      restartRequired: 515,
+      badSession: 500,
+    },
+    jidDecode: vi.fn((jid) => {
+      if (!jid) return null;
+      const parts = jid.split('@')[0].split(':');
+      return { user: parts[0], server: 's.whatsapp.net' };
+    }),
+    proto: {
+      IMessageKey: {},
+      IMessage: {},
+    },
+  };
+});
+
+vi.mock('@hapi/boom', () => ({
+  Boom: class Boom extends Error {
+    output: { statusCode: number };
+    constructor(message?: string, options?: { statusCode?: number }) {
+      super(message);
+      this.output = { statusCode: options?.statusCode || 500 };
+    }
+  },
 }));
 
 vi.mock('socket.io', () => ({

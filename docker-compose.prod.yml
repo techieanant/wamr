@@ -15,7 +15,7 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-wamr123456}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
-      - WHATSAPP_SESSION_PATH=${WHATSAPP_SESSION_PATH:-/app/.wwebjs_auth}
+      - WHATSAPP_SESSION_PATH=${WHATSAPP_SESSION_PATH:-/app/.baileys_auth}
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
       - LOGIN_RATE_LIMIT_MAX=${LOGIN_RATE_LIMIT_MAX:-5}
@@ -24,7 +24,7 @@ services:
       - LOG_PRETTY=${LOG_PRETTY:-false}
     volumes:
       - ${DATA_PATH:-./data}:/app/data
-      - ${WWEBJS_PATH:-./.wwebjs_auth}:/app/.wwebjs_auth
+      - ${BAILEYS_PATH:-./.baileys_auth}:/app/.baileys_auth
     healthcheck:
       test:
         [

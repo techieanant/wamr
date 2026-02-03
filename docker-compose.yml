@@ -39,7 +39,7 @@ services:
       - LOG_PRETTY=${LOG_PRETTY}
     volumes:
       - wamr-data:/app/data
-      - wamr-whatsapp-auth:/app/.wwebjs_auth
+      - wamr-whatsapp-auth:/app/.baileys_auth
     healthcheck:
       test:
         [

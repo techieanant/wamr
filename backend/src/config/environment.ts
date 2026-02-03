@@ -50,7 +50,7 @@ const envSchema = z.object({
   LOGIN_RATE_LIMIT_MAX: z.string().transform(Number).default('5'),
 
   // WhatsApp
-  WHATSAPP_SESSION_PATH: z.string().default('./.wwebjs_auth'),
+  WHATSAPP_SESSION_PATH: z.string().default('./.baileys_auth'),
 
   // Media Monitoring
   MEDIA_MONITORING_INTERVAL_MS: z.string().transform(Number).default('300000'), // 5 minutes default

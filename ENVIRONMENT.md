@@ -51,7 +51,7 @@ When running `npm run dev`, the monorepo starts both frontend and backend develo
   LOG_PRETTY=true
 
   # WhatsApp
-  WHATSAPP_SESSION_PATH=./backend/.wwebjs_auth
+  WHATSAPP_SESSION_PATH=./backend/.baileys_auth
 
   # Media monitoring interval (ms)
   MEDIA_MONITORING_INTERVAL_MS=300000
@@ -122,7 +122,7 @@ HOST_PORT=9002              # Host port (default: 9002)
 
 # Optional: Customize data paths
 DATA_PATH=./data            # Database location (default: ./data)
-WWEBJS_PATH=./.wwebjs_auth  # WhatsApp session (default: ./.wwebjs_auth)
+BAILEYS_PATH=./.baileys_auth  # WhatsApp session (default: ./.baileys_auth)
 
 # Optional: Network & Performance
 CORS_ORIGIN=*               # CORS origins (default: *)

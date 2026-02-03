@@ -20,7 +20,6 @@ We take the security of WAMR seriously. If you believe you have found a security
 ### Please DO:
 
 1. **Report via GitHub Security Advisories** (Preferred):
-
    - Go to https://github.com/techieanant/wamr/security/advisories/new
    - Click "Report a vulnerability"
    - Provide detailed information about the vulnerability
@@ -85,7 +84,7 @@ We will:
 
 ### WhatsApp Session
 
-- **Protect session files** (.wwebjs_auth directory)
+- **Protect session files** (.baileys_auth directory)
 - **Limit access** to WhatsApp-connected phone
 - **Monitor for unauthorized access**
 - **Revoke sessions** if compromised
@@ -128,7 +127,7 @@ WAMR includes several built-in security features:
 
 ### WhatsApp Web API
 
-- WAMR uses [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) which is unofficial
+- WAMR uses [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) which is unofficial
 - WhatsApp may ban accounts that violate their Terms of Service
 - Use a dedicated WhatsApp Business account
 - Monitor for suspicious activity

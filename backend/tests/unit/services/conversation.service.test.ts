@@ -246,6 +246,7 @@ describe('ConversationService', () => {
     it('should store phone number in activePhoneNumbers map', async () => {
       const phoneNumberHash = 'hash123';
       const phoneNumber = '+1234567890';
+      const replyJid = '1234567890@s.whatsapp.net';
       const message = 'hello';
       const session = {
         id: 'session123',
@@ -261,7 +262,8 @@ describe('ConversationService', () => {
         mediaType: null,
       });
 
-      await service.processMessage(phoneNumberHash, message, phoneNumber);
+      // New signature: processMessage(hash, message, replyJid, contactName, phoneNumber)
+      await service.processMessage(phoneNumberHash, message, replyJid, null, phoneNumber);
 
       // Access private property for testing
       const activePhoneNumbers = (service as any).activePhoneNumbers;
@@ -471,7 +473,7 @@ describe('ConversationService', () => {
   describe('performSearch', () => {
     it('should handle successful search and send message to user', async () => {
       const sessionId = 'session123';
-      const phoneNumber = '+1234567890';
+      const replyJid = '1234567890@s.whatsapp.net';
       const searchResult = {
         results: [
           {
@@ -485,8 +487,8 @@ describe('ConversationService', () => {
         searchDuration: 500,
       };
 
-      // Set up active phone number
-      (service as any).activePhoneNumbers.set(sessionId, phoneNumber);
+      // Set up active reply JID (used for sending messages)
+      (service as any).activeReplyJids.set(sessionId, replyJid);
 
       (mediaSearchService.search as any).mockResolvedValue(searchResult);
       (conversationSessionRepository.findById as any).mockResolvedValue({
@@ -501,18 +503,18 @@ describe('ConversationService', () => {
 
       expect(mediaSearchService.search).toHaveBeenCalledWith('movie', 'Inception', true);
       expect(whatsappClientService.sendMessage).toHaveBeenCalledWith(
-        phoneNumber,
+        replyJid,
         expect.stringContaining('Found 1 result')
       );
     });
 
     it('should handle search error and send error message', async () => {
       const sessionId = 'session123';
-      const phoneNumber = '+1234567890';
+      const replyJid = '1234567890@s.whatsapp.net';
       const error = new Error('Search failed');
 
-      // Set up active phone number
-      (service as any).activePhoneNumbers.set(sessionId, phoneNumber);
+      // Set up active reply JID (used for sending messages)
+      (service as any).activeReplyJids.set(sessionId, replyJid);
 
       (mediaSearchService.search as any).mockRejectedValue(error);
       (conversationSessionRepository.update as any).mockResolvedValue(undefined);
@@ -525,7 +527,7 @@ describe('ConversationService', () => {
         searchResults: [],
       });
       expect(whatsappClientService.sendMessage).toHaveBeenCalledWith(
-        phoneNumber,
+        replyJid,
         '❌ Search failed. Please try again later.'
       );
     });
@@ -536,8 +538,8 @@ describe('ConversationService', () => {
 
       (mediaSearchService.search as any).mockRejectedValue(error);
       (conversationSessionRepository.update as any).mockResolvedValue(undefined);
-      // Clear active phone numbers for this test
-      (service as any).activePhoneNumbers = new Map();
+      // Clear active reply JIDs for this test
+      (service as any).activeReplyJids = new Map();
 
       await (service as any).performSearch(sessionId, 'movie', 'Inception');
 
@@ -650,10 +652,10 @@ describe('ConversationService', () => {
     it('should handle fatal error in submitRequest', async () => {
       const sessionId = 'session123';
       const phoneNumberHash = 'hash123';
-      const phoneNumber = '+1234567890';
+      const replyJid = '1234567890@s.whatsapp.net';
 
-      // Set up active phone number
-      (service as any).activePhoneNumbers.set(sessionId, phoneNumber);
+      // Set up active reply JID (used for sending messages)
+      (service as any).activeReplyJids.set(sessionId, replyJid);
 
       // Mock handleSubmissionComplete to return a response
       (service as any).handleSubmissionComplete = vi.fn().mockResolvedValue({
@@ -675,7 +677,7 @@ describe('ConversationService', () => {
         'An unexpected error occurred'
       );
       expect(whatsappClientService.sendMessage).toHaveBeenCalledWith(
-        phoneNumber,
+        replyJid,
         'An unexpected error occurred'
       );
     });

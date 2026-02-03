@@ -57,7 +57,7 @@ ADMIN_PASSWORD=your-secure-password
 
 # Optional: Customize paths
 DATA_PATH=./data
-WWEBJS_PATH=./.wwebjs_auth
+BAILEYS_PATH=./.baileys_auth
 
 # Optional: Adjust settings (these have sensible defaults)
 # NODE_ENV=production
@@ -102,7 +102,7 @@ docker compose -f docker-compose.prod.yml down
 Data is stored in the current directory (customizable via `.env.prod`):
 
 - `./data/` - SQLite database (customize with `DATA_PATH`)
-- `./.wwebjs_auth/` - WhatsApp session data (customize with `WWEBJS_PATH`)
+- `./.baileys_auth/` - WhatsApp session data (customize with `BAILEYS_PATH`)
 
 These folders will be created automatically if they don't exist.
 
@@ -121,7 +121,7 @@ The `docker-compose.prod.yml` file uses environment variables with sensible defa
 | `ADMIN_USERNAME`               | `admin`              | Admin username                      |
 | `ADMIN_PASSWORD`               | `wamr123456`         | **⚠️ Change immediately!**          |
 | `CORS_ORIGIN`                  | `*`                  | Allowed CORS origins                |
-| `WHATSAPP_SESSION_PATH`        | `/app/.wwebjs_auth`  | WhatsApp session path               |
+| `WHATSAPP_SESSION_PATH`        | `/app/.baileys_auth` | WhatsApp session path               |
 | `RATE_LIMIT_WINDOW_MS`         | `900000`             | Rate limit window (15 min)          |
 | `RATE_LIMIT_MAX_REQUESTS`      | `100`                | Max requests per window             |
 | `LOGIN_RATE_LIMIT_MAX`         | `5`                  | Max login attempts                  |
@@ -129,7 +129,7 @@ The `docker-compose.prod.yml` file uses environment variables with sensible defa
 | `LOG_LEVEL`                    | `info`               | Logging level                       |
 | `LOG_PRETTY`                   | `false`              | Pretty print logs                   |
 | `DATA_PATH`                    | `./data`             | Host path for database              |
-| `WWEBJS_PATH`                  | `./.wwebjs_auth`     | Host path for WhatsApp session      |
+| `BAILEYS_PATH`                 | `./.baileys_auth`    | Host path for WhatsApp session      |
 
 ### Build from Source
 
@@ -274,7 +274,7 @@ Export data via the Settings page in the UI, or:
 docker cp wamr-combined:/app/data/wamr.db ./backup-$(date +%Y%m%d).db
 
 # Copy WhatsApp session
-docker cp wamr-combined:/app/.wwebjs_auth ./whatsapp-backup-$(date +%Y%m%d)
+docker cp wamr-combined:/app/.baileys_auth ./whatsapp-backup-$(date +%Y%m%d)
 ```
 
 ### Restore
@@ -284,7 +284,7 @@ docker cp wamr-combined:/app/.wwebjs_auth ./whatsapp-backup-$(date +%Y%m%d)
 docker cp ./backup.db wamr-combined:/app/data/wamr.db
 
 # Restore WhatsApp session
-docker cp ./whatsapp-backup wamr-combined:/app/.wwebjs_auth
+docker cp ./whatsapp-backup wamr-combined:/app/.baileys_auth
 docker-compose restart
 ```
 
@@ -356,13 +356,11 @@ Before deploying to production:
 ## Production Recommendations
 
 1. **Reverse Proxy**: Use nginx or Caddy for:
-
    - HTTPS/SSL termination
    - Domain routing
    - Load balancing (if scaling)
 
 2. **Monitoring**: Set up monitoring for:
-
    - Container health
    - Resource usage (CPU, memory)
    - API response times

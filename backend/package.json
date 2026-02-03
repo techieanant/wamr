@@ -1,6 +1,6 @@
 {
   "name": "wamr-backend",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "WhatsApp Media Request Manager - Backend API",
   "main": "dist/index.js",
   "type": "module",
@@ -41,7 +41,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@hapi/boom": "^10.0.1",
     "@types/qrcode": "^1.5.6",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.6.8",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.3.0",
@@ -57,7 +59,6 @@
     "pino-pretty": "^11.0.0",
     "qrcode": "^1.5.4",
     "socket.io": "^4.7.2",
-    "whatsapp-web.js": "https://github.com/pedroslopez/whatsapp-web.js/tarball/main",
     "zod": "^3.22.4"
   },
   "devDependencies": {

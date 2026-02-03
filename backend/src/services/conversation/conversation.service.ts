@@ -32,21 +32,32 @@ export interface ConversationResponse {
  * Orchestrates the conversation flow, state machine, and media search
  */
 export class ConversationService {
-  // Store active phone numbers for async callbacks (sessionId -> phoneNumber)
+  // Store reply JIDs for async callbacks (sessionId -> fullJid for sending messages)
+  private activeReplyJids = new Map<string, string>();
+  // Store actual phone numbers for storage (sessionId -> phone number like +17788796712)
   private activePhoneNumbers = new Map<string, string>();
   // Store active contact names for async callbacks (sessionId -> contactName)
   private activeContactNames = new Map<string, string>();
 
   /**
    * Process an incoming message from a user
+   * @param phoneNumberHash - Hash of the phone number/identifier for session lookup
+   * @param message - The message text
+   * @param replyJid - Full JID to use for sending responses (preserves @lid or @s.whatsapp.net)
+   * @param contactName - Contact display name
+   * @param phoneNumber - Actual phone number for storage (optional, may not be available with LID)
    */
   async processMessage(
     phoneNumberHash: string,
     message: string,
-    phoneNumber?: string,
-    contactName?: string | null
+    replyJid?: string,
+    contactName?: string | null,
+    phoneNumber?: string
   ): Promise<ConversationResponse> {
-    logger.info({ phoneNumberHash, message, contactName }, 'Processing incoming message');
+    logger.info(
+      { phoneNumberHash, message, contactName, hasPhoneNumber: !!phoneNumber },
+      'Processing incoming message'
+    );
 
     // Get or create conversation session
     let session = await conversationSessionRepository.findByPhoneHash(phoneNumberHash);
@@ -141,7 +152,10 @@ export class ConversationService {
       '🔍 DEBUG: Session loaded with state'
     );
 
-    // Store phone number and contact name for async callbacks
+    // Store replyJid (for sending responses), phone number (for storage), and contact name for async callbacks
+    if (replyJid) {
+      this.activeReplyJids.set(session.id, replyJid);
+    }
     if (phoneNumber) {
       this.activePhoneNumbers.set(session.id, phoneNumber);
     }
@@ -317,29 +331,26 @@ export class ConversationService {
       const response = await this.handleSearchComplete(sessionId, searchResult.results);
 
       if (response) {
-        // Get phone number for this session
-        const phoneNumber = this.activePhoneNumbers.get(sessionId);
+        // Get reply JID for this session (for sending messages)
+        const replyJid = this.activeReplyJids.get(sessionId);
 
-        if (phoneNumber) {
+        if (replyJid) {
           // Import whatsappClientService dynamically to avoid circular dependency
           const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
 
           // Send search results to user
-          await whatsappClientService.sendMessage(phoneNumber, response.message);
+          await whatsappClientService.sendMessage(replyJid, response.message);
 
-          logger.info(
-            { sessionId, phoneNumber: phoneNumber.slice(-4) },
-            'Search results sent to user'
-          );
+          logger.info({ sessionId, replyJid: replyJid.slice(-4) }, 'Search results sent to user');
         } else {
-          logger.warn({ sessionId }, 'Phone number not found for session - cannot send results');
+          logger.warn({ sessionId }, 'Reply JID not found for session - cannot send results');
         }
       }
     } catch (error) {
       logger.error({ sessionId, error }, 'Error performing media search');
 
-      // Get phone number for error notification
-      const phoneNumber = this.activePhoneNumbers.get(sessionId);
+      // Get reply JID for error notification
+      const replyJid = this.activeReplyJids.get(sessionId);
 
       // Update session to IDLE and mark as failed
       await conversationSessionRepository.update(sessionId, {
@@ -348,11 +359,11 @@ export class ConversationService {
       });
 
       // Notify user of search failure
-      if (phoneNumber) {
+      if (replyJid) {
         try {
           const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
           await whatsappClientService.sendMessage(
-            phoneNumber,
+            replyJid,
             '❌ Search failed. Please try again later.'
           );
         } catch (sendError) {
@@ -983,13 +994,13 @@ export class ConversationService {
       );
 
       if (response) {
-        const phoneNumber = this.activePhoneNumbers.get(sessionId);
-        if (phoneNumber) {
+        const replyJid = this.activeReplyJids.get(sessionId);
+        if (replyJid) {
           try {
             const { whatsappClientService } = await import(
               '../whatsapp/whatsapp-client.service.js'
             );
-            await whatsappClientService.sendMessage(phoneNumber, response.message);
+            await whatsappClientService.sendMessage(replyJid, response.message);
           } catch (sendError) {
             logger.error({ sessionId, error: sendError }, 'Failed to send error message');
           }
