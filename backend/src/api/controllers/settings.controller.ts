@@ -222,6 +222,8 @@ export async function exportData(req: AuthenticatedRequest, res: Response, next:
               lastConnectedAt: whatsappConnection.lastConnectedAt,
               filterType: whatsappConnection.filterType,
               filterValue: whatsappConnection.filterValue,
+              processFromSelf: whatsappConnection.processFromSelf,
+              processGroups: whatsappConnection.processGroups,
               autoApprovalMode: whatsappConnection.autoApprovalMode,
               exceptionsEnabled: whatsappConnection.exceptionsEnabled,
               exceptionContacts: whatsappConnection.exceptionContacts,
