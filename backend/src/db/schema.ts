@@ -32,6 +32,10 @@ export const whatsappConnections = sqliteTable(
     // Process messages from self and/or groups (default: only 1:1 from others)
     processFromSelf: integer('process_from_self', { mode: 'boolean' }).notNull().default(false),
     processGroups: integer('process_groups', { mode: 'boolean' }).notNull().default(false),
+    // When true, linked session marks as online on connect (may stop phone notifications)
+    markOnlineOnConnect: integer('mark_online_on_connect', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     // Auto-approval mode
     autoApprovalMode: text('auto_approval_mode', { enum: ['auto_approve', 'auto_deny', 'manual'] })
       .notNull()

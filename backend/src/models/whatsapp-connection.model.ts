@@ -17,6 +17,7 @@ export interface WhatsAppConnection {
   filterValue: string | null;
   processFromSelf: boolean;
   processGroups: boolean;
+  markOnlineOnConnect: boolean;
   autoApprovalMode: AutoApprovalMode;
   exceptionsEnabled: boolean;
   exceptionContacts: string[];
@@ -61,6 +62,7 @@ export interface WhatsAppConnectionResponse {
   filterValue: string | null;
   processFromSelf: boolean;
   processGroups: boolean;
+  markOnlineOnConnect: boolean;
   autoApprovalMode: AutoApprovalMode;
   exceptionsEnabled: boolean;
   exceptionContacts: string[];

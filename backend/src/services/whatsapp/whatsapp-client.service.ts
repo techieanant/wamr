@@ -97,13 +97,18 @@ class WhatsAppClientService {
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
 
+      // Read connection options (markOnlineOnConnect etc.) from DB; default false so phone keeps notifications
+      const connections = await whatsappConnectionRepository.findAll();
+      const markOnlineOnConnect = connections[0]?.markOnlineOnConnect ?? false;
+
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
         browser: ['WAMR', 'Chrome', '1.0.0'],
         syncFullHistory: false,
-        markOnlineOnConnect: true,
+        // When false, linked session does not mark as online; phone keeps notifications and unread badges
+        markOnlineOnConnect,
         // Disable auto-retry to handle reconnection manually
         retryRequestDelayMs: 2000,
       });

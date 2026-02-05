@@ -7,6 +7,7 @@ import { QRCodeDisplay } from '../components/whatsapp/qr-code-display';
 import { ConnectionStatus } from '../components/whatsapp/connection-status';
 import { MessageFilterForm } from '../components/whatsapp/message-filter-form';
 import { MessageSourcesCard } from '../components/whatsapp/message-sources-card';
+import { PhoneNotificationsCard } from '../components/whatsapp/phone-notifications-card';
 import { Smartphone, Loader2, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import type { MessageFilterType } from '../types/whatsapp.types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -154,6 +155,7 @@ export default function WhatsAppConnection() {
         ...payload,
         processFromSelf: status?.processFromSelf ?? false,
         processGroups: status?.processGroups ?? false,
+        markOnlineOnConnect: status?.markOnlineOnConnect ?? false,
       },
       {
         onSuccess: () => {
@@ -198,6 +200,36 @@ export default function WhatsAppConnection() {
             title: 'Update failed',
             description:
               error instanceof Error ? error.message : 'Failed to update message sources',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
+  const handleMarkOnlineSave = (markOnlineOnConnect: boolean) => {
+    updateFilter(
+      {
+        filterType: status?.filterType ?? null,
+        filterValue: status?.filterValue ?? null,
+        processFromSelf: status?.processFromSelf ?? false,
+        processGroups: status?.processGroups ?? false,
+        markOnlineOnConnect,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Phone notifications updated',
+            description: markOnlineOnConnect
+              ? 'Session will appear online when connected; phone may get fewer notifications.'
+              : 'Session will not appear online; your phone will keep getting notifications.',
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: 'Update failed',
+            description:
+              error instanceof Error ? error.message : 'Failed to update phone notifications',
             variant: 'destructive',
           });
         },
@@ -300,6 +332,15 @@ export default function WhatsAppConnection() {
           processFromSelf={status?.processFromSelf ?? false}
           processGroups={status?.processGroups ?? false}
           onSave={handleMessageSourcesSave}
+          isSaving={isUpdatingFilter}
+        />
+      )}
+
+      {/* Phone notifications (only show when connected) */}
+      {isConnected && (
+        <PhoneNotificationsCard
+          markOnlineOnConnect={status?.markOnlineOnConnect ?? false}
+          onSave={handleMarkOnlineSave}
           isSaving={isUpdatingFilter}
         />
       )}

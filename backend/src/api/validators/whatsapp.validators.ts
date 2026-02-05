@@ -14,6 +14,7 @@ export const messageFilterSchema = z
       .nullable(),
     processFromSelf: z.boolean().optional(),
     processGroups: z.boolean().optional(),
+    markOnlineOnConnect: z.boolean().optional(),
   })
   .refine(
     (data) =>

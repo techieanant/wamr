@@ -132,7 +132,11 @@ export class WhatsAppConnectionRepository {
   async updateMessageFilter(
     filterType: 'prefix' | 'keyword' | null,
     filterValue: string | null,
-    options?: { processFromSelf?: boolean; processGroups?: boolean }
+    options?: {
+      processFromSelf?: boolean;
+      processGroups?: boolean;
+      markOnlineOnConnect?: boolean;
+    }
   ): Promise<WhatsAppConnection | undefined> {
     const connections = await this.findAll();
 
@@ -150,6 +154,9 @@ export class WhatsAppConnectionRepository {
     }
     if (options?.processGroups !== undefined) {
       setValues.processGroups = options.processGroups ? 1 : 0;
+    }
+    if (options?.markOnlineOnConnect !== undefined) {
+      setValues.markOnlineOnConnect = options.markOnlineOnConnect ? 1 : 0;
     }
 
     const result = await db
@@ -186,6 +193,7 @@ export class WhatsAppConnectionRepository {
       filterValue: row.filterValue,
       processFromSelf: Boolean(row.processFromSelf),
       processGroups: Boolean(row.processGroups),
+      markOnlineOnConnect: Boolean(row.markOnlineOnConnect),
       autoApprovalMode:
         (row.autoApprovalMode as 'auto_approve' | 'auto_deny' | 'manual') || 'auto_approve',
       exceptionsEnabled: Boolean(row.exceptionsEnabled),

@@ -42,6 +42,7 @@ export const getStatus = async (
         filterValue: activeConnection.filterValue,
         processFromSelf: activeConnection.processFromSelf,
         processGroups: activeConnection.processGroups,
+        markOnlineOnConnect: activeConnection.markOnlineOnConnect,
         autoApprovalMode: activeConnection.autoApprovalMode,
         exceptionsEnabled: activeConnection.exceptionsEnabled,
         exceptionContacts: activeConnection.exceptionContacts,
@@ -83,6 +84,7 @@ export const getStatus = async (
       filterValue: connection.filterValue,
       processFromSelf: connection.processFromSelf,
       processGroups: connection.processGroups,
+      markOnlineOnConnect: connection.markOnlineOnConnect,
       autoApprovalMode: connection.autoApprovalMode,
       exceptionsEnabled: connection.exceptionsEnabled,
       exceptionContacts: connection.exceptionContacts,
@@ -198,15 +200,17 @@ export const updateMessageFilter = async (
       return;
     }
 
-    const { filterType, filterValue, processFromSelf, processGroups } = result.data;
+    const { filterType, filterValue, processFromSelf, processGroups, markOnlineOnConnect } =
+      result.data;
 
-    // Update filter configuration and message source options
+    // Update filter configuration and message source / presence options
     const updated = await whatsappConnectionRepository.updateMessageFilter(
       filterType,
       filterValue,
       {
         ...(processFromSelf !== undefined && { processFromSelf }),
         ...(processGroups !== undefined && { processGroups }),
+        ...(markOnlineOnConnect !== undefined && { markOnlineOnConnect }),
       }
     );
 
@@ -219,7 +223,7 @@ export const updateMessageFilter = async (
     }
 
     logger.info(
-      { filterType, filterValue, processFromSelf, processGroups },
+      { filterType, filterValue, processFromSelf, processGroups, markOnlineOnConnect },
       'Message filter updated'
     );
 
@@ -230,6 +234,7 @@ export const updateMessageFilter = async (
       filterValue: updated.filterValue,
       processFromSelf: updated.processFromSelf,
       processGroups: updated.processGroups,
+      markOnlineOnConnect: updated.markOnlineOnConnect,
     });
   } catch (error) {
     logger.error({ error }, 'Failed to update message filter');
