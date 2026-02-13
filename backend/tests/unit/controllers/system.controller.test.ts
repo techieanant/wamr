@@ -23,8 +23,8 @@ vi.mock('url', () => ({
   fileURLToPath: vi.fn(() => '/mock/path'),
 }));
 vi.mock('path', () => ({
-  dirname: vi.fn(() => '/mock/dir'),
-  join: vi.fn(() => '/mock/package.json'),
+  dirname: vi.fn(() => '/mock/backend/src/api/controllers'),
+  join: vi.fn((...args) => '/mock/package.json'),
 }));
 
 // Import mocked functions
@@ -40,6 +40,9 @@ const mockProcess = {
     heapTotal: 100 * 1024 * 1024, // 100MB
     rss: 80 * 1024 * 1024, // 80MB
   })),
+  env: {
+    NODE_ENV: 'test',
+  },
 };
 
 Object.defineProperty(global, 'process', {

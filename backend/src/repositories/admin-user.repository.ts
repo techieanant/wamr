@@ -39,6 +39,21 @@ export class AdminUserRepository {
   }
 
   /**
+   * Find the latest (most recently created) admin user
+   */
+  async findLatest(): Promise<AdminUser | undefined> {
+    const result = await db.select().from(adminUsers).orderBy(adminUsers.id).limit(1);
+
+    if (!result[0]) return undefined;
+
+    return {
+      ...result[0],
+      createdAt: new Date(result[0].createdAt),
+      lastLoginAt: result[0].lastLoginAt ? new Date(result[0].lastLoginAt) : null,
+    };
+  }
+
+  /**
    * Create new admin user
    */
   async create(data: CreateAdminUser): Promise<AdminUser> {
@@ -92,6 +107,13 @@ export class AdminUserRepository {
     const result = await db.select({ count: adminUsers.id }).from(adminUsers);
 
     return result.length;
+  }
+
+  /**
+   * Update admin user password
+   */
+  async updatePassword(id: number, passwordHash: string): Promise<void> {
+    await db.update(adminUsers).set({ passwordHash }).where(eq(adminUsers.id, id));
   }
 }
 

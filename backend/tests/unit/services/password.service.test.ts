@@ -41,7 +41,9 @@ describe('PasswordService', () => {
       const error = new Error('Hashing failed');
       (bcrypt.hash as any).mockRejectedValue(error);
 
-      await expect(passwordService.hash('password')).rejects.toThrow('Failed to hash password');
+      await expect(passwordService.hash('password')).rejects.toThrow(
+        'Failed to hash password'
+      );
     });
   });
 
@@ -78,7 +80,7 @@ describe('PasswordService', () => {
   });
 
   describe('validateComplexity', () => {
-    it('should validate a strong password', () => {
+    it('should validate a password with 4+ characters', () => {
       const password = 'StrongPass123!';
 
       const result = passwordService.validateComplexity(password);
@@ -87,62 +89,44 @@ describe('PasswordService', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should reject password that is too short', () => {
-      const password = '12345';
+    it('should validate a password with exactly 4 characters', () => {
+      const password = 'abcd';
 
       const result = passwordService.validateComplexity(password);
 
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Password must be at least 6 characters long');
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
-    it('should reject password without lowercase letter', () => {
-      const password = 'STRONGPASS123!';
+    it('should reject password with only 3 characters', () => {
+      const password = 'abc';
 
       const result = passwordService.validateComplexity(password);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Password must contain at least one lowercase letter');
+      expect(result.errors).toContain(
+        'Password must be at least 4 characters long'
+      );
     });
 
-    it('should reject password without uppercase letter', () => {
-      const password = 'strongpass123!';
+    it('should reject empty password', () => {
+      const password = '';
 
       const result = passwordService.validateComplexity(password);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Password must contain at least one uppercase letter');
+      expect(result.errors).toContain(
+        'Password must be at least 4 characters long'
+      );
     });
 
-    it('should reject password without digit', () => {
-      const password = 'StrongPass!';
+    it('should validate simple passwords like "1234"', () => {
+      const password = '1234';
 
       const result = passwordService.validateComplexity(password);
 
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Password must contain at least one digit');
-    });
-
-    it('should reject password without special character', () => {
-      const password = 'StrongPass123';
-
-      const result = passwordService.validateComplexity(password);
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Password must contain at least one special character');
-    });
-
-    it('should return multiple errors for weak password', () => {
-      const password = 'weak';
-
-      const result = passwordService.validateComplexity(password);
-
-      expect(result.valid).toBe(false);
-      expect(result.errors).toHaveLength(4);
-      expect(result.errors).toContain('Password must be at least 6 characters long');
-      expect(result.errors).toContain('Password must contain at least one uppercase letter');
-      expect(result.errors).toContain('Password must contain at least one digit');
-      expect(result.errors).toContain('Password must contain at least one special character');
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
   });
 });

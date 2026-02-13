@@ -20,23 +20,6 @@ services:
       - .env.prod
     ports:
       - "${PORT:-9000}:${PORT:-9000}"
-    environment:
-      # All configuration comes from .env.prod
-      # These are just ensuring required variables exist
-      - NODE_ENV=${NODE_ENV}
-      - PORT=${PORT}
-      - DATABASE_PATH=${DATABASE_PATH}
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
-      - ADMIN_USERNAME=${ADMIN_USERNAME}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
-      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS}
-      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS}
-      - LOGIN_RATE_LIMIT_MAX=${LOGIN_RATE_LIMIT_MAX}
-      - WHATSAPP_SESSION_PATH=${WHATSAPP_SESSION_PATH}
-      - MEDIA_MONITORING_INTERVAL_MS=${MEDIA_MONITORING_INTERVAL_MS}
-      - LOG_LEVEL=${LOG_LEVEL}
-      - LOG_PRETTY=${LOG_PRETTY}
     volumes:
       - wamr-data:/app/data
       - wamr-whatsapp-auth:/app/.baileys_auth
@@ -46,7 +29,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:${PORT}/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+          "require('http').get('http://localhost:${PORT:-9000}/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
         ]
       interval: 30s
       timeout: 3s

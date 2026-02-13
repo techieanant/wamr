@@ -58,7 +58,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && git config --global url."https://github.com/".insteadOf git@github.com:
 
 # Copy package.json files
-COPY backend/package.json ./package.json
+COPY package.json ./
 
 # Copy node_modules from builder (already compiled for Node.js ABI)
 COPY --from=builder /app/node_modules ./node_modules

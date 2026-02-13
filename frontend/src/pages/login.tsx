@@ -68,7 +68,7 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={4}
                 disabled={isLoading}
               />
             </div>
@@ -76,6 +76,12 @@ export function LoginPage() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
+
+            <div className="text-center">
+              <a href="/reset-password" className="text-sm text-primary hover:underline">
+                Forgot password? Use backup code
+              </a>
+            </div>
           </form>
         </CardContent>
       </Card>

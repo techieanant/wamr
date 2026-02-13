@@ -44,7 +44,22 @@ export class WebSocketService {
   initialize(httpServer: HttpServer): Server {
     this.io = new Server(httpServer, {
       cors: {
-        origin: env.CORS_ORIGIN,
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (origin === env.CORS_ORIGIN || env.CORS_ORIGIN === '*') {
+            return callback(null, true);
+          }
+          const allowedOrigins = [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:5173',
+            'http://localhost',
+          ];
+          if (allowedOrigins.includes(origin) || allowedOrigins.some((o) => origin.startsWith(o))) {
+            return callback(null, true);
+          }
+          callback(new Error('Not allowed by CORS'));
+        },
         credentials: true,
       },
       transports: ['websocket', 'polling'],

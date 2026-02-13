@@ -28,8 +28,8 @@ This is the recommended method for production deployments with data stored in th
 # Pull and start with default settings
 docker compose -f docker-compose.prod.yml up -d
 
-# Default credentials: admin / wamr123456
 # Access: http://localhost:9002
+# Complete the setup wizard to create your admin account
 ```
 
 ⚠️ **For production, you MUST customize the security settings!**
@@ -52,8 +52,10 @@ HOST_PORT=9002
 # Security - REQUIRED! Change these values for production!
 JWT_SECRET=$(openssl rand -base64 32)
 ENCRYPTION_KEY=$(openssl rand -hex 32)
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
+
+# Optional: Pre-configure admin credentials (skips setup wizard)
+# ADMIN_USERNAME=admin
+# ADMIN_PASSWORD=your-secure-password
 
 # Optional: Customize paths
 DATA_PATH=./data
@@ -91,11 +93,19 @@ docker compose -f docker-compose.prod.yml down
 - **Localhost**: `http://localhost:9002`
 - **Via reverse proxy (HTTPS)**: `https://wamr.yourdomain.com`
 
-**4. Default Credentials**
+**4. First-Time Setup**
 
-- Username: `admin` (customize with `ADMIN_USERNAME`)
-- Password: `wamr123456` (customize with `ADMIN_PASSWORD`)
-- ⚠️ **Change the password immediately after first login!**
+On first access, you'll be guided through a setup wizard:
+
+1. Create your admin account (username and password)
+2. Save your 5 backup codes for account recovery
+3. Access the dashboard
+
+> **Note:** If you pre-configure `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env.prod`, the setup wizard will be skipped and the admin user will be created automatically.
+
+**5. Backup Codes**
+
+After setup, you'll receive 5 backup codes. These are single-use codes that can be used to reset your password if you get locked out. You can view and regenerate backup codes in **Settings > Backup Codes**.
 
 **5. Data Storage**
 
@@ -110,26 +120,26 @@ These folders will be created automatically if they don't exist.
 
 The `docker-compose.prod.yml` file uses environment variables with sensible defaults. You can override any of these by creating a `.env.prod` file:
 
-| Variable                       | Default              | Description                         |
-| ------------------------------ | -------------------- | ----------------------------------- |
-| `HOST_PORT`                    | `9002`               | Host port to expose the application |
-| `NODE_ENV`                     | `production`         | Node environment                    |
-| `PORT`                         | `9000`               | Container internal port             |
-| `DATABASE_PATH`                | `/app/data/wamr.db`  | Database path inside container      |
-| `JWT_SECRET`                   | _(default provided)_ | **⚠️ Change for production!**       |
-| `ENCRYPTION_KEY`               | _(default provided)_ | **⚠️ Change for production!**       |
-| `ADMIN_USERNAME`               | `admin`              | Admin username                      |
-| `ADMIN_PASSWORD`               | `wamr123456`         | **⚠️ Change immediately!**          |
-| `CORS_ORIGIN`                  | `*`                  | Allowed CORS origins                |
-| `WHATSAPP_SESSION_PATH`        | `/app/.baileys_auth` | WhatsApp session path               |
-| `RATE_LIMIT_WINDOW_MS`         | `900000`             | Rate limit window (15 min)          |
-| `RATE_LIMIT_MAX_REQUESTS`      | `100`                | Max requests per window             |
-| `LOGIN_RATE_LIMIT_MAX`         | `5`                  | Max login attempts                  |
-| `MEDIA_MONITORING_INTERVAL_MS` | `300000`             | Monitoring interval (5 min)         |
-| `LOG_LEVEL`                    | `info`               | Logging level                       |
-| `LOG_PRETTY`                   | `false`              | Pretty print logs                   |
-| `DATA_PATH`                    | `./data`             | Host path for database              |
-| `BAILEYS_PATH`                 | `./.baileys_auth`    | Host path for WhatsApp session      |
+| Variable                       | Default              | Description                                  |
+| ------------------------------ | -------------------- | -------------------------------------------- |
+| `HOST_PORT`                    | `9002`               | Host port to expose the application          |
+| `NODE_ENV`                     | `production`         | Node environment                             |
+| `PORT`                         | `9000`               | Container internal port                      |
+| `DATABASE_PATH`                | `/app/data/wamr.db`  | Database path inside container               |
+| `JWT_SECRET`                   | _(default provided)_ | **⚠️ Change for production!**                |
+| `ENCRYPTION_KEY`               | _(default provided)_ | **⚠️ Change for production!**                |
+| `ADMIN_USERNAME`               | _(optional)_         | Pre-configure admin (skips setup wizard)     |
+| `ADMIN_PASSWORD`               | _(optional)_         | Pre-configure admin password                 |
+| `CORS_ORIGIN`                  | `*`                  | Allowed CORS origins                         |
+| `WHATSAPP_SESSION_PATH`        | `/app/.baileys_auth` | WhatsApp session path                        |
+| `RATE_LIMIT_WINDOW_MS`         | `900000`             | Rate limit window (15 min)                   |
+| `RATE_LIMIT_MAX_REQUESTS`      | `100`                | Max requests per window                      |
+| `LOGIN_RATE_LIMIT_MAX`         | `5`                  | Max login attempts                           |
+| `MEDIA_MONITORING_INTERVAL_MS` | `300000`             | Monitoring interval (5 min)                  |
+| `LOG_LEVEL`                    | `info`               | Logging level                                |
+| `LOG_PRETTY`                   | `false`              | Pretty print logs                            |
+| `DATA_PATH`                    | `./data`             | Host path for database                       |
+| `BAILEYS_PATH`                 | `./.baileys_auth`    | Host path for WhatsApp session               |
 
 ### Build from Source
 
@@ -344,7 +354,7 @@ Before deploying to production:
 
 - [ ] Generate and set `JWT_SECRET` (use: `openssl rand -base64 32`)
 - [ ] Generate and set `ENCRYPTION_KEY` (use: `openssl rand -hex 32`)
-- [ ] Set strong `ADMIN_PASSWORD` (change from default!)
+- [ ] Complete setup wizard and save backup codes securely
 - [ ] Enable HTTPS (use reverse proxy like nginx/Caddy/Traefik)
 - [ ] Set `LOG_PRETTY=false` for production
 - [ ] Review and adjust rate limits for your use case

@@ -5,6 +5,7 @@ import { adminUserRepository } from '../../../src/repositories/admin-user.reposi
 import { passwordService } from '../../../src/services/auth/password.service';
 import { authService } from '../../../src/services/auth/auth.service';
 import { rateLimiterService } from '../../../src/services/auth/rate-limiter.service';
+import { setupService } from '../../../src/services/setup/setup.service';
 import { logger } from '../../../src/config/logger';
 
 // Mock dependencies
@@ -15,6 +16,11 @@ vi.mock('../../../src/repositories/admin-user.repository', () => ({
     hasAnyUsers: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
+  },
+}));
+vi.mock('../../../src/services/setup/setup.service', () => ({
+  setupService: {
+    isSetupComplete: vi.fn(),
   },
 }));
 vi.mock('../../../src/services/auth/password.service', () => ({
@@ -62,6 +68,10 @@ describe('AuthController', () => {
       clearCookie: vi.fn().mockReturnThis(),
     };
     mockNext = vi.fn();
+
+    // Default: setup is complete and users exist
+    (setupService.isSetupComplete as Mock).mockResolvedValue(true);
+    (adminUserRepository.hasAnyUsers as Mock).mockResolvedValue(true);
   });
 
   describe('login', () => {
@@ -155,6 +165,27 @@ describe('AuthController', () => {
       });
     });
 
+    it('should return 403 when setup is required', async () => {
+      mockRequest.body = { username: 'admin', password: 'password' };
+      mockRequest.ip = '127.0.0.1';
+
+      (setupService.isSetupComplete as Mock).mockResolvedValue(false);
+      (adminUserRepository.hasAnyUsers as Mock).mockResolvedValue(false);
+
+      await controller.login(
+        mockRequest as Request,
+        mockResponse as Response,
+        mockNext as NextFunction
+      );
+
+      expect(mockResponse.status).toHaveBeenCalledWith(403);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        code: 'SETUP_REQUIRED',
+        message: 'Initial setup required. Please complete setup first.',
+      });
+    });
+
     it('should return 401 for invalid password', async () => {
       const mockUser = {
         id: 1,
@@ -187,9 +218,7 @@ describe('AuthController', () => {
       const error = new Error('Database error');
       mockRequest.body = { username: 'admin', password: 'password' };
 
-      (rateLimiterService.isAllowed as Mock).mockImplementation(() => {
-        throw error;
-      });
+      (setupService.isSetupComplete as Mock).mockRejectedValue(error);
 
       await controller.login(
         mockRequest as Request,

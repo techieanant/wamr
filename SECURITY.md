@@ -6,7 +6,9 @@ We release patches for security vulnerabilities for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
+| 1.2.x   | :white_check_mark: |
+| 1.1.x   | :white_check_mark: |
+| 1.0.x   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
@@ -69,7 +71,7 @@ We will:
 
 ### Docker Deployment
 
-- **Change default passwords** immediately after first login
+- **Complete setup wizard** and save backup codes securely
 - **Keep containers updated** with latest security patches
 - **Use Docker secrets** for production environments
 - **Restrict network access** using firewalls
@@ -105,16 +107,29 @@ We will:
 
 ### Access Control
 
-- **Use strong passwords** (minimum 6 characters, recommended 12+)
-- **Enable 2FA** when available
+- **Use strong passwords** (minimum 4 characters, recommended 12+ for production)
+- **Save backup codes** during initial setup for account recovery
+- **Regenerate backup codes** periodically via Settings
 - **Limit admin access** to necessary personnel only
 - **Review audit logs** regularly
+
+### Backup Codes
+
+WAMR provides 5 single-use backup codes for account recovery:
+
+- **Generated during setup** - Save them securely (password manager)
+- **Single-use only** - Each code works once, then regenerates
+- **Password reset** - Use codes to reset password if locked out
+- **Regenerate anytime** - Go to **Settings > Backup Codes** to get new codes
+- **Store securely** - Treat backup codes like passwords
 
 ## Security Features
 
 WAMR includes several built-in security features:
 
-- **Password Hashing**: Argon2id for secure password storage
+- **Setup Wizard**: Secure initial configuration with backup codes
+- **Backup Codes**: 5 single-use recovery codes for account access
+- **Password Hashing**: bcrypt for secure password storage
 - **JWT Authentication**: Secure session management
 - **API Key Encryption**: AES-256-GCM for service credentials
 - **Rate Limiting**: Protection against brute force attacks
@@ -160,4 +175,4 @@ If you have questions about this security policy, please email contact@anant.wtf
 
 ---
 
-**Last Updated**: October 2025
+**Last Updated**: February 2026

@@ -3,6 +3,7 @@ import { adminUserRepository } from '../../repositories/admin-user.repository.js
 import { passwordService } from '../../services/auth/password.service.js';
 import { authService } from '../../services/auth/auth.service.js';
 import { rateLimiterService } from '../../services/auth/rate-limiter.service.js';
+import { setupService } from '../../services/setup/setup.service.js';
 import type { JWTPayload } from '../../types/auth.types.js';
 import { logger } from '../../config/logger.js';
 
@@ -15,6 +16,19 @@ export class AuthController {
     try {
       const { username, password } = req.body;
       const clientIp = req.ip || 'unknown';
+
+      // Check if setup is required
+      const isSetupComplete = await setupService.isSetupComplete();
+      const hasUsers = await adminUserRepository.hasAnyUsers();
+
+      if (!isSetupComplete && !hasUsers) {
+        res.status(403).json({
+          success: false,
+          code: 'SETUP_REQUIRED',
+          message: 'Initial setup required. Please complete setup first.',
+        });
+        return;
+      }
 
       // Rate limiting check
       const rateLimitKey = `login:${clientIp}`;

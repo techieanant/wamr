@@ -34,16 +34,18 @@ cp .env.example .env.local
 # Edit .env.local and set secure values:
 # - Generate JWT_SECRET: openssl rand -base64 32
 # - Generate ENCRYPTION_KEY: openssl rand -hex 32
-# - Set ADMIN_USERNAME and ADMIN_PASSWORD
+# (Optional) Set ADMIN_USERNAME and ADMIN_PASSWORD for auto-seeding
 
 # 3. Setup database
 cd backend
 npm run db:migrate   # Apply migrations
-npm run db:seed      # Create admin user
 
 # 4. Start development (both backend + frontend)
 cd ..
 npm run dev
+
+# 5. Complete setup wizard
+# Access http://localhost:3000 and complete the initial setup
 ```
 
 **Development Environment:**
@@ -52,18 +54,20 @@ npm run dev
 - Backend runs on `http://localhost:4000` (configurable via `.env.local` → `PORT`)
 - Vite dev server automatically proxies `/api` and `/socket.io` to backend
 
-**Default Admin Credentials (Development):**
+**First Time Setup:**
 
-- Username: `admin` (from `.env.local` → `ADMIN_USERNAME`)
-- Password: `changeme123456` (from `.env.local` → `ADMIN_PASSWORD`)
-- ⚠️ **Change password immediately after first login!**
+On first access, you'll be guided through a setup wizard to:
+- Create your admin account
+- Receive 5 backup codes for account recovery
+- Access the dashboard
 
 > **Note:** Use `.env.local` for development and `.env.prod` for Docker/production. See [ENVIRONMENT.md](ENVIRONMENT.md) for details.
 
 ## 🎯 Features
 
-### Current Features (v1.0)
+### Current Features (v1.2)
 
+- 🧙 **Setup Wizard** - Easy initial setup with guided account creation and backup codes
 - 🔐 **Secure Admin Dashboard** - Web-based admin interface with JWT authentication
 - 💬 **WhatsApp Integration** - Connect your WhatsApp account via QR code
 - 🎬 **Media Request System** - Users can request movies and TV shows via WhatsApp
@@ -71,6 +75,7 @@ npm run dev
 - 📊 **Request Management** - Approve, reject, or auto-approve media requests
 - 🔍 **Media Search** - Search across configured media services
 - 📝 **Audit Logging** - Complete history of all requests and actions
+- 🔑 **Backup Codes** - Account recovery with 5 single-use backup codes
 - 🔒 **Security First** - Encrypted API keys, hashed credentials, rate limiting
 - 🐳 **Docker Ready** - Easy deployment with Docker Compose
 - 🎨 **Modern UI** - Beautiful, responsive admin dashboard with Shadcn UI
@@ -146,8 +151,10 @@ cd backend
 npm run db:generate      # Generate migrations from schema changes
 npm run db:migrate       # Apply migrations to database
 npm run db:studio        # Open Drizzle Studio (database GUI)
-npm run db:seed          # Seed database with admin user
+npm run db:seed          # Seed database with admin user (optional)
 ```
+
+> **Note:** The setup wizard handles initial admin creation. Database seeding is only needed if you set `ADMIN_USERNAME` and `ADMIN_PASSWORD` in environment variables.
 
 ### Docker (Production)
 
@@ -185,10 +192,14 @@ See [SECURITY.md](SECURITY.md) for our security policy and vulnerability reporti
 ### Schema
 
 - **admin_users**: Admin credentials
+- **setup_status**: Tracks if initial setup is complete
+- **backup_codes**: Single-use recovery codes for admin accounts
 - **whatsapp_connections**: WhatsApp connection status
 - **conversation_sessions**: Active multi-turn conversations
 - **media_service_configurations**: Radarr/Sonarr/Overseerr configs
 - **request_history**: Audit log of all requests
+- **settings**: Application configuration settings
+- **contacts**: Phone number contacts with encrypted data
 
 ### Migrations
 
@@ -196,13 +207,28 @@ See [Database Commands](#database-run-from-backend) above for migration workflow
 
 ## 🧪 Testing
 
-**Status**: TODO - Test infrastructure planned
+**Status**: ✅ Active - 661 tests passing
 
-**Planned Coverage:**
+**Current Coverage:**
 
-- Backend: Unit tests, integration tests, API tests
-- Frontend: Component tests, E2E tests
-- Target: 80% code coverage
+- **Backend**: 654 unit tests covering controllers, services, repositories, and middleware
+- **Frontend**: 7 component and utility tests
+- **CI/CD**: Automated testing with `bun run ci`
+
+**Run Tests:**
+
+```bash
+bun run test           # Run all tests
+bun run test:backend   # Backend tests only
+bun run test:frontend  # Frontend tests only
+```
+
+**Test Infrastructure:**
+
+- Vitest for unit testing
+- React Testing Library for component tests
+- Mocked database and external services
+- Comprehensive coverage of authentication, API endpoints, and business logic
 
 ## 🐳 Docker Deployment
 
@@ -213,10 +239,10 @@ See [Database Commands](#database-run-from-backend) above for migration workflow
 docker compose -f docker-compose.prod.yml up -d
 
 # Access: http://localhost:9002
-# Login: admin / wamr123456
+# Complete the setup wizard to create your admin account
 ```
 
-⚠️ **For production**: Create a `.env.prod` file to customize credentials and security keys!
+⚠️ **For production**: Create a `.env.prod` file to customize security keys!
 
 **Customize Settings (Optional):**
 
@@ -224,7 +250,7 @@ docker compose -f docker-compose.prod.yml up -d
 # Create .env.prod file
 cp .env.example .env.prod
 
-# Edit with your values (especially JWT_SECRET, ENCRYPTION_KEY, ADMIN_PASSWORD)
+# Edit with your values (especially JWT_SECRET, ENCRYPTION_KEY)
 # Then start the container
 docker compose -f docker-compose.prod.yml up -d
 ```

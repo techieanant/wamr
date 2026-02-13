@@ -224,3 +224,40 @@ export const settings = sqliteTable(
 
 export type Setting = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
+
+// Setup Status Table (tracks if initial setup is complete)
+export const setupStatus = sqliteTable('setup_status', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  isCompleted: integer('is_completed', { mode: 'boolean' }).notNull().default(false),
+  completedAt: text('completed_at'),
+  createdAt: text('created_at')
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
+export type SetupStatus = typeof setupStatus.$inferSelect;
+export type NewSetupStatus = typeof setupStatus.$inferInsert;
+
+// Backup Codes Table (for password recovery)
+export const backupCodes = sqliteTable(
+  'backup_codes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    adminUserId: integer('admin_user_id')
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    isUsed: integer('is_used', { mode: 'boolean' }).notNull().default(false),
+    usedAt: text('used_at'),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => ({
+    userIdx: index('idx_backup_codes_user').on(table.adminUserId),
+    usedIdx: index('idx_backup_codes_used').on(table.isUsed),
+  })
+);
+
+export type BackupCode = typeof backupCodes.$inferSelect;
+export type NewBackupCode = typeof backupCodes.$inferInsert;

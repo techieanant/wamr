@@ -34,9 +34,9 @@ When running `npm run dev`, the monorepo starts both frontend and backend develo
   JWT_SECRET=<32+ characters>
   ENCRYPTION_KEY=<64 hex chars>
 
-  # Admin credentials
-  ADMIN_USERNAME=admin
-  ADMIN_PASSWORD=changeme123456
+  # Admin credentials (optional - setup wizard will prompt if not set)
+  # ADMIN_USERNAME=admin
+  # ADMIN_PASSWORD=changeme123456
 
   # CORS (frontend URL for development)
   CORS_ORIGIN=http://localhost:3000
@@ -62,7 +62,8 @@ When running `npm run dev`, the monorepo starts both frontend and backend develo
 1. Frontend runs on `http://localhost:3000`
 2. Backend runs on `http://localhost:4000`
 3. Vite dev server proxies `/api` and `/socket.io` requests to backend
-4. You access the app at `http://localhost:3000`
+4. On first access, complete the setup wizard to create admin account
+5. You access the app at `http://localhost:3000`
 
 ### Setup Steps
 
@@ -79,11 +80,12 @@ openssl rand -hex 32     # Use for ENCRYPTION_KEY
 # 4. Setup database
 cd backend
 npm run db:migrate
-npm run db:seed
 
 # 5. Start development
 cd ..
 npm run dev
+
+# 6. Complete setup wizard at http://localhost:3000
 ```
 
 ## Production Mode (Docker)
@@ -114,8 +116,10 @@ For production deployments, create a `.env.prod` file to override the defaults:
 # Security - REQUIRED for production!
 JWT_SECRET=<generate: openssl rand -base64 32>
 ENCRYPTION_KEY=<generate: openssl rand -hex 32>
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=<your-secure-password>
+
+# Optional: Pre-configure admin (skips setup wizard)
+# ADMIN_USERNAME=admin
+# ADMIN_PASSWORD=<your-secure-password>
 
 # Optional: Customize port
 HOST_PORT=9002              # Host port (default: 9002)
@@ -132,26 +136,26 @@ LOG_LEVEL=info              # Logging level (default: info)
 
 **All Available Variables with Defaults:**
 
-| Variable                       | Default             | Description         |
-| ------------------------------ | ------------------- | ------------------- |
-| `HOST_PORT`                    | `9002`              | Host port to expose |
-| `NODE_ENV`                     | `production`        | Node environment    |
-| `PORT`                         | `9000`              | Container port      |
-| `DATABASE_PATH`                | `/app/data/wamr.db` | Database path       |
-| `JWT_SECRET`                   | _(provided)_        | JWT signing secret  |
-| `ENCRYPTION_KEY`               | _(provided)_        | Encryption key      |
-| `ADMIN_USERNAME`               | `admin`             | Admin username      |
-| `ADMIN_PASSWORD`               | `wamr123456`        | Admin password      |
-| `CORS_ORIGIN`                  | `*`                 | CORS origins        |
-| `WHATSAPP_SESSION_PATH`        | `/app/.wwebjs_auth` | WhatsApp path       |
-| `RATE_LIMIT_WINDOW_MS`         | `900000`            | Rate limit window   |
-| `RATE_LIMIT_MAX_REQUESTS`      | `100`               | Max requests        |
-| `LOGIN_RATE_LIMIT_MAX`         | `5`                 | Max login attempts  |
-| `MEDIA_MONITORING_INTERVAL_MS` | `300000`            | Monitoring interval |
-| `LOG_LEVEL`                    | `info`              | Logging level       |
-| `LOG_PRETTY`                   | `false`             | Pretty logs         |
-| `DATA_PATH`                    | `./data`            | Host data path      |
-| `WWEBJS_PATH`                  | `./.wwebjs_auth`    | Host session path   |
+| Variable                       | Default             | Description                              |
+| ------------------------------ | ------------------- | ---------------------------------------- |
+| `HOST_PORT`                    | `9002`              | Host port to expose                      |
+| `NODE_ENV`                     | `production`        | Node environment                         |
+| `PORT`                         | `9000`              | Container port                           |
+| `DATABASE_PATH`                | `/app/data/wamr.db` | Database path                            |
+| `JWT_SECRET`                   | _(provided)_        | JWT signing secret                       |
+| `ENCRYPTION_KEY`               | _(provided)_        | Encryption key                           |
+| `ADMIN_USERNAME`               | _(optional)_        | Pre-configure admin (skips setup wizard) |
+| `ADMIN_PASSWORD`               | _(optional)_        | Pre-configure admin password             |
+| `CORS_ORIGIN`                  | `*`                 | CORS origins                             |
+| `WHATSAPP_SESSION_PATH`        | `/app/.baileys_auth`| WhatsApp path                            |
+| `RATE_LIMIT_WINDOW_MS`         | `900000`            | Rate limit window                        |
+| `RATE_LIMIT_MAX_REQUESTS`      | `100`               | Max requests                             |
+| `LOGIN_RATE_LIMIT_MAX`         | `5`                 | Max login attempts                       |
+| `MEDIA_MONITORING_INTERVAL_MS` | `300000`            | Monitoring interval                      |
+| `LOG_LEVEL`                    | `info`              | Logging level                            |
+| `LOG_PRETTY`                   | `false`             | Pretty logs                              |
+| `DATA_PATH`                    | `./data`            | Host data path                           |
+| `BAILEYS_PATH`                 | `./.baileys_auth`   | Host session path                        |
 
 **Setup:**
 
@@ -261,9 +265,9 @@ This allows:
 
 **ADMIN_PASSWORD**
 
-- Minimum 6 characters (12+ recommended)
-- Change from default values immediately!
-- No hardcoded credentials shown on login page
+- Minimum 4 characters (12+ recommended for production)
+- Set via setup wizard or environment variable
+- Change from default values immediately if pre-configured!
 
 ## Environment Variable Loading Order
 

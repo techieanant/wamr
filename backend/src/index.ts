@@ -12,6 +12,7 @@ import { errorHandler, notFoundHandler } from './api/middleware/error-handler.mi
 import { adminRateLimiter } from './api/middleware/rate-limit.middleware';
 import { closeDatabaseConnection } from './db';
 import authRoutes from './api/routes/auth.routes';
+import setupRoutes from './api/routes/setup.routes';
 import whatsappRoutes from './api/routes/whatsapp.routes';
 import servicesRoutes from './api/routes/services.routes';
 import requestsRoutes from './api/routes/requests.routes';
@@ -58,7 +59,22 @@ function createApp(): Express {
   );
   app.use(
     cors({
-      origin: env.CORS_ORIGIN,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (origin === env.CORS_ORIGIN || env.CORS_ORIGIN === '*') {
+          return callback(null, true);
+        }
+        const allowedOrigins = [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://localhost:5173',
+          'http://localhost',
+        ];
+        if (allowedOrigins.includes(origin) || allowedOrigins.some((o) => origin.startsWith(o))) {
+          return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
     })
   );
@@ -82,7 +98,10 @@ function createApp(): Express {
   // API routes (auth routes have their own rate limiting in controllers)
   app.use('/api/auth', authRoutes);
 
-  // Apply rate limiting to non-auth API routes
+  // Setup routes - no rate limiting (setup wizard must be accessible)
+  app.use('/api/setup', setupRoutes);
+
+  // Apply rate limiting to non-auth, non-setup API routes
   app.use('/api', adminRateLimiter);
 
   // Register WhatsApp routes

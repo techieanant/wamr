@@ -3,9 +3,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from './lib/query-client';
 import { useAuth } from './hooks/use-auth';
+import { useSetup } from './hooks/use-setup';
 import { useNotifications } from './hooks/use-notifications';
 import { useEffect, useState } from 'react';
 import { LoginPage } from './pages/login';
+import { SetupPage } from './pages/setup';
+import { BackupCodeResetPage } from './pages/backup-code-reset';
 import DashboardPage from './pages/dashboard';
 import WhatsAppConnection from './pages/whatsapp-connection';
 import { ServiceConfigPage } from './pages/service-config';
@@ -13,7 +16,7 @@ import RequestsPage from './pages/requests';
 import ContactsPage from './pages/contacts';
 import SettingsPage from './pages/settings';
 import { MainLayout } from './components/layout/main-layout';
-import { Toaster } from './components/ui/toaster';
+import { Toaster } from '@/components/ui/toaster';
 import { socketClient } from './services/socket.client';
 import { createLogger } from '@/lib/logger';
 
@@ -42,24 +45,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Public route wrapper
- * Redirects to dashboard if user is already authenticated
- */
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
-
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-/**
  * Main App component
  */
 function App() {
   const { checkAuth, isAuthenticated } = useAuth();
+  const { isSetupComplete = false, isLoading: isSetupLoading } = useSetup() ?? {};
   const [notificationsEnabled, setNotificationsEnabled] = useState(
     () => localStorage.getItem('wamr-notifications') === 'true'
   );
@@ -103,102 +93,119 @@ function App() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Show loading while checking setup
+  if (isSetupLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          {/* Public routes */}
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            }
-          />
+          {/* Setup route - always render, handles redirect internally */}
+          <Route path="/setup" element={<SetupPage />} />
 
-          {/* Protected routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <DashboardPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* Login route - always accessible, handles auth check internally */}
+          <Route path="/login" element={<LoginPage />} />
 
-          <Route
-            path="/whatsapp"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <WhatsAppConnection />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* Backup code reset route (public) */}
+          <Route path="/reset-password" element={<BackupCodeResetPage />} />
 
-          <Route
-            path="/services"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <ServiceConfigPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* Redirect to setup if not complete - must be after specific routes */}
+          {!isSetupComplete && <Route path="*" element={<Navigate to="/setup" replace />} />}
 
-          <Route
-            path="/requests"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <RequestsPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* Protected routes (only if setup complete) */}
+          {isSetupComplete && (
+            <>
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <DashboardPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          <Route
-            path="/contacts"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <ContactsPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/whatsapp"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <WhatsAppConnection />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <SettingsPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+              <Route
+                path="/services"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <ServiceConfigPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/requests"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <RequestsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/contacts"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <ContactsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <SettingsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+            </>
+          )}
 
           {/* Default route */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {isSetupComplete && <Route path="/" element={<Navigate to="/dashboard" replace />} />}
 
-          {/* 404 catch-all */}
-          <Route
-            path="*"
-            element={
-              <div className="flex min-h-screen items-center justify-center">
-                <div className="text-center">
-                  <h1 className="mb-4 text-4xl font-bold">404</h1>
-                  <p className="text-lg text-gray-600">Page not found</p>
+          {/* 404 catch-all (only when setup complete) */}
+          {isSetupComplete && (
+            <Route
+              path="*"
+              element={
+                <div className="flex min-h-screen items-center justify-center">
+                  <div className="text-center">
+                    <h1 className="mb-4 text-4xl font-bold">404</h1>
+                    <p className="text-lg text-gray-600">Page not found</p>
+                  </div>
                 </div>
-              </div>
-            }
-          />
+              }
+            />
+          )}
         </Routes>
       </BrowserRouter>
 

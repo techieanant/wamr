@@ -24,6 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { setupService } from '../services/setup.service';
 import {
   Settings as SettingsIcon,
   User,
@@ -43,6 +46,7 @@ import { useTheme } from '../hooks/use-theme';
 import { apiClient } from '../services/api.client';
 import { useContacts } from '../hooks/use-contacts';
 import { useAdminNotification } from '../hooks/use-admin-notification';
+import { useBackupCodesCount } from '../hooks/use-backup-codes';
 import type { AutoApprovalMode } from '../types/whatsapp.types';
 
 interface SystemInfo {
@@ -96,6 +100,14 @@ export default function SettingsPage() {
   const [adminPhoneNumber, setAdminPhoneNumber] = useState('');
   const [adminCountryCode, setAdminCountryCode] = useState('+1');
   const [adminPhoneDialogOpen, setAdminPhoneDialogOpen] = useState(false);
+
+  // Backup codes state
+  const [showBackupCodesDialog, setShowBackupCodesDialog] = useState(false);
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [backupCodesPassword, setBackupCodesPassword] = useState('');
+  const [isRegeneratingCodes, setIsRegeneratingCodes] = useState(false);
+  const { remainingCodes: remainingBackupCodes, refetch: refetchBackupCodesCount } =
+    useBackupCodesCount();
 
   // Fetch settings from backend on mount
   useEffect(() => {
@@ -482,6 +494,39 @@ export default function SettingsPage() {
               Sign Out
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Backup Codes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Backup Codes
+          </CardTitle>
+          <CardDescription>
+            Backup codes can be used to reset your password if you get locked out
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Remaining Backup Codes</Label>
+              <p className="text-sm text-muted-foreground">
+                You have {remainingBackupCodes} unused backup codes
+              </p>
+            </div>
+            <div className="text-2xl font-bold">{remainingBackupCodes}</div>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowBackupCodesDialog(true)}
+            className="flex items-center gap-2"
+          >
+            <Key className="h-4 w-4" />
+            View & Regenerate Backup Codes
+          </Button>
         </CardContent>
       </Card>
 
@@ -993,6 +1038,111 @@ export default function SettingsPage() {
             <Button onClick={handleChangePassword} disabled={isChangingPassword}>
               {isChangingPassword ? 'Changing...' : 'Change Password'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backup Codes Dialog */}
+      <Dialog open={showBackupCodesDialog} onOpenChange={setShowBackupCodesDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Backup Codes</DialogTitle>
+            <DialogDescription>
+              Enter your current password to view or regenerate your backup codes. New codes will
+              invalidate old ones.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {!backupCodes ? (
+              <div className="space-y-2">
+                <Label htmlFor="backup-codes-password">Current Password</Label>
+                <Input
+                  id="backup-codes-password"
+                  type="password"
+                  value={backupCodesPassword}
+                  onChange={(e) => setBackupCodesPassword(e.target.value)}
+                  placeholder="Enter your current password"
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Important:</strong> Save these codes securely. Each code can only be
+                    used once. Old codes will no longer work after regeneration.
+                  </AlertDescription>
+                </Alert>
+                <div className="grid grid-cols-1 gap-2">
+                  {backupCodes.map((code, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between rounded-md border bg-muted p-3 font-mono text-sm"
+                    >
+                      <span>
+                        {index + 1}. {code}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            {!backupCodes ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBackupCodesDialog(false)}
+                  disabled={isRegeneratingCodes}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!backupCodesPassword) return;
+                    setIsRegeneratingCodes(true);
+                    try {
+                      const response =
+                        await setupService.regenerateBackupCodes(backupCodesPassword);
+                      if (response.success) {
+                        setBackupCodes(response.data.backupCodes);
+                        refetchBackupCodesCount();
+                        toast({
+                          title: 'Backup Codes Regenerated',
+                          description: 'Your new backup codes are now available.',
+                        });
+                      }
+                    } catch (error) {
+                      const msg =
+                        error instanceof Error
+                          ? error.message
+                          : 'Failed to regenerate backup codes';
+                      toast({
+                        title: 'Error',
+                        description: msg,
+                        variant: 'destructive',
+                      });
+                    } finally {
+                      setIsRegeneratingCodes(false);
+                    }
+                  }}
+                  disabled={!backupCodesPassword || isRegeneratingCodes}
+                >
+                  {isRegeneratingCodes ? 'Generating...' : 'Generate New Codes'}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => {
+                  setBackupCodes(null);
+                  setBackupCodesPassword('');
+                  setShowBackupCodesDialog(false);
+                }}
+              >
+                Done
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
