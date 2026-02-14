@@ -6,10 +6,15 @@ import { Input } from '../ui/input';
 import { AlertCircle, Filter, Trash2 } from 'lucide-react';
 import type { MessageFilterType } from '../../types/whatsapp.types';
 
+export interface MessageFilterFormSavePayload {
+  filterType: MessageFilterType;
+  filterValue: string | null;
+}
+
 interface MessageFilterFormProps {
   currentFilterType: MessageFilterType;
   currentFilterValue: string | null;
-  onSave: (filterType: MessageFilterType, filterValue: string | null) => void;
+  onSave: (payload: MessageFilterFormSavePayload) => void;
   isSaving?: boolean;
 }
 
@@ -22,24 +27,22 @@ export function MessageFilterForm({
   const [filterType, setFilterType] = useState<string>(currentFilterType || 'none');
   const [filterValue, setFilterValue] = useState<string>(currentFilterValue || '');
 
-  // Sync state when props change from database
   useEffect(() => {
     setFilterType(currentFilterType || 'none');
     setFilterValue(currentFilterValue || '');
   }, [currentFilterType, currentFilterValue]);
 
   const handleSave = () => {
-    if (filterType === 'none') {
-      onSave(null, null);
-    } else {
-      onSave(filterType as MessageFilterType, filterValue);
-    }
+    onSave({
+      filterType: filterType === 'none' ? null : (filterType as MessageFilterType),
+      filterValue: filterType === 'none' ? null : filterValue,
+    });
   };
 
   const handleDelete = () => {
     setFilterType('none');
     setFilterValue('');
-    onSave(null, null);
+    onSave({ filterType: null, filterValue: null });
   };
 
   const isValid = filterType === 'none' || (filterValue.length >= 1 && filterValue.length <= 10);

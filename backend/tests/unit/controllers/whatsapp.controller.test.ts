@@ -286,6 +286,8 @@ describe('WhatsApp Controller', () => {
         id: 1,
         filterType: 'contains',
         filterValue: 'movie',
+        processFromSelf: false,
+        processGroups: false,
       };
 
       (messageFilterSchema.safeParse as Mock).mockReturnValue({
@@ -301,10 +303,11 @@ describe('WhatsApp Controller', () => {
       expect(messageFilterSchema.safeParse).toHaveBeenCalledWith(filterData);
       expect(whatsappConnectionRepository.updateMessageFilter).toHaveBeenCalledWith(
         'contains',
-        'movie'
+        'movie',
+        {}
       );
       expect(logger.info).toHaveBeenCalledWith(
-        { filterType: 'contains', filterValue: 'movie' },
+        { filterType: 'contains', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined },
         'Message filter updated'
       );
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -312,6 +315,8 @@ describe('WhatsApp Controller', () => {
         message: 'Message filter updated successfully',
         filterType: 'contains',
         filterValue: 'movie',
+        processFromSelf: false,
+        processGroups: false,
       });
     });
 
