@@ -14,6 +14,7 @@ An open-source, self-hosted WhatsApp bot that enables users to request movies an
 > - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 > - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community guidelines
 > - [SECURITY.md](SECURITY.md) - Security policy and reporting
+> - [SCREENSHOTS.md](SCREENSHOTS.md) - Application screenshots and interface tour
 
 ## 🚀 Quick Start
 
