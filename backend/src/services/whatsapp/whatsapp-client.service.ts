@@ -97,13 +97,18 @@ class WhatsAppClientService {
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
 
+      // Read connection options (markOnlineOnConnect etc.) from DB; default false so phone keeps notifications
+      const connections = await whatsappConnectionRepository.findAll();
+      const markOnlineOnConnect = connections[0]?.markOnlineOnConnect ?? false;
+
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
         browser: ['WAMR', 'Chrome', '1.0.0'],
         syncFullHistory: false,
-        markOnlineOnConnect: true,
+        // When false, linked session does not mark as online; phone keeps notifications and unread badges
+        markOnlineOnConnect,
         // Disable auto-retry to handle reconnection manually
         retryRequestDelayMs: 2000,
       });
@@ -299,19 +304,23 @@ class WhatsAppClientService {
     // Message received event
     this.sock.ev.on('messages.upsert', async (event) => {
       try {
-        for (const message of event.messages) {
-          // Skip messages from self
-          if (message.key.fromMe) continue;
+        const connections = await whatsappConnectionRepository.findAll();
+        const conn = connections[0];
+        const processFromSelf = conn?.processFromSelf ?? false;
+        const processGroups = conn?.processGroups ?? false;
 
-          // Skip group messages - only process individual chats
+        for (const message of event.messages) {
           const remoteJid = message.key.remoteJid;
-          if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') {
-            continue;
-          }
+          const fromMe = message.key.fromMe;
+          const isGroup = remoteJid?.endsWith('@g.us') ?? false;
+          const isBroadcast = remoteJid === 'status@broadcast';
+
+          if (fromMe && !processFromSelf) continue;
+          if ((isGroup || isBroadcast) && !processGroups) continue;
+          if (!remoteJid) continue;
 
           logger.debug({ from: remoteJid }, 'Message received');
 
-          // Forward to message callback
           if (this.messageCallback) {
             this.messageCallback(message as BaileysMessage);
           }

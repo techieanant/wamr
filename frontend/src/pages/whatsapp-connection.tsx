@@ -6,6 +6,8 @@ import { Button } from '../components/ui/button';
 import { QRCodeDisplay } from '../components/whatsapp/qr-code-display';
 import { ConnectionStatus } from '../components/whatsapp/connection-status';
 import { MessageFilterForm } from '../components/whatsapp/message-filter-form';
+import { MessageSourcesCard } from '../components/whatsapp/message-sources-card';
+import { PhoneNotificationsCard } from '../components/whatsapp/phone-notifications-card';
 import { Smartphone, Loader2, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import type { MessageFilterType } from '../types/whatsapp.types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -144,22 +146,90 @@ export default function WhatsAppConnection() {
     connect();
   };
 
-  const handleFilterSave = (filterType: MessageFilterType, filterValue: string | null) => {
+  const handleFilterSave = (payload: {
+    filterType: MessageFilterType;
+    filterValue: string | null;
+  }) => {
     updateFilter(
-      { filterType, filterValue },
+      {
+        ...payload,
+        processFromSelf: status?.processFromSelf ?? false,
+        processGroups: status?.processGroups ?? false,
+        markOnlineOnConnect: status?.markOnlineOnConnect ?? false,
+      },
       {
         onSuccess: () => {
           toast({
-            title: 'Filter Updated',
-            description: filterType
-              ? `Message filter set to ${filterType}: "${filterValue}"`
+            title: 'Filter saved',
+            description: payload.filterType
+              ? `Message filter set to ${payload.filterType}: "${payload.filterValue}"`
               : 'Message filter removed. All messages will be processed.',
           });
         },
         onError: (error) => {
           toast({
-            title: 'Filter Update Failed',
+            title: 'Update failed',
             description: error instanceof Error ? error.message : 'Failed to update message filter',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
+  const handleMessageSourcesSave = (processFromSelf: boolean, processGroups: boolean) => {
+    updateFilter(
+      {
+        filterType: status?.filterType ?? null,
+        filterValue: status?.filterValue ?? null,
+        processFromSelf,
+        processGroups,
+      },
+      {
+        onSuccess: () => {
+          const parts = ['1:1 from others'];
+          if (processFromSelf) parts.push('from self');
+          if (processGroups) parts.push('from groups');
+          toast({
+            title: 'Message sources updated',
+            description: parts.join(', ') + '.',
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: 'Update failed',
+            description:
+              error instanceof Error ? error.message : 'Failed to update message sources',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
+  const handleMarkOnlineSave = (markOnlineOnConnect: boolean) => {
+    updateFilter(
+      {
+        filterType: status?.filterType ?? null,
+        filterValue: status?.filterValue ?? null,
+        processFromSelf: status?.processFromSelf ?? false,
+        processGroups: status?.processGroups ?? false,
+        markOnlineOnConnect,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Phone notifications updated',
+            description: markOnlineOnConnect
+              ? 'Session will appear online when connected; phone may get fewer notifications.'
+              : 'Session will not appear online; your phone will keep getting notifications.',
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: 'Update failed',
+            description:
+              error instanceof Error ? error.message : 'Failed to update phone notifications',
             variant: 'destructive',
           });
         },
@@ -246,12 +316,31 @@ export default function WhatsAppConnection() {
       {/* QR Code Display (only show when connecting) */}
       {shouldShowQR && <QRCodeDisplay />}
 
-      {/* Message Filter Configuration (only show when connected) */}
+      {/* Message Filter (only show when connected) */}
       {isConnected && (
         <MessageFilterForm
           currentFilterType={status?.filterType || null}
           currentFilterValue={status?.filterValue || null}
           onSave={handleFilterSave}
+          isSaving={isUpdatingFilter}
+        />
+      )}
+
+      {/* Message sources – own section (only show when connected) */}
+      {isConnected && (
+        <MessageSourcesCard
+          processFromSelf={status?.processFromSelf ?? false}
+          processGroups={status?.processGroups ?? false}
+          onSave={handleMessageSourcesSave}
+          isSaving={isUpdatingFilter}
+        />
+      )}
+
+      {/* Phone notifications (only show when connected) */}
+      {isConnected && (
+        <PhoneNotificationsCard
+          markOnlineOnConnect={status?.markOnlineOnConnect ?? false}
+          onSave={handleMarkOnlineSave}
           isSaving={isUpdatingFilter}
         />
       )}

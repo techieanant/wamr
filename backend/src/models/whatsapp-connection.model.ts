@@ -15,6 +15,9 @@ export interface WhatsAppConnection {
   qrCodeGeneratedAt: Date | null;
   filterType: MessageFilterType;
   filterValue: string | null;
+  processFromSelf: boolean;
+  processGroups: boolean;
+  markOnlineOnConnect: boolean;
   autoApprovalMode: AutoApprovalMode;
   exceptionsEnabled: boolean;
   exceptionContacts: string[];
@@ -57,6 +60,9 @@ export interface WhatsAppConnectionResponse {
   lastConnectedAt: Date | null;
   filterType: MessageFilterType;
   filterValue: string | null;
+  processFromSelf: boolean;
+  processGroups: boolean;
+  markOnlineOnConnect: boolean;
   autoApprovalMode: AutoApprovalMode;
   exceptionsEnabled: boolean;
   exceptionContacts: string[];
