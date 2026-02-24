@@ -5,7 +5,7 @@ import { Boom } from '@hapi/boom';
 // Baileys v7.x exports
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeWASocket = (baileys.default || baileys.makeWASocket) as typeof baileys.makeWASocket;
-const { DisconnectReason, useMultiFileAuthState, jidDecode } = baileys;
+const { DisconnectReason, useMultiFileAuthState, jidDecode, fetchLatestBaileysVersion } = baileys;
 type WASocket = ReturnType<typeof makeWASocket>;
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
@@ -97,9 +97,20 @@ class WhatsAppClientService {
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
 
+      // Fetch latest Baileys version for WhatsApp protocol compatibility
+      let baileysVersion: [number, number, number] | undefined;
+      try {
+        const versionResult = await fetchLatestBaileysVersion();
+        baileysVersion = versionResult.version;
+        logger.info({ version: baileysVersion }, 'Fetched latest Baileys version');
+      } catch (error) {
+        logger.warn({ error }, 'Failed to fetch latest Baileys version, using default');
+      }
+
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
+        version: baileysVersion,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
         browser: ['WAMR', 'Chrome', '1.0.0'],
         syncFullHistory: false,

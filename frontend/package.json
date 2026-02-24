@@ -1,6 +1,6 @@
 {
   "name": "wamr-frontend",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "WhatsApp Media Request Manager - Admin Dashboard",
   "type": "module",
   "scripts": {
