@@ -23,17 +23,23 @@ export interface WhatsAppConnection {
   lastConnectedAt: string | null;
   filterType: MessageFilterType;
   filterValue: string | null;
+  processFromSelf: boolean;
+  processGroups: boolean;
+  markOnlineOnConnect: boolean;
   autoApprovalMode: AutoApprovalMode;
   exceptionsEnabled: boolean;
   exceptionContacts: string[];
 }
 
 /**
- * Message filter configuration
+ * Message filter and source options
  */
 export interface MessageFilterConfig {
   filterType: MessageFilterType;
   filterValue: string | null;
+  processFromSelf?: boolean;
+  processGroups?: boolean;
+  markOnlineOnConnect?: boolean;
 }
 
 /**
