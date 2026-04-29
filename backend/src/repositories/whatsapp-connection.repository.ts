@@ -127,6 +127,18 @@ export class WhatsAppConnectionRepository {
   }
 
   /**
+   * Get the first (and only) connection record, without filtering by status.
+   * Use this instead of findAll()[0] on hot paths to avoid a full table scan.
+   */
+  async getFirst(): Promise<WhatsAppConnection | undefined> {
+    const result = await db.select().from(whatsappConnections).limit(1);
+
+    if (!result[0]) return undefined;
+
+    return this.mapToModel(result[0]);
+  }
+
+  /**
    * Update message filter and message source options
    */
   async updateMessageFilter(
@@ -140,21 +152,27 @@ export class WhatsAppConnectionRepository {
       return undefined;
     }
 
-    const setValues: Record<string, unknown> = {
+    const updateData: {
+      filterType: 'prefix' | 'keyword' | null;
+      filterValue: string | null;
+      updatedAt: string;
+      processFromSelf?: number;
+      processGroups?: number;
+    } = {
       filterType,
       filterValue,
       updatedAt: new Date().toISOString(),
     };
     if (options?.processFromSelf !== undefined) {
-      setValues.processFromSelf = options.processFromSelf ? 1 : 0;
+      updateData.processFromSelf = options.processFromSelf ? 1 : 0;
     }
     if (options?.processGroups !== undefined) {
-      setValues.processGroups = options.processGroups ? 1 : 0;
+      updateData.processGroups = options.processGroups ? 1 : 0;
     }
 
     const result = await db
       .update(whatsappConnections)
-      .set(setValues as Record<string, string | number>)
+      .set(updateData)
       .where(eq(whatsappConnections.id, connections[0].id))
       .returning();
 

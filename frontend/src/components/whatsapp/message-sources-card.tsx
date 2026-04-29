@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
@@ -16,12 +17,26 @@ export function MessageSourcesCard({
   onSave,
   isSaving = false,
 }: MessageSourcesCardProps) {
+  const [localFromSelf, setLocalFromSelf] = useState(processFromSelf);
+  const [localGroups, setLocalGroups] = useState(processGroups);
+
+  // Keep local state in sync when the authoritative prop values change (e.g. after a successful save)
+  useEffect(() => {
+    setLocalFromSelf(processFromSelf);
+  }, [processFromSelf]);
+
+  useEffect(() => {
+    setLocalGroups(processGroups);
+  }, [processGroups]);
+
   const handleFromSelfChange = (checked: boolean) => {
-    onSave(checked, processGroups);
+    setLocalFromSelf(checked);
+    onSave(checked, localGroups);
   };
 
   const handleGroupsChange = (checked: boolean) => {
-    onSave(processFromSelf, checked);
+    setLocalGroups(checked);
+    onSave(localFromSelf, checked);
   };
 
   return (
@@ -47,7 +62,7 @@ export function MessageSourcesCard({
           </div>
           <Switch
             id="process-from-self"
-            checked={processFromSelf}
+            checked={localFromSelf}
             disabled={isSaving}
             onCheckedChange={handleFromSelfChange}
           />
@@ -62,7 +77,7 @@ export function MessageSourcesCard({
           </div>
           <Switch
             id="process-groups"
-            checked={processGroups}
+            checked={localGroups}
             disabled={isSaving}
             onCheckedChange={handleGroupsChange}
           />

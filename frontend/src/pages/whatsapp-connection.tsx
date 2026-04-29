@@ -149,11 +149,19 @@ export default function WhatsAppConnection() {
     filterType: MessageFilterType;
     filterValue: string | null;
   }) => {
+    if (!status) {
+      toast({
+        title: 'Unable to save filter',
+        description: 'Connection status is not yet loaded. Please try again in a moment.',
+        variant: 'destructive',
+      });
+      return;
+    }
     updateFilter(
       {
         ...payload,
-        processFromSelf: status?.processFromSelf ?? false,
-        processGroups: status?.processGroups ?? false,
+        processFromSelf: status.processFromSelf,
+        processGroups: status.processGroups,
       },
       {
         onSuccess: () => {
@@ -176,10 +184,18 @@ export default function WhatsAppConnection() {
   };
 
   const handleMessageSourcesSave = (processFromSelf: boolean, processGroups: boolean) => {
+    if (!status) {
+      toast({
+        title: 'Unable to update message sources',
+        description: 'Connection status is not yet loaded. Please try again in a moment.',
+        variant: 'destructive',
+      });
+      return;
+    }
     updateFilter(
       {
-        filterType: status?.filterType ?? null,
-        filterValue: status?.filterValue ?? null,
+        filterType: status.filterType,
+        filterValue: status.filterValue,
         processFromSelf,
         processGroups,
       },

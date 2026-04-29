@@ -155,7 +155,25 @@ class MessageHandlerService {
 
       // For groups, reply to the group JID; sender identity comes from participant
       const isGroup = message.key.remoteJid?.endsWith('@g.us');
-      const senderJid = isGroup ? (message.key.participant ?? message.key.remoteJid) : null;
+      const senderJid = isGroup ? message.key.participant : null;
+
+      // If this is a group message but we don't have a participant, we cannot safely
+      // determine the sender identity. Log and skip processing to avoid conflating
+      // all group senders under the group JID.
+      if (isGroup && !senderJid) {
+        logger.warn(
+          {
+            rawJid: message.key.remoteJid,
+            remoteJidAlt: message.key.remoteJidAlt,
+            participant: message.key.participant,
+            participantAlt: message.key.participantAlt,
+            fromMe: message.key.fromMe,
+            id: message.key.id,
+          },
+          'Skipping group message without participant; cannot determine sender identity safely'
+        );
+        return;
+      }
 
       // Extract full JID for sending responses (group = reply in group, 1:1 = reply to chat)
       const fullJid = this.extractFullJid(message);

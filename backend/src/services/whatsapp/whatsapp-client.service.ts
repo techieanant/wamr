@@ -299,8 +299,7 @@ class WhatsAppClientService {
     // Message received event
     this.sock.ev.on('messages.upsert', async (event) => {
       try {
-        const connections = await whatsappConnectionRepository.findAll();
-        const conn = connections[0];
+        const conn = await whatsappConnectionRepository.getFirst();
         const processFromSelf = conn?.processFromSelf ?? false;
         const processGroups = conn?.processGroups ?? false;
 
@@ -310,9 +309,10 @@ class WhatsAppClientService {
           const isGroup = remoteJid?.endsWith('@g.us') ?? false;
           const isBroadcast = remoteJid === 'status@broadcast';
 
-          if (fromMe && !processFromSelf) continue;
-          if ((isGroup || isBroadcast) && !processGroups) continue;
           if (!remoteJid) continue;
+          if (isBroadcast) continue;
+          if (fromMe && !processFromSelf) continue;
+          if (isGroup && !processGroups) continue;
 
           logger.debug({ from: remoteJid }, 'Message received');
 
