@@ -127,11 +127,12 @@ export class WhatsAppConnectionRepository {
   }
 
   /**
-   * Update message filter configuration
+   * Update message filter and message source options
    */
   async updateMessageFilter(
     filterType: 'prefix' | 'keyword' | null,
-    filterValue: string | null
+    filterValue: string | null,
+    options?: { processFromSelf?: boolean; processGroups?: boolean }
   ): Promise<WhatsAppConnection | undefined> {
     const connections = await this.findAll();
 
@@ -139,13 +140,21 @@ export class WhatsAppConnectionRepository {
       return undefined;
     }
 
+    const setValues: Record<string, unknown> = {
+      filterType,
+      filterValue,
+      updatedAt: new Date().toISOString(),
+    };
+    if (options?.processFromSelf !== undefined) {
+      setValues.processFromSelf = options.processFromSelf ? 1 : 0;
+    }
+    if (options?.processGroups !== undefined) {
+      setValues.processGroups = options.processGroups ? 1 : 0;
+    }
+
     const result = await db
       .update(whatsappConnections)
-      .set({
-        filterType,
-        filterValue,
-        updatedAt: new Date().toISOString(),
-      })
+      .set(setValues as Record<string, string | number>)
       .where(eq(whatsappConnections.id, connections[0].id))
       .returning();
 
@@ -175,6 +184,8 @@ export class WhatsAppConnectionRepository {
       qrCodeGeneratedAt: row.qrCodeGeneratedAt ? new Date(row.qrCodeGeneratedAt) : null,
       filterType: row.filterType as 'prefix' | 'keyword' | null,
       filterValue: row.filterValue,
+      processFromSelf: Boolean(row.processFromSelf),
+      processGroups: Boolean(row.processGroups),
       autoApprovalMode:
         (row.autoApprovalMode as 'auto_approve' | 'auto_deny' | 'manual') || 'auto_approve',
       exceptionsEnabled: Boolean(row.exceptionsEnabled),

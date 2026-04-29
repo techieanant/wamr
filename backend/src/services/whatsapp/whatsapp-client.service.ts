@@ -5,7 +5,7 @@ import { Boom } from '@hapi/boom';
 // Baileys v7.x exports
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const makeWASocket = (baileys.default || baileys.makeWASocket) as typeof baileys.makeWASocket;
-const { DisconnectReason, useMultiFileAuthState, jidDecode, fetchLatestBaileysVersion } = baileys;
+const { DisconnectReason, useMultiFileAuthState, jidDecode } = baileys;
 type WASocket = ReturnType<typeof makeWASocket>;
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
@@ -97,20 +97,9 @@ class WhatsAppClientService {
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
 
-      // Fetch latest Baileys version for WhatsApp protocol compatibility
-      let baileysVersion: [number, number, number] | undefined;
-      try {
-        const versionResult = await fetchLatestBaileysVersion();
-        baileysVersion = versionResult.version;
-        logger.info({ version: baileysVersion }, 'Fetched latest Baileys version');
-      } catch (error) {
-        logger.warn({ error }, 'Failed to fetch latest Baileys version, using default');
-      }
-
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
-        version: baileysVersion,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
         browser: ['WAMR', 'Chrome', '1.0.0'],
         syncFullHistory: false,
@@ -310,19 +299,23 @@ class WhatsAppClientService {
     // Message received event
     this.sock.ev.on('messages.upsert', async (event) => {
       try {
-        for (const message of event.messages) {
-          // Skip messages from self
-          if (message.key.fromMe) continue;
+        const connections = await whatsappConnectionRepository.findAll();
+        const conn = connections[0];
+        const processFromSelf = conn?.processFromSelf ?? false;
+        const processGroups = conn?.processGroups ?? false;
 
-          // Skip group messages - only process individual chats
+        for (const message of event.messages) {
           const remoteJid = message.key.remoteJid;
-          if (!remoteJid || remoteJid.endsWith('@g.us') || remoteJid === 'status@broadcast') {
-            continue;
-          }
+          const fromMe = message.key.fromMe;
+          const isGroup = remoteJid?.endsWith('@g.us') ?? false;
+          const isBroadcast = remoteJid === 'status@broadcast';
+
+          if (fromMe && !processFromSelf) continue;
+          if ((isGroup || isBroadcast) && !processGroups) continue;
+          if (!remoteJid) continue;
 
           logger.debug({ from: remoteJid }, 'Message received');
 
-          // Forward to message callback
           if (this.messageCallback) {
             this.messageCallback(message as BaileysMessage);
           }

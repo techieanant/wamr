@@ -153,16 +153,16 @@ class MessageHandlerService {
         '📱 DEBUG: Raw incoming message key'
       );
 
-      // Extract full JID for sending responses (preserves @lid or @s.whatsapp.net)
+      // For groups, reply to the group JID; sender identity comes from participant
+      const isGroup = message.key.remoteJid?.endsWith('@g.us');
+      const senderJid = isGroup ? (message.key.participant ?? message.key.remoteJid) : null;
+
+      // Extract full JID for sending responses (group = reply in group, 1:1 = reply to chat)
       const fullJid = this.extractFullJid(message);
 
-      // Extract phone number - prefer remoteJidAlt (PN) if message is from LID
-      // This is important for:
-      // 1. Consistent hashing (phone numbers produce consistent hashes)
-      // 2. Contact storage (store actual phone numbers)
-      // 3. Exception matching (matches against phone number hashes)
-      const phoneNumber = this.extractPhoneNumber(message);
-      const userIdentifier = phoneNumber || this.extractUserIdentifier(message);
+      // Extract phone number - use participant JID for groups so we identify the sender
+      const phoneNumber = this.extractPhoneNumber(message, senderJid);
+      const userIdentifier = phoneNumber || this.extractUserIdentifier(message, senderJid);
 
       logger.info(
         {
@@ -320,36 +320,33 @@ class MessageHandlerService {
 
   /**
    * Extract actual phone number from message
-   * In Baileys v7+, if message comes from @lid, the actual phone number is in remoteJidAlt
-   * Returns phone number in E.164 format (e.g., +1234567890) or null if not available
+   * In Baileys v7+, if message comes from @lid, the actual phone number is in remoteJidAlt (or participantAlt for groups)
+   * When senderJid is set (e.g. group participant), use it instead of remoteJid for sender identity
    */
-  private extractPhoneNumber(message: BaileysMessage): string | null {
+  private extractPhoneNumber(
+    message: BaileysMessage,
+    senderJidOverride?: string | null
+  ): string | null {
     try {
-      const remoteJid = message.key.remoteJid;
-      const remoteJidAlt = message.key.remoteJidAlt;
+      const remoteJid = senderJidOverride ?? message.key.remoteJid;
+      const remoteJidAlt = senderJidOverride
+        ? message.key.participantAlt
+        : message.key.remoteJidAlt;
 
-      // If message is from LID (@lid), try to get PN from remoteJidAlt
       if (remoteJid?.endsWith('@lid') && remoteJidAlt?.endsWith('@s.whatsapp.net')) {
         const decoded = jidDecode(remoteJidAlt);
         if (decoded?.user) {
           logger.debug(
-            {
-              lidJid: remoteJid,
-              pnJid: remoteJidAlt,
-              phoneNumber: decoded.user,
-            },
-            'Extracted phone number from remoteJidAlt'
+            { lidJid: remoteJid, pnJid: remoteJidAlt, phoneNumber: decoded.user },
+            'Extracted phone number from alt JID'
           );
           return `+${decoded.user}`;
         }
       }
 
-      // If message is from PN (@s.whatsapp.net), extract directly
       if (remoteJid?.endsWith('@s.whatsapp.net')) {
         const decoded = jidDecode(remoteJid);
-        if (decoded?.user) {
-          return `+${decoded.user}`;
-        }
+        if (decoded?.user) return `+${decoded.user}`;
       }
 
       return null;
@@ -361,37 +358,21 @@ class MessageHandlerService {
 
   /**
    * Extract user identifier from WhatsApp message for hashing/session management
-   * Returns just the user portion (without domain) - could be phone number or LID
+   * When senderJidOverride is set (e.g. group participant), use it for sender identity
    */
-  private extractUserIdentifier(message: BaileysMessage): string | null {
+  private extractUserIdentifier(
+    message: BaileysMessage,
+    senderJidOverride?: string | null
+  ): string | null {
     try {
-      const remoteJid = message.key.remoteJid;
-      if (!remoteJid) {
-        return null;
-      }
+      const remoteJid = senderJidOverride ?? message.key.remoteJid;
+      if (!remoteJid) return null;
 
-      // Use jidDecode to extract the user portion
       const decoded = jidDecode(remoteJid);
-
-      logger.debug(
-        {
-          remoteJid,
-          decoded,
-          decodedUser: decoded?.user,
-        },
-        'DEBUG: jidDecode result'
-      );
-
       if (!decoded?.user) {
-        // Fallback: extract directly from JID string
         const match = remoteJid.match(/^([^@]+)@/);
-        if (match) {
-          logger.debug({ extracted: match[1] }, 'Extracted user from JID directly');
-          return match[1];
-        }
-        return null;
+        return match ? match[1] : null;
       }
-
       return decoded.user;
     } catch (error) {
       logger.error('Error extracting user identifier', { error, from: message.key.remoteJid });
