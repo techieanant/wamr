@@ -97,13 +97,17 @@ class WhatsAppClientService {
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
 
+      // Read persisted connection settings
+      const connectionSettings = await whatsappConnectionRepository.getFirst();
+      const markOnlineOnConnect = connectionSettings?.markOnlineOnConnect ?? false;
+
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
         browser: ['WAMR', 'Chrome', '1.0.0'],
         syncFullHistory: false,
-        markOnlineOnConnect: true,
+        markOnlineOnConnect,
         // Disable auto-retry to handle reconnection manually
         retryRequestDelayMs: 2000,
       });
