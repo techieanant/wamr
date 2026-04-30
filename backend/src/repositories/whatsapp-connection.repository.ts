@@ -109,7 +109,7 @@ export class WhatsAppConnectionRepository {
       updateData.autoApprovalMode = data.autoApprovalMode;
     }
     if (data.markOnlineOnConnect !== undefined) {
-      updateData.markOnlineOnConnect = data.markOnlineOnConnect;
+      updateData.markOnlineOnConnect = data.markOnlineOnConnect ? 1 : 0;
     }
     if (data.exceptionsEnabled !== undefined) {
       updateData.exceptionsEnabled = data.exceptionsEnabled ? 1 : 0;

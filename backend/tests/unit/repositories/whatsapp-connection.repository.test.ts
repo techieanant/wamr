@@ -445,6 +445,80 @@ describe('WhatsAppConnectionRepository', () => {
       });
     });
 
+    it('should update markOnlineOnConnect when provided in options', async () => {
+      const connections = [
+        {
+          id: 1,
+          phoneNumberHash: 'hash123',
+          status: 'CONNECTED',
+          lastConnectedAt: null,
+          qrCodeGeneratedAt: null,
+          filterType: 'prefix',
+          filterValue: 'test',
+          processFromSelf: 0,
+          processGroups: 0,
+          markOnlineOnConnect: 0,
+          autoApprovalMode: 'auto_approve',
+          exceptionsEnabled: 0,
+          exceptionContacts: [],
+          createdAt: '2023-01-01T00:00:00.000Z',
+          updatedAt: '2023-01-01T00:00:00.000Z',
+        },
+      ];
+
+      const updatedConnection = {
+        id: 1,
+        phoneNumberHash: 'hash123',
+        status: 'CONNECTED',
+        lastConnectedAt: null,
+        qrCodeGeneratedAt: null,
+        filterType: 'prefix',
+        filterValue: 'test',
+        processFromSelf: 1,
+        processGroups: 1,
+        markOnlineOnConnect: 1,
+        autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: 0,
+        exceptionContacts: [],
+        createdAt: '2023-01-01T00:00:00.000Z',
+        updatedAt: '2023-01-02T00:00:00.000Z',
+      };
+
+      repository.findAll = vi.fn().mockResolvedValue(connections);
+
+      mockedDb.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([updatedConnection]),
+          }),
+        }),
+      });
+
+      const result = await repository.updateMessageFilter('prefix', 'test', {
+        processFromSelf: true,
+        processGroups: true,
+        markOnlineOnConnect: true,
+      });
+
+      expect(result).toEqual({
+        id: 1,
+        phoneNumberHash: 'hash123',
+        status: 'CONNECTED',
+        lastConnectedAt: null,
+        qrCodeGeneratedAt: null,
+        filterType: 'prefix',
+        filterValue: 'test',
+        processFromSelf: true,
+        processGroups: true,
+        markOnlineOnConnect: true,
+        autoApprovalMode: 'auto_approve',
+        exceptionsEnabled: false,
+        exceptionContacts: [],
+        createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2023-01-02T00:00:00.000Z'),
+      });
+    });
+
     it('should return undefined when no connections exist', async () => {
       repository.findAll = vi.fn().mockResolvedValue([]);
 
