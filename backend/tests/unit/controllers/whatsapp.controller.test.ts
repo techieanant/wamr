@@ -288,6 +288,7 @@ describe('WhatsApp Controller', () => {
         filterValue: 'movie',
         processFromSelf: false,
         processGroups: false,
+        markOnlineOnConnect: false,
       };
 
       (messageFilterSchema.safeParse as Mock).mockReturnValue({
@@ -307,7 +308,7 @@ describe('WhatsApp Controller', () => {
         {}
       );
       expect(logger.info).toHaveBeenCalledWith(
-        { filterType: 'keyword', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined },
+        { filterType: 'keyword', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined, markOnlineOnConnect: undefined },
         'Message filter updated'
       );
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -317,6 +318,7 @@ describe('WhatsApp Controller', () => {
         filterValue: 'movie',
         processFromSelf: false,
         processGroups: false,
+        markOnlineOnConnect: false,
       });
     });
 
