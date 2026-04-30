@@ -47,5 +47,9 @@
     "frontend/**/*.{ts,tsx,js,jsx}": [
       "cd frontend && npm run lint:fix"
     ]
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.16",
+    "tsx": "^4.21.0"
   }
 }

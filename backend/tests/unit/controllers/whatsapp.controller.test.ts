@@ -288,6 +288,7 @@ describe('WhatsApp Controller', () => {
         filterValue: 'movie',
         processFromSelf: false,
         processGroups: false,
+        markOnlineOnConnect: false,
       };
 
       (messageFilterSchema.safeParse as Mock).mockReturnValue({
@@ -307,7 +308,7 @@ describe('WhatsApp Controller', () => {
         {}
       );
       expect(logger.info).toHaveBeenCalledWith(
-        { filterType: 'keyword', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined },
+        { filterType: 'keyword', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined, markOnlineOnConnect: undefined },
         'Message filter updated'
       );
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -317,6 +318,50 @@ describe('WhatsApp Controller', () => {
         filterValue: 'movie',
         processFromSelf: false,
         processGroups: false,
+        markOnlineOnConnect: false,
+      });
+    });
+
+    it('should update message filter with markOnlineOnConnect option', async () => {
+      const filterData = {
+        filterType: 'keyword',
+        filterValue: 'movie',
+        markOnlineOnConnect: true,
+      };
+      mockRequest.body = filterData;
+
+      const mockUpdatedConnection = {
+        id: 1,
+        filterType: 'keyword',
+        filterValue: 'movie',
+        processFromSelf: false,
+        processGroups: false,
+        markOnlineOnConnect: true,
+      };
+
+      (messageFilterSchema.safeParse as Mock).mockReturnValue({
+        success: true,
+        data: filterData,
+      });
+      (whatsappConnectionRepository.updateMessageFilter as Mock).mockResolvedValue(
+        mockUpdatedConnection
+      );
+
+      await updateMessageFilter(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(whatsappConnectionRepository.updateMessageFilter).toHaveBeenCalledWith(
+        'keyword',
+        'movie',
+        { markOnlineOnConnect: true }
+      );
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Message filter updated successfully',
+        filterType: 'keyword',
+        filterValue: 'movie',
+        processFromSelf: false,
+        processGroups: false,
+        markOnlineOnConnect: true,
       });
     });
 

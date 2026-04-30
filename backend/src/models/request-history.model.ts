@@ -35,6 +35,7 @@ export interface ConversationLogMessage {
  */
 export interface RequestHistoryModel extends Omit<RequestHistory, 'conversationLog'> {
   conversationLog: ConversationLogMessage[] | null;
+  replyJid: string | null;
 }
 
 /**
@@ -60,6 +61,7 @@ export interface UpdateRequestHistory {
   notifiedEpisodes?: Record<string, number[]> | null;
   totalSeasons?: number | null;
   phoneNumberEncrypted?: string | null;
+  replyJid?: string | null;
   updatedAt?: string;
 }
 

@@ -7,6 +7,7 @@ import { QRCodeDisplay } from '../components/whatsapp/qr-code-display';
 import { ConnectionStatus } from '../components/whatsapp/connection-status';
 import { MessageFilterForm } from '../components/whatsapp/message-filter-form';
 import { MessageSourcesCard } from '../components/whatsapp/message-sources-card';
+import { PhoneNotificationsCard } from '../components/whatsapp/phone-notifications-card';
 import { Smartphone, Loader2, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import type { MessageFilterType } from '../types/whatsapp.types';
 import { useQueryClient } from '@tanstack/react-query';
@@ -162,6 +163,7 @@ export default function WhatsAppConnection() {
         ...payload,
         processFromSelf: status.processFromSelf,
         processGroups: status.processGroups,
+        markOnlineOnConnect: status.markOnlineOnConnect,
       },
       {
         onSuccess: () => {
@@ -198,6 +200,7 @@ export default function WhatsAppConnection() {
         filterValue: status.filterValue,
         processFromSelf,
         processGroups,
+        markOnlineOnConnect: status.markOnlineOnConnect,
       },
       {
         onSuccess: () => {
@@ -214,6 +217,44 @@ export default function WhatsAppConnection() {
             title: 'Update failed',
             description:
               error instanceof Error ? error.message : 'Failed to update message sources',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
+  const handlePhoneNotificationsSave = (markOnlineOnConnect: boolean) => {
+    if (!status) {
+      toast({
+        title: 'Unable to update phone notifications',
+        description: 'Connection status is not yet loaded. Please try again in a moment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    updateFilter(
+      {
+        filterType: status.filterType,
+        filterValue: status.filterValue,
+        processFromSelf: status.processFromSelf,
+        processGroups: status.processGroups,
+        markOnlineOnConnect,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: 'Phone notifications updated',
+            description: markOnlineOnConnect
+              ? 'Phone will appear online when connected (notifications suppressed).'
+              : 'Phone will receive notifications normally when connected.',
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: 'Update failed',
+            description:
+              error instanceof Error ? error.message : 'Failed to update phone notifications',
             variant: 'destructive',
           });
         },
@@ -320,6 +361,15 @@ export default function WhatsAppConnection() {
         />
       )}
 
+      {/* Phone notifications – only show when connected */}
+      {isConnected && (
+        <PhoneNotificationsCard
+          markOnlineOnConnect={status?.markOnlineOnConnect ?? false}
+          onSave={handlePhoneNotificationsSave}
+          isSaving={isUpdatingFilter}
+        />
+      )}
+
       {/* Instructions */}
       {isConnected && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-6 dark:border-green-800 dark:bg-green-950">
@@ -359,7 +409,9 @@ export default function WhatsAppConnection() {
           QR code again.
         </p>
         <AlertDialog>
-          <AlertDialogTrigger asChild>
+          {/* Type cast needed due to Radix UI version mismatch in lockfile */}
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <AlertDialogTrigger asChild {...({} as any)}>
             <Button
               variant="outline"
               className="border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900"

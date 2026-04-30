@@ -1,11 +1,14 @@
-import * as baileys from '@whiskeysockets/baileys';
+import {
+  makeWASocket,
+  DisconnectReason,
+  useMultiFileAuthState,
+  jidDecode,
+  fetchLatestBaileysVersion,
+  Browsers,
+} from '@whiskeysockets/baileys';
 import type { proto } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 
-// Baileys v7.x exports
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const makeWASocket = (baileys.default || baileys.makeWASocket) as typeof baileys.makeWASocket;
-const { DisconnectReason, useMultiFileAuthState, jidDecode } = baileys;
 type WASocket = ReturnType<typeof makeWASocket>;
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
@@ -37,6 +40,7 @@ class WhatsAppClientService {
   private isInitializing = false;
   private hasCalledReady = false; // Track if ready callback has been called for current connection
   private initializationTimeout: NodeJS.Timeout | null = null;
+
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: BaileysMessage) => void) | null = null;
   private readyCallback: (() => void) | null = null;
@@ -97,13 +101,28 @@ class WhatsAppClientService {
       const { state, saveCreds } = await useMultiFileAuthState(env.WHATSAPP_SESSION_PATH);
       this.saveCreds = saveCreds;
 
+      // Read persisted connection settings
+      const connectionSettings = await whatsappConnectionRepository.getFirst();
+      const markOnlineOnConnect = connectionSettings?.markOnlineOnConnect ?? false;
+
+      // Fetch the latest WA web version — WhatsApp rejects outdated versions with 405
+      let waVersion: [number, number, number] = [2, 3000, 1035194821]; // fallback to current known-good
+      try {
+        const { version } = await fetchLatestBaileysVersion();
+        waVersion = version;
+        logger.info({ version: waVersion }, 'Using WA version for connection');
+      } catch (err) {
+        logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
+      }
+
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
-        browser: ['WAMR', 'Chrome', '1.0.0'],
+        browser: Browsers.ubuntu('Chrome'),
+        version: waVersion,
         syncFullHistory: false,
-        markOnlineOnConnect: true,
+        markOnlineOnConnect,
         // Disable auto-retry to handle reconnection manually
         retryRequestDelayMs: 2000,
       });
@@ -248,6 +267,9 @@ class WhatsAppClientService {
         );
 
         try {
+          // Capture session state before resetting flags
+          const hadEstablishedSession = this.hasCalledReady;
+
           // Reset ready flag so callback can be called again on next connection
           this.hasCalledReady = false;
 
@@ -262,8 +284,15 @@ class WhatsAppClientService {
             this.disconnectedCallback();
           }
 
+          // Status 515 = "restart required" — happens normally after successful QR pairing.
+          // Always allow reconnect for 515 regardless of session state.
+          const isRestartRequired = statusCode === 515;
+
           // Attempt automatic reconnection after a short delay (unless it was a manual logout)
-          if (shouldReconnect) {
+          // Only reconnect if we had a real session OR if WhatsApp asked for a restart (515).
+          // If we never got past the QR phase and it's NOT a restart request,
+          // this is a fresh pairing attempt rejected by WhatsApp — don't spam reconnects.
+          if (shouldReconnect && (hadEstablishedSession || isRestartRequired)) {
             logger.info('Scheduling automatic reconnection in 5 seconds...');
             setTimeout(async () => {
               try {
@@ -276,8 +305,16 @@ class WhatsAppClientService {
                 logger.error({ error: reconnectError }, 'Failed to reconnect automatically');
               }
             }, 5000);
-          } else {
+          } else if (!shouldReconnect) {
             logger.info('Logout detected, not attempting automatic reconnection');
+            this.isInitializing = false;
+            this.sock = null;
+          } else {
+            // shouldReconnect=true but no established session and not a restart request —
+            // QR pairing was rejected by WhatsApp. Stop here; user must click Connect again manually.
+            logger.info(
+              'QR pairing attempt rejected by WhatsApp (no prior session). Stopping auto-reconnect — user must click Connect again.'
+            );
             this.isInitializing = false;
             this.sock = null;
           }
