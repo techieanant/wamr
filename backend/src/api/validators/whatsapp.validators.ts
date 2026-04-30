@@ -12,6 +12,8 @@ export const messageFilterSchema = z
       .min(1, 'Filter value must be at least 1 character')
       .max(10, 'Filter value must be at most 10 characters')
       .nullable(),
+    processFromSelf: z.boolean().optional(),
+    processGroups: z.boolean().optional(),
   })
   .refine(
     (data) =>

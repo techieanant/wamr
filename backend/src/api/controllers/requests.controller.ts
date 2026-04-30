@@ -442,12 +442,13 @@ export const rejectRequest = async (
     if (request.phoneNumberEncrypted) {
       try {
         const phoneNumber = encryptionService.decrypt(request.phoneNumberEncrypted);
+        const replyTarget = request.replyJid || phoneNumber;
         const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
         const yearStr = request.year ? ` (${request.year})` : '';
         const reasonText = reason ? `\n\nReason: ${reason}` : '';
         const message = `❌ Your request was declined by administrator.\n\n${emoji} *${request.title}${yearStr}*${reasonText}`;
 
-        await whatsappClientService.sendMessage(phoneNumber, message);
+        await whatsappClientService.sendMessage(replyTarget, message);
         logger.info(
           { requestId, phoneNumber: phoneNumber.slice(-4) },
           'Rejection notification sent'

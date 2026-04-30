@@ -127,11 +127,24 @@ export class WhatsAppConnectionRepository {
   }
 
   /**
-   * Update message filter configuration
+   * Get the first (and only) connection record, without filtering by status.
+   * Use this instead of findAll()[0] on hot paths to avoid a full table scan.
+   */
+  async getFirst(): Promise<WhatsAppConnection | undefined> {
+    const result = await db.select().from(whatsappConnections).limit(1);
+
+    if (!result[0]) return undefined;
+
+    return this.mapToModel(result[0]);
+  }
+
+  /**
+   * Update message filter and message source options
    */
   async updateMessageFilter(
     filterType: 'prefix' | 'keyword' | null,
-    filterValue: string | null
+    filterValue: string | null,
+    options?: { processFromSelf?: boolean; processGroups?: boolean }
   ): Promise<WhatsAppConnection | undefined> {
     const connections = await this.findAll();
 
@@ -139,13 +152,27 @@ export class WhatsAppConnectionRepository {
       return undefined;
     }
 
+    const updateData: {
+      filterType: 'prefix' | 'keyword' | null;
+      filterValue: string | null;
+      updatedAt: string;
+      processFromSelf?: boolean;
+      processGroups?: boolean;
+    } = {
+      filterType,
+      filterValue,
+      updatedAt: new Date().toISOString(),
+    };
+    if (options?.processFromSelf !== undefined) {
+      updateData.processFromSelf = options.processFromSelf;
+    }
+    if (options?.processGroups !== undefined) {
+      updateData.processGroups = options.processGroups;
+    }
+
     const result = await db
       .update(whatsappConnections)
-      .set({
-        filterType,
-        filterValue,
-        updatedAt: new Date().toISOString(),
-      })
+      .set(updateData)
       .where(eq(whatsappConnections.id, connections[0].id))
       .returning();
 
@@ -175,6 +202,8 @@ export class WhatsAppConnectionRepository {
       qrCodeGeneratedAt: row.qrCodeGeneratedAt ? new Date(row.qrCodeGeneratedAt) : null,
       filterType: row.filterType as 'prefix' | 'keyword' | null,
       filterValue: row.filterValue,
+      processFromSelf: Boolean(row.processFromSelf),
+      processGroups: Boolean(row.processGroups),
       autoApprovalMode:
         (row.autoApprovalMode as 'auto_approve' | 'auto_deny' | 'manual') || 'auto_approve',
       exceptionsEnabled: Boolean(row.exceptionsEnabled),

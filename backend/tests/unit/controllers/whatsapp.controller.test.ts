@@ -87,7 +87,7 @@ describe('WhatsApp Controller', () => {
         id: 1,
         status: 'CONNECTED',
         lastConnectedAt: new Date('2023-01-01'),
-        filterType: 'contains',
+        filterType: 'keyword',
         filterValue: 'movie',
         autoApprovalMode: 'manual',
       };
@@ -107,7 +107,7 @@ describe('WhatsApp Controller', () => {
         isConnected: true,
         phoneNumber: '+1234567890',
         lastConnectedAt: mockConnection.lastConnectedAt,
-        filterType: 'contains',
+        filterType: 'keyword',
         filterValue: 'movie',
         autoApprovalMode: 'manual',
       });
@@ -120,7 +120,7 @@ describe('WhatsApp Controller', () => {
           status: 'CONNECTED',
           lastConnectedAt: new Date('2023-01-01'),
           updatedAt: new Date('2023-01-01'),
-          filterType: 'contains',
+          filterType: 'keyword',
           filterValue: 'movie',
           autoApprovalMode: 'manual',
         },
@@ -277,15 +277,17 @@ describe('WhatsApp Controller', () => {
   describe('updateMessageFilter', () => {
     it('should update message filter successfully', async () => {
       const filterData = {
-        filterType: 'contains',
+        filterType: 'keyword',
         filterValue: 'movie',
       };
       mockRequest.body = filterData;
 
       const mockUpdatedConnection = {
         id: 1,
-        filterType: 'contains',
+        filterType: 'keyword',
         filterValue: 'movie',
+        processFromSelf: false,
+        processGroups: false,
       };
 
       (messageFilterSchema.safeParse as Mock).mockReturnValue({
@@ -300,18 +302,21 @@ describe('WhatsApp Controller', () => {
 
       expect(messageFilterSchema.safeParse).toHaveBeenCalledWith(filterData);
       expect(whatsappConnectionRepository.updateMessageFilter).toHaveBeenCalledWith(
-        'contains',
-        'movie'
+        'keyword',
+        'movie',
+        {}
       );
       expect(logger.info).toHaveBeenCalledWith(
-        { filterType: 'contains', filterValue: 'movie' },
+        { filterType: 'keyword', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined },
         'Message filter updated'
       );
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         message: 'Message filter updated successfully',
-        filterType: 'contains',
+        filterType: 'keyword',
         filterValue: 'movie',
+        processFromSelf: false,
+        processGroups: false,
       });
     });
 
@@ -335,7 +340,7 @@ describe('WhatsApp Controller', () => {
 
     it('should return 404 when no connection found', async () => {
       const filterData = {
-        filterType: 'contains',
+        filterType: 'keyword',
         filterValue: 'movie',
       };
       mockRequest.body = filterData;
@@ -357,11 +362,11 @@ describe('WhatsApp Controller', () => {
 
     it('should call next on error', async () => {
       const error = new Error('Update error');
-      mockRequest.body = { filterType: 'contains', filterValue: 'movie' };
+      mockRequest.body = { filterType: 'keyword', filterValue: 'movie' };
 
       (messageFilterSchema.safeParse as Mock).mockReturnValue({
         success: true,
-        data: { filterType: 'contains', filterValue: 'movie' },
+        data: { filterType: 'keyword', filterValue: 'movie' },
       });
       (whatsappConnectionRepository.updateMessageFilter as Mock).mockRejectedValue(error);
 
