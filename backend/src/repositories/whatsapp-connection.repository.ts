@@ -156,18 +156,18 @@ export class WhatsAppConnectionRepository {
       filterType: 'prefix' | 'keyword' | null;
       filterValue: string | null;
       updatedAt: string;
-      processFromSelf?: number;
-      processGroups?: number;
+      processFromSelf?: boolean;
+      processGroups?: boolean;
     } = {
       filterType,
       filterValue,
       updatedAt: new Date().toISOString(),
     };
     if (options?.processFromSelf !== undefined) {
-      updateData.processFromSelf = options.processFromSelf ? 1 : 0;
+      updateData.processFromSelf = options.processFromSelf;
     }
     if (options?.processGroups !== undefined) {
-      updateData.processGroups = options.processGroups ? 1 : 0;
+      updateData.processGroups = options.processGroups;
     }
 
     const result = await db
