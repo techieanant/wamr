@@ -39,8 +39,7 @@ RUN npm install && npm run build
 # Build frontend
 WORKDIR /app/frontend
 RUN rm -rf node_modules package-lock.json \
-  && npm install --legacy-peer-deps \
-  && npm install @rollup/rollup-linux-x64-gnu --save-optional
+  && npm install --legacy-peer-deps
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
