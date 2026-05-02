@@ -244,7 +244,7 @@ export const approveRequest = async (
 
     try {
       // Submit to appropriate service
-      if (service.serviceType === 'overseerr') {
+      if (service.serviceType === 'seerr') {
         const client = new OverseerrClient(service.baseUrl, apiKey);
 
         if (request.mediaType === 'movie' && request.tmdbId) {
@@ -252,7 +252,7 @@ export const approveRequest = async (
           const defaultServer = radarrServers.find((s) => s.isDefault) || radarrServers[0];
 
           if (!defaultServer) {
-            throw new Error('No Radarr server configured in Overseerr');
+            throw new Error('No Radarr server configured in Seerr');
           }
 
           await client.requestMovie({
@@ -266,7 +266,7 @@ export const approveRequest = async (
           const defaultServer = sonarrServers.find((s) => s.isDefault) || sonarrServers[0];
 
           if (!defaultServer) {
-            throw new Error('No Sonarr server configured in Overseerr');
+            throw new Error('No Sonarr server configured in Seerr');
           }
 
           // Get selected seasons (stored as JSON in database)

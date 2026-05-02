@@ -19,6 +19,7 @@ vi.mock('../../../src/services/whatsapp/whatsapp-client.service', () => ({
     getPhoneNumber: vi.fn(),
     initialize: vi.fn(),
     logout: vi.fn(),
+    setMarkOnlineOnConnect: vi.fn(),
   },
 }));
 vi.mock('../../../src/repositories/whatsapp-connection.repository', () => ({

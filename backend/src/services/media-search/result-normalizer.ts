@@ -113,7 +113,7 @@ class ResultNormalizerService {
    */
   normalizeOverseerrResults(
     results: OverseerrSearchResult[],
-    source: ServiceType = 'overseerr'
+    source: ServiceType = 'seerr'
   ): NormalizedResult[] {
     try {
       logger.debug('Normalizing Overseerr results', {
@@ -199,7 +199,7 @@ class ResultNormalizerService {
       logger.debug('Combining results from multiple sources', {
         radarr: radarrResults.length,
         sonarr: sonarrResults.length,
-        overseerr: overseerrResults.length,
+        seerr: overseerrResults.length,
       });
 
       // Normalize results from each source

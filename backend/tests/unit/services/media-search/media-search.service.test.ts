@@ -178,8 +178,8 @@ describe('MediaSearchService', () => {
         {
           id: 3,
           name: 'Test Overseerr',
-          serviceType: 'overseerr' as const,
-          baseUrl: 'http://overseerr:5055',
+          serviceType: 'seerr' as const,
+          baseUrl: 'http://seerr:5055',
           apiKeyEncrypted: 'encrypted-key',
           enabled: true,
           priorityOrder: 1,
@@ -198,7 +198,7 @@ describe('MediaSearchService', () => {
               return Promise.resolve([mockConfigs[0]]);
             case 'sonarr':
               return Promise.resolve([mockConfigs[1]]);
-            case 'overseerr':
+            case 'seerr':
               return Promise.resolve([mockConfigs[2]]);
             default:
               return Promise.resolve([]);
@@ -223,7 +223,7 @@ describe('MediaSearchService', () => {
 
       expect(result).toEqual({
         results: mockResults,
-        searchedServices: ['radarr', 'overseerr'],
+        searchedServices: ['radarr', 'seerr'],
         failedServices: [],
         fromCache: false,
         searchDuration: expect.any(Number),
@@ -262,7 +262,7 @@ describe('MediaSearchService', () => {
 
       expect(result).toEqual({
         results: [],
-        searchedServices: ['radarr', 'overseerr'],
+        searchedServices: [],
         failedServices: [],
         fromCache: false,
         searchDuration: expect.any(Number),
@@ -392,8 +392,8 @@ describe('MediaSearchService', () => {
         {
           id: 3,
           name: 'Test Overseerr',
-          serviceType: 'overseerr' as const,
-          baseUrl: 'http://overseerr:5055',
+          serviceType: 'seerr' as const,
+          baseUrl: 'http://seerr:5055',
           apiKeyEncrypted: 'encrypted-key',
           enabled: true,
           priorityOrder: 1,
@@ -477,18 +477,18 @@ describe('MediaSearchService', () => {
       });
     });
 
-    it('should fallback to overseerr when primary service not available', async () => {
-      // No radarr configs, but overseerr available
+    it('should fallback to seerr when primary service not available', async () => {
+      // No radarr configs, but seerr available
       vi.mocked(mediaServiceConfigRepository.findEnabledByType).mockImplementation(
         (type: string) => {
           if (type === 'radarr') return Promise.resolve([]);
-          if (type === 'overseerr')
+          if (type === 'seerr')
             return Promise.resolve([
               {
                 id: 3,
                 name: 'Test Overseerr',
-                serviceType: 'overseerr' as const,
-                baseUrl: 'http://overseerr:5055',
+                serviceType: 'seerr' as const,
+                baseUrl: 'http://seerr:5055',
                 apiKeyEncrypted: 'encrypted-key',
                 enabled: true,
                 priorityOrder: 1,
@@ -506,7 +506,7 @@ describe('MediaSearchService', () => {
       const result = await mediaSearchService.getHighestPriorityService('movie');
 
       expect(result).toEqual({
-        serviceType: 'overseerr',
+        serviceType: 'seerr',
         serviceConfigId: 3,
       });
     });

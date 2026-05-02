@@ -1,6 +1,6 @@
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUBMITTED' | 'FAILED';
 export type MediaType = 'movie' | 'series';
-export type ServiceType = 'radarr' | 'sonarr' | 'overseerr';
+export type ServiceType = 'radarr' | 'sonarr' | 'seerr';
 
 export interface MediaRequest {
   id: number;

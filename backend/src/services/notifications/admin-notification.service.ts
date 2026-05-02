@@ -474,7 +474,7 @@ class AdminNotificationService {
       const apiKey = encryptionService.decrypt(service.apiKeyEncrypted);
 
       try {
-        if (service.serviceType === 'overseerr') {
+        if (service.serviceType === 'seerr') {
           const client = new OverseerrClient(service.baseUrl, apiKey);
 
           if (request.mediaType === 'movie' && request.tmdbId) {
@@ -482,7 +482,7 @@ class AdminNotificationService {
             const defaultServer = radarrServers.find((s) => s.isDefault) || radarrServers[0];
 
             if (!defaultServer) {
-              throw new Error('No Radarr server configured in Overseerr');
+              throw new Error('No Radarr server configured in Seerr');
             }
 
             await client.requestMovie({
@@ -496,7 +496,7 @@ class AdminNotificationService {
             const defaultServer = sonarrServers.find((s) => s.isDefault) || sonarrServers[0];
 
             if (!defaultServer) {
-              throw new Error('No Sonarr server configured in Overseerr');
+              throw new Error('No Sonarr server configured in Seerr');
             }
 
             const selectedSeasons = request.selectedSeasons as number[] | null;

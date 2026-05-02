@@ -412,12 +412,12 @@ export class ConversationService {
     // Check if this is a TV series - if so, fetch season details and ask for season selection
     if (selectedResult.mediaType === 'series' && selectedResult.tmdbId) {
       try {
-        // Get Overseerr service configuration
-        const overseerrConfigs = await mediaServiceConfigRepository.findByType('overseerr');
+        // Get Seerr service configuration
+        const overseerrConfigs = await mediaServiceConfigRepository.findByType('seerr');
         const overseerrConfig = overseerrConfigs.find((c) => c.enabled);
 
         if (overseerrConfig && overseerrConfig.apiKeyEncrypted) {
-          // Fetch TV details including season information from Overseerr
+          // Fetch TV details including season information from Seerr
           const { OverseerrClient } = await import('../integrations/overseerr.client.js');
           const { encryptionService } = await import('../encryption/encryption.service.js');
 
@@ -948,8 +948,21 @@ export class ConversationService {
         return;
       }
 
-      // Use highest priority service
-      const service = enabledServices[0];
+      // Select the most appropriate service for the media type.
+      // Prefer a type-specific service (radarr for movies, sonarr for series),
+      // then fall back to seerr, then the highest-priority service.
+      const mediaType = selectedResult.mediaType;
+      const preferredServiceType = mediaType === 'movie' ? 'radarr' : 'sonarr';
+
+      let service =
+        enabledServices.find((s) => s.serviceType === preferredServiceType) ??
+        enabledServices.find((s) => s.serviceType === 'seerr') ??
+        enabledServices[0];
+
+      logger.info(
+        { sessionId, mediaType, selectedServiceType: service.serviceType, serviceId: service.id },
+        'Selected service for media request'
+      );
 
       // Get phone number and contact name for this session
       const phoneNumber = this.activePhoneNumbers.get(sessionId);
@@ -962,7 +975,8 @@ export class ConversationService {
         selectedResult,
         service.id,
         session.selectedSeasons ?? undefined,
-        contactName
+        contactName,
+        this.activeReplyJids.get(sessionId)
       );
 
       // Note: The request approval service already sends WhatsApp notifications to the user,

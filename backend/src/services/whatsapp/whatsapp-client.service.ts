@@ -40,6 +40,7 @@ class WhatsAppClientService {
   private isInitializing = false;
   private hasCalledReady = false; // Track if ready callback has been called for current connection
   private initializationTimeout: NodeJS.Timeout | null = null;
+  private markOnlineOnConnect = false; // Updated on initialize() and via setMarkOnlineOnConnect()
 
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: BaileysMessage) => void) | null = null;
@@ -103,7 +104,8 @@ class WhatsAppClientService {
 
       // Read persisted connection settings
       const connectionSettings = await whatsappConnectionRepository.getFirst();
-      const markOnlineOnConnect = connectionSettings?.markOnlineOnConnect ?? false;
+      this.markOnlineOnConnect = connectionSettings?.markOnlineOnConnect ?? false;
+      const markOnlineOnConnect = this.markOnlineOnConnect;
 
       // Fetch the latest WA web version — WhatsApp rejects outdated versions with 405
       let waVersion: [number, number, number] = [2, 3000, 1035194821]; // fallback to current known-good
@@ -429,10 +431,30 @@ class WhatsAppClientService {
         { recipient: recipient.slice(-4), messageId: result?.key?.id },
         'Message sent successfully'
       );
+
+      // If markOnlineOnConnect is disabled, restore unavailable presence after sending.
+      // Baileys internally sends 'available' before each outgoing message, which would
+      // show the account as online even when the user has opted out.
+      if (!this.markOnlineOnConnect) {
+        try {
+          await this.sock.sendPresenceUpdate('unavailable');
+        } catch (presenceError) {
+          logger.debug({ presenceError }, 'Failed to restore unavailable presence after send');
+        }
+      }
     } catch (error) {
       logger.error({ error, recipient: recipient.slice(-4) }, 'Failed to send message');
       throw error;
     }
+  }
+
+  /**
+   * Update the cached markOnlineOnConnect setting without restarting the client.
+   * Called by the controller when the user changes the setting in the UI.
+   */
+  setMarkOnlineOnConnect(value: boolean): void {
+    this.markOnlineOnConnect = value;
+    logger.info({ value }, 'Updated markOnlineOnConnect setting');
   }
 
   /**

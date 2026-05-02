@@ -18,7 +18,7 @@ export type MediaType = 'movie' | 'series' | 'both';
 /**
  * Service type for the request
  */
-export type ServiceType = 'radarr' | 'sonarr' | 'overseerr';
+export type ServiceType = 'radarr' | 'sonarr' | 'seerr';
 
 /**
  * Conversation log message structure

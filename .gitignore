@@ -96,3 +96,6 @@ backup/
 .specify/
 .scripts/
 .vscode/
+
+#Docs
+docs/

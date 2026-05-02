@@ -132,7 +132,7 @@ class MediaMonitoringService {
     } = { isAvailable: false };
 
     try {
-      if (service.serviceType === 'overseerr') {
+      if (service.serviceType === 'seerr') {
         availabilityInfo = await this.checkOverseerrStatus(service.baseUrl, apiKey, request);
       } else if (service.serviceType === 'radarr' && request.mediaType === 'movie') {
         const isAvailable = await this.checkRadarrStatus(service.baseUrl, apiKey, request);

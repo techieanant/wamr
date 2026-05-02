@@ -222,6 +222,11 @@ export const updateMessageFilter = async (
       return;
     }
 
+    // Propagate the setting change to the running client without requiring a restart
+    if (markOnlineOnConnect !== undefined) {
+      whatsappClientService.setMarkOnlineOnConnect(markOnlineOnConnect);
+    }
+
     logger.info(
       { filterType, filterValue, processFromSelf, processGroups, markOnlineOnConnect },
       'Message filter updated'

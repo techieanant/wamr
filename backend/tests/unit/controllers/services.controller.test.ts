@@ -125,8 +125,8 @@ describe('Services Controller', () => {
     it('should test Overseerr connection successfully', async () => {
       const mockResult = { success: true, version: '1.0.0' };
       mockRequest.body = {
-        serviceType: 'overseerr',
-        baseUrl: 'http://overseerr.example.com',
+        serviceType: 'seerr',
+        baseUrl: 'http://seerr.example.com',
         apiKey: 'test-key',
       };
 
@@ -683,8 +683,8 @@ describe('Services Controller', () => {
 
     it('should return empty object for Overseerr metadata', async () => {
       mockRequest.body = {
-        serviceType: 'overseerr',
-        baseUrl: 'http://overseerr.example.com',
+        serviceType: 'seerr',
+        baseUrl: 'http://seerr.example.com',
         apiKey: 'test-key',
       };
 

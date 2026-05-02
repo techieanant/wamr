@@ -26,8 +26,11 @@ export class RequestApprovalService {
     selectedResult: NormalizedResult,
     serviceConfigId: number,
     selectedSeasons?: number[],
-    contactName?: string
+    contactName?: string,
+    replyJid?: string
   ): Promise<{ success: boolean; errorMessage?: string; status: string }> {
+    // Use replyJid as fallback when phoneNumber is not available (LID accounts)
+    const sendTarget = phoneNumber ?? replyJid;
     try {
       // Get auto-approval mode from the active WhatsApp connection (admin's connection)
       // Note: We use getActive() because approval mode is a system-wide setting,
@@ -92,14 +95,15 @@ export class RequestApprovalService {
           selectedSeasons,
           status: 'REJECTED',
           adminNotes: 'Auto-rejected by system settings',
+          replyJid: replyJid ?? undefined,
         });
 
         // Send rejection message
-        if (phoneNumber) {
+        if (sendTarget) {
           const emoji = mediaType === 'movie' ? '🎬' : '📺';
           const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
           const message = `❌ Your request was automatically declined.\n\n${emoji} *${selectedResult.title}${yearStr}*\n\nReason: Automatic approval is currently disabled.`;
-          await whatsappClientService.sendMessage(phoneNumber, message);
+          await whatsappClientService.sendMessage(sendTarget, message);
         }
 
         // Emit WebSocket event
@@ -126,14 +130,15 @@ export class RequestApprovalService {
           serviceConfigId,
           selectedSeasons,
           status: 'PENDING',
+          replyJid: replyJid ?? undefined,
         });
 
         // Send pending message
-        if (phoneNumber) {
+        if (sendTarget) {
           const emoji = mediaType === 'movie' ? '🎬' : '📺';
           const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
           const message = `⏳ Your request is pending approval.\n\n${emoji} *${selectedResult.title}${yearStr}*\n\nYou will be notified once an administrator reviews your request.`;
-          await whatsappClientService.sendMessage(phoneNumber, message);
+          await whatsappClientService.sendMessage(sendTarget, message);
         }
 
         // Emit WebSocket event
@@ -183,14 +188,15 @@ export class RequestApprovalService {
             selectedSeasons,
             status: 'SUBMITTED',
             submittedAt: new Date().toISOString(),
+            replyJid: replyJid ?? undefined,
           });
 
           // Send success message
-          if (phoneNumber) {
+          if (sendTarget) {
             const emoji = mediaType === 'movie' ? '🎬' : '📺';
             const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
             const message = `✅ Request submitted successfully!\n\n${emoji} *${selectedResult.title}${yearStr}* has been added to the queue.\n\nYou will be notified when it's available.`;
-            await whatsappClientService.sendMessage(phoneNumber, message);
+            await whatsappClientService.sendMessage(sendTarget, message);
           }
 
           // Emit WebSocket event
@@ -222,11 +228,11 @@ export class RequestApprovalService {
           });
 
           // Send failure message
-          if (phoneNumber) {
+          if (sendTarget) {
             const emoji = mediaType === 'movie' ? '🎬' : '📺';
             const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
             const message = `❌ Failed to submit your request.\n\n${emoji} *${selectedResult.title}${yearStr}*\n\n${result.errorMessage || 'An error occurred. Please try again later.'}`;
-            await whatsappClientService.sendMessage(phoneNumber, message);
+            await whatsappClientService.sendMessage(sendTarget, message);
           }
 
           // Emit WebSocket event
@@ -265,7 +271,7 @@ export class RequestApprovalService {
     try {
       const mediaType = selectedResult.mediaType;
 
-      if (serviceType === 'overseerr') {
+      if (serviceType === 'seerr') {
         const client = new OverseerrClient(baseUrl, apiKey);
 
         if (mediaType === 'movie' && selectedResult.tmdbId) {
@@ -273,7 +279,7 @@ export class RequestApprovalService {
           const defaultServer = radarrServers.find((s) => s.isDefault) || radarrServers[0];
 
           if (!defaultServer) {
-            throw new Error('No Radarr server configured in Overseerr');
+            throw new Error(`No Radarr server configured in Seerr`);
           }
 
           await client.requestMovie({
@@ -287,7 +293,7 @@ export class RequestApprovalService {
           const defaultServer = sonarrServers.find((s) => s.isDefault) || sonarrServers[0];
 
           if (!defaultServer) {
-            throw new Error('No Sonarr server configured in Overseerr');
+            throw new Error(`No Sonarr server configured in Seerr`);
           }
 
           await client.requestSeries({
@@ -342,6 +348,14 @@ export class RequestApprovalService {
           monitored: true,
           searchForMissingEpisodes: true,
         });
+      } else if (serviceType === 'radarr' && mediaType === 'series') {
+        throw new Error(
+          "Sorry, the configured service (Radarr) can't handle TV series requests. Please contact your admin."
+        );
+      } else if (serviceType === 'sonarr' && mediaType === 'movie') {
+        throw new Error(
+          "Sorry, the configured service (Sonarr) can't handle movie requests. Please contact your admin."
+        );
       }
 
       return { success: true };

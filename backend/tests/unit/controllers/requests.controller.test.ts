@@ -423,8 +423,8 @@ describe('Requests Controller', () => {
       };
       const mockService = {
         id: 1,
-        serviceType: 'overseerr',
-        baseUrl: 'http://overseerr.example.com',
+        serviceType: 'seerr',
+        baseUrl: 'http://seerr.example.com',
         apiKeyEncrypted: 'encrypted-key',
         enabled: true,
       };
@@ -490,8 +490,8 @@ describe('Requests Controller', () => {
       };
       const mockService = {
         id: 1,
-        serviceType: 'overseerr',
-        baseUrl: 'http://overseerr.example.com',
+        serviceType: 'seerr',
+        baseUrl: 'http://seerr.example.com',
         apiKeyEncrypted: 'encrypted-key',
         enabled: true,
       };
@@ -664,8 +664,8 @@ describe('Requests Controller', () => {
       };
       const mockService = {
         id: 1,
-        serviceType: 'overseerr',
-        baseUrl: 'http://overseerr.example.com',
+        serviceType: 'seerr',
+        baseUrl: 'http://seerr.example.com',
         apiKeyEncrypted: 'encrypted-key',
         enabled: true,
       };
@@ -689,7 +689,7 @@ describe('Requests Controller', () => {
       expect(mockClientInstance.getRadarrServers).toHaveBeenCalled();
       expect(requestHistoryRepository.update).toHaveBeenCalledWith(1, {
         status: 'FAILED',
-        errorMessage: 'No Radarr server configured in Overseerr',
+        errorMessage: 'No Radarr server configured in Seerr',
         updatedAt: expect.any(String),
       });
       expect(mockResponse.status).toHaveBeenCalledWith(500);
@@ -706,8 +706,8 @@ describe('Requests Controller', () => {
       };
       const mockService = {
         id: 1,
-        serviceType: 'overseerr',
-        baseUrl: 'http://overseerr.example.com',
+        serviceType: 'seerr',
+        baseUrl: 'http://seerr.example.com',
         apiKeyEncrypted: 'encrypted-key',
         enabled: true,
       };
@@ -731,7 +731,7 @@ describe('Requests Controller', () => {
       expect(mockClientInstance.getSonarrServers).toHaveBeenCalled();
       expect(requestHistoryRepository.update).toHaveBeenCalledWith(1, {
         status: 'FAILED',
-        errorMessage: 'No Sonarr server configured in Overseerr',
+        errorMessage: 'No Sonarr server configured in Seerr',
         updatedAt: expect.any(String),
       });
       expect(mockResponse.status).toHaveBeenCalledWith(500);
