@@ -315,8 +315,8 @@ describe('RequestApprovalService', () => {
           });
         });
 
-        it('should submit to overseerr for movie', async () => {
-          const overseerrConfig = { ...mockServiceConfig, serviceType: 'overseerr' as const };
+        it('should submit to seerr for movie', async () => {
+          const overseerrConfig = { ...mockServiceConfig, serviceType: 'seerr' as const };
 
           vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(overseerrConfig);
 
@@ -343,9 +343,9 @@ describe('RequestApprovalService', () => {
           });
         });
 
-        it('should submit to overseerr for series', async () => {
+        it('should submit to seerr for series', async () => {
           const seriesResult = { ...mockSelectedResult, mediaType: 'series' as const };
-          const overseerrConfig = { ...mockServiceConfig, serviceType: 'overseerr' as const };
+          const overseerrConfig = { ...mockServiceConfig, serviceType: 'seerr' as const };
 
           vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(overseerrConfig);
 
@@ -467,8 +467,8 @@ describe('RequestApprovalService', () => {
           });
         });
 
-        it('should handle overseerr with no default server', async () => {
-          const overseerrConfig = { ...mockServiceConfig, serviceType: 'overseerr' as const };
+        it('should handle seerr with no default server', async () => {
+          const overseerrConfig = { ...mockServiceConfig, serviceType: 'seerr' as const };
 
           vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue(overseerrConfig);
 
@@ -486,7 +486,7 @@ describe('RequestApprovalService', () => {
 
           expect(result).toEqual({
             success: false,
-            errorMessage: 'No Radarr server configured in Overseerr',
+            errorMessage: 'No Radarr server configured in Seerr',
             status: 'FAILED',
           });
         });

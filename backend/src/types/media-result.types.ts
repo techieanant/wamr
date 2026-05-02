@@ -6,7 +6,7 @@ export type MediaType = 'movie' | 'series' | 'both';
 /**
  * Service types that provide media search
  */
-export type ServiceType = 'radarr' | 'sonarr' | 'overseerr';
+export type ServiceType = 'radarr' | 'sonarr' | 'seerr';
 
 /**
  * Normalized search result structure
@@ -144,7 +144,7 @@ export function normalizeSonarrResult(
  */
 export function normalizeOverseerrResult(
   result: OverseerrSearchResult,
-  source: ServiceType = 'overseerr'
+  source: ServiceType = 'seerr'
 ): NormalizedResult {
   const mediaType = result.mediaType === 'movie' ? 'movie' : 'series';
   const title = result.title || result.name || 'Unknown';

@@ -30,7 +30,7 @@ export interface NormalizedResult {
   overview: string | null;
   posterPath: string | null;
   serviceId: number; // Which service returned this result
-  serviceType: 'radarr' | 'sonarr' | 'overseerr';
+  serviceType: 'radarr' | 'sonarr' | 'seerr';
   // TV series specific
   seasonCount?: number | null;
 }

@@ -81,8 +81,6 @@ export function ServiceList({ services, isLoading, onEdit }: ServiceListProps) {
     const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
       radarr: 'default',
       sonarr: 'secondary',
-      overseerr: 'outline',
-      jellyseerr: 'outline',
       seerr: 'outline',
     };
 

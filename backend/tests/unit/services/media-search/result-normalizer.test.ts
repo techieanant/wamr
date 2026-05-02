@@ -99,9 +99,9 @@ describe('ResultNormalizerService', () => {
         },
       ];
 
-      const normalized = resultNormalizerService.normalizeRadarrResults(radarrResults, 'overseerr');
+      const normalized = resultNormalizerService.normalizeRadarrResults(radarrResults, 'seerr');
 
-      expect(normalized[0].source).toBe('overseerr');
+      expect(normalized[0].source).toBe('seerr');
     });
   });
 
@@ -199,7 +199,7 @@ describe('ResultNormalizerService', () => {
         tvdbId: null,
         imdbId: 'tt1375666',
         mediaType: 'movie',
-        source: 'overseerr',
+        source: 'seerr',
       });
     });
 
@@ -232,7 +232,7 @@ describe('ResultNormalizerService', () => {
         imdbId: null,
         mediaType: 'series',
         seasonCount: 8,
-        source: 'overseerr',
+        source: 'seerr',
       });
     });
 
@@ -260,7 +260,7 @@ describe('ResultNormalizerService', () => {
         imdbId: null,
         mediaType: 'movie',
         seasonCount: undefined,
-        source: 'overseerr',
+        source: 'seerr',
       });
     });
 
@@ -390,7 +390,7 @@ describe('ResultNormalizerService', () => {
           tmdbId: 999,
           overview: 'Unknown year',
           posterPath: '/unknown.jpg',
-          source: 'overseerr' as const,
+          source: 'seerr' as const,
           tvdbId: null,
           imdbId: null,
         },
@@ -433,7 +433,7 @@ describe('ResultNormalizerService', () => {
         title: 'Overseerr Movie',
         releaseDate: '2019-01-01',
         overview: 'From Overseerr',
-        posterPath: '/overseerr-poster.jpg',
+        posterPath: '/seerr-poster.jpg',
       },
     ];
 
@@ -522,7 +522,7 @@ describe('ResultNormalizerService', () => {
         mediaType: 'movie',
         overview: 'Fallback result',
         posterPath: '/poster.jpg',
-        source: 'overseerr',
+        source: 'seerr',
         tmdbId: null,
         tvdbId: null,
         imdbId: null,
@@ -554,7 +554,7 @@ describe('ResultNormalizerService', () => {
         mediaType: 'movie',
         overview: 'No identifiers',
         posterPath: '/poster.jpg',
-        source: 'overseerr',
+        source: 'seerr',
         tmdbId: null,
         tvdbId: null,
         imdbId: null,

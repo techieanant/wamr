@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Service type enum
  */
-const serviceTypeSchema = z.enum(['radarr', 'sonarr', 'overseerr', 'jellyseerr', 'seerr']);
+const serviceTypeSchema = z.enum(['radarr', 'sonarr', 'seerr']);
 
 /**
  * URL validation (allows HTTP for localhost/internal IPs, requires HTTPS otherwise)

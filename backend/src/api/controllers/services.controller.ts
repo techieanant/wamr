@@ -332,8 +332,6 @@ export const testConnection = async (
         result = await client.testConnection();
         break;
       }
-      case 'overseerr':
-      case 'jellyseerr':
       case 'seerr': {
         const client = new OverseerrClient(finalBaseUrl, finalApiKey);
         result = await client.testConnection();
@@ -426,10 +424,8 @@ export const getServiceMetadata = async (
         result = { qualityProfiles, rootFolders };
         break;
       }
-      case 'overseerr':
-      case 'jellyseerr':
       case 'seerr': {
-        // Overseerr/Jellyseerr/Seerr doesn't need metadata - it manages its own Radarr/Sonarr configurations
+        // Seerr doesn't need metadata - it manages its own Radarr/Sonarr configurations
         result = {};
         break;
       }

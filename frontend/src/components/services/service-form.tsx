@@ -401,8 +401,6 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
             >
               <option value="radarr">Radarr</option>
               <option value="sonarr">Sonarr</option>
-              <option value="overseerr">Overseerr</option>
-              <option value="jellyseerr">Jellyseerr</option>
               <option value="seerr">Seerr (recommended)</option>
             </select>
           </div>
