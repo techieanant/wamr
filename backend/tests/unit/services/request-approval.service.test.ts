@@ -870,4 +870,103 @@ describe('RequestApprovalService', () => {
       });
     });
   });
+
+  describe('service type / media type mismatch handling (routing)', () => {
+    const phoneNumberHash = 'hash123';
+    const phoneNumber = '+1234567890';
+
+    beforeEach(() => {
+      vi.mocked(whatsappConnectionRepository.getActive).mockResolvedValue(mockConnection);
+      vi.mocked(encryptionService.decrypt).mockReturnValue('decrypted-key');
+      vi.mocked(encryptionService.encrypt).mockReturnValue('encrypted-phone');
+      vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+        id: 1,
+        status: 'FAILED',
+      } as any);
+    });
+
+    it('radarr service + movie → succeeds (correct routing)', async () => {
+      vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue({
+        ...mockServiceConfig,
+        serviceType: 'radarr',
+      });
+      const mockRadarrClient = { addMovie: vi.fn().mockResolvedValue(undefined) };
+      vi.mocked(RadarrClient).mockImplementation(() => mockRadarrClient as any);
+      vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+        id: 1,
+        status: 'SUBMITTED',
+      } as any);
+
+      const result = await service.createAndProcessRequest(
+        phoneNumberHash,
+        phoneNumber,
+        { ...mockSelectedResult, mediaType: 'movie' },
+        1
+      );
+
+      expect(result.status).toBe('SUBMITTED');
+      expect(mockRadarrClient.addMovie).toHaveBeenCalled();
+    });
+
+    it('sonarr service + series → succeeds (correct routing)', async () => {
+      vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue({
+        ...mockServiceConfig,
+        serviceType: 'sonarr',
+      });
+      const mockSonarrClient = { addSeries: vi.fn().mockResolvedValue(undefined) };
+      vi.mocked(SonarrClient).mockImplementation(() => mockSonarrClient as any);
+      vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+        id: 1,
+        status: 'SUBMITTED',
+      } as any);
+
+      const result = await service.createAndProcessRequest(
+        phoneNumberHash,
+        phoneNumber,
+        { ...mockSelectedResult, mediaType: 'series' },
+        1
+      );
+
+      expect(result.status).toBe('SUBMITTED');
+      expect(mockSonarrClient.addSeries).toHaveBeenCalled();
+    });
+
+    it('radarr service + series (TV) → returns clear error message', async () => {
+      vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue({
+        ...mockServiceConfig,
+        serviceType: 'radarr',
+      });
+
+      const result = await service.createAndProcessRequest(
+        phoneNumberHash,
+        phoneNumber,
+        { ...mockSelectedResult, mediaType: 'series' },
+        1
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('FAILED');
+      expect(result.errorMessage).toContain("Radarr");
+      expect(result.errorMessage).toContain("TV series");
+    });
+
+    it('sonarr service + movie → returns clear error message', async () => {
+      vi.mocked(mediaServiceConfigRepository.findById).mockResolvedValue({
+        ...mockServiceConfig,
+        serviceType: 'sonarr',
+      });
+
+      const result = await service.createAndProcessRequest(
+        phoneNumberHash,
+        phoneNumber,
+        { ...mockSelectedResult, mediaType: 'movie' },
+        1
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.status).toBe('FAILED');
+      expect(result.errorMessage).toContain("Sonarr");
+      expect(result.errorMessage).toContain("movie");
+    });
+  });
 });

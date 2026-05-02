@@ -265,7 +265,7 @@ export class RequestApprovalService {
     try {
       const mediaType = selectedResult.mediaType;
 
-      if (serviceType === 'overseerr') {
+      if (serviceType === 'overseerr' || serviceType === 'jellyseerr' || serviceType === 'seerr') {
         const client = new OverseerrClient(baseUrl, apiKey);
 
         if (mediaType === 'movie' && selectedResult.tmdbId) {
@@ -273,7 +273,13 @@ export class RequestApprovalService {
           const defaultServer = radarrServers.find((s) => s.isDefault) || radarrServers[0];
 
           if (!defaultServer) {
-            throw new Error('No Radarr server configured in Overseerr');
+            const serviceName =
+              serviceType === 'seerr'
+                ? 'Seerr'
+                : serviceType === 'jellyseerr'
+                  ? 'Jellyseerr'
+                  : 'Overseerr';
+            throw new Error(`No Radarr server configured in ${serviceName}`);
           }
 
           await client.requestMovie({
@@ -287,7 +293,13 @@ export class RequestApprovalService {
           const defaultServer = sonarrServers.find((s) => s.isDefault) || sonarrServers[0];
 
           if (!defaultServer) {
-            throw new Error('No Sonarr server configured in Overseerr');
+            const serviceName =
+              serviceType === 'seerr'
+                ? 'Seerr'
+                : serviceType === 'jellyseerr'
+                  ? 'Jellyseerr'
+                  : 'Overseerr';
+            throw new Error(`No Sonarr server configured in ${serviceName}`);
           }
 
           await client.requestSeries({
@@ -342,6 +354,14 @@ export class RequestApprovalService {
           monitored: true,
           searchForMissingEpisodes: true,
         });
+      } else if (serviceType === 'radarr' && mediaType === 'series') {
+        throw new Error(
+          "Sorry, the configured service (Radarr) can't handle TV series requests. Please contact your admin."
+        );
+      } else if (serviceType === 'sonarr' && mediaType === 'movie') {
+        throw new Error(
+          "Sorry, the configured service (Sonarr) can't handle movie requests. Please contact your admin."
+        );
       }
 
       return { success: true };

@@ -948,8 +948,26 @@ export class ConversationService {
         return;
       }
 
-      // Use highest priority service
-      const service = enabledServices[0];
+      // Select the most appropriate service for the media type.
+      // Prefer a type-specific service (radarr for movies, sonarr for series),
+      // then fall back to overseerr/jellyseerr/seerr, then the highest-priority service.
+      const mediaType = selectedResult.mediaType;
+      const preferredServiceType = mediaType === 'movie' ? 'radarr' : 'sonarr';
+
+      let service =
+        enabledServices.find((s) => s.serviceType === preferredServiceType) ??
+        enabledServices.find(
+          (s) =>
+            s.serviceType === 'overseerr' ||
+            s.serviceType === 'jellyseerr' ||
+            s.serviceType === 'seerr'
+        ) ??
+        enabledServices[0];
+
+      logger.info(
+        { sessionId, mediaType, selectedServiceType: service.serviceType, serviceId: service.id },
+        'Selected service for media request'
+      );
 
       // Get phone number and contact name for this session
       const phoneNumber = this.activePhoneNumbers.get(sessionId);

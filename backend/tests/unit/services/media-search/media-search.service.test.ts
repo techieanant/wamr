@@ -262,7 +262,7 @@ describe('MediaSearchService', () => {
 
       expect(result).toEqual({
         results: [],
-        searchedServices: ['radarr', 'overseerr'],
+        searchedServices: [],
         failedServices: [],
         fromCache: false,
         searchDuration: expect.any(Number),

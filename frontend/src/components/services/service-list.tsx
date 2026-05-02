@@ -82,6 +82,8 @@ export function ServiceList({ services, isLoading, onEdit }: ServiceListProps) {
       radarr: 'default',
       sonarr: 'secondary',
       overseerr: 'outline',
+      jellyseerr: 'outline',
+      seerr: 'outline',
     };
 
     return (

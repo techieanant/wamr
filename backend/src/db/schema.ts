@@ -99,7 +99,9 @@ export const mediaServiceConfigurations = sqliteTable(
   'media_service_configurations',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    serviceType: text('service_type', { enum: ['radarr', 'sonarr', 'overseerr'] }).notNull(),
+    serviceType: text('service_type', {
+      enum: ['radarr', 'sonarr', 'overseerr', 'jellyseerr', 'seerr'],
+    }).notNull(),
     name: text('name').notNull(),
     baseUrl: text('base_url').notNull(),
     apiKeyEncrypted: text('api_key_encrypted').notNull(),
@@ -143,7 +145,9 @@ export const requestHistory = sqliteTable(
     year: integer('year'),
     tmdbId: integer('tmdb_id'),
     tvdbId: integer('tvdb_id'),
-    serviceType: text('service_type', { enum: ['radarr', 'sonarr', 'overseerr'] }),
+    serviceType: text('service_type', {
+      enum: ['radarr', 'sonarr', 'overseerr', 'jellyseerr', 'seerr'],
+    }),
     serviceConfigId: integer('service_config_id'),
     selectedSeasons: text('selected_seasons', { mode: 'json' }), // JSON array of season numbers for series requests
     notifiedSeasons: text('notified_seasons', { mode: 'json' }), // JSON array of season numbers that user has been notified about

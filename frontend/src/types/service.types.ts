@@ -1,7 +1,7 @@
 /**
  * Service types
  */
-export type ServiceType = 'radarr' | 'sonarr' | 'overseerr';
+export type ServiceType = 'radarr' | 'sonarr' | 'overseerr' | 'jellyseerr' | 'seerr';
 
 /**
  * Service configuration
