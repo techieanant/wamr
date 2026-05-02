@@ -40,7 +40,7 @@ class WhatsAppClientService {
   private isInitializing = false;
   private hasCalledReady = false; // Track if ready callback has been called for current connection
   private initializationTimeout: NodeJS.Timeout | null = null;
-  private markOnlineOnConnect = false; // Cached setting — updated on each initialize()
+  private markOnlineOnConnect = false; // Updated on initialize() and via setMarkOnlineOnConnect()
 
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: BaileysMessage) => void) | null = null;
@@ -446,6 +446,15 @@ class WhatsAppClientService {
       logger.error({ error, recipient: recipient.slice(-4) }, 'Failed to send message');
       throw error;
     }
+  }
+
+  /**
+   * Update the cached markOnlineOnConnect setting without restarting the client.
+   * Called by the controller when the user changes the setting in the UI.
+   */
+  setMarkOnlineOnConnect(value: boolean): void {
+    this.markOnlineOnConnect = value;
+    logger.info({ value }, 'Updated markOnlineOnConnect setting');
   }
 
   /**

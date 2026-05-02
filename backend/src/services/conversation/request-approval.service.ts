@@ -95,6 +95,7 @@ export class RequestApprovalService {
           selectedSeasons,
           status: 'REJECTED',
           adminNotes: 'Auto-rejected by system settings',
+          replyJid: replyJid ?? undefined,
         });
 
         // Send rejection message
@@ -129,6 +130,7 @@ export class RequestApprovalService {
           serviceConfigId,
           selectedSeasons,
           status: 'PENDING',
+          replyJid: replyJid ?? undefined,
         });
 
         // Send pending message
@@ -186,6 +188,7 @@ export class RequestApprovalService {
             selectedSeasons,
             status: 'SUBMITTED',
             submittedAt: new Date().toISOString(),
+            replyJid: replyJid ?? undefined,
           });
 
           // Send success message

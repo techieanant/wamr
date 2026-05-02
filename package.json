@@ -50,7 +50,6 @@
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.16",
-    "opencode-codebase-index": "^0.7.0",
     "tsx": "^4.21.0"
   }
 }
