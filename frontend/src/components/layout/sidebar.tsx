@@ -41,9 +41,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         )}
       >
         <div className="flex h-16 items-center justify-between border-b px-4">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <img src="/logo.png" alt="WAMR Logo" className="h-10 w-10 object-contain" />
-            <h1 className="text-xl font-bold">WAMR</h1>
+            <div className="flex h-10 flex-col justify-center">
+              <h1 className="text-xl font-bold leading-tight">WAMR</h1>
+              <span className="text-[10px] leading-tight text-muted-foreground">
+                v{__APP_VERSION__}
+              </span>
+            </div>
           </div>
           {/* Close button for mobile */}
           {onClose && (
