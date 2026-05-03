@@ -42,6 +42,7 @@ import {
   Phone,
   Send,
   Image as ImageIcon,
+  Gauge,
 } from 'lucide-react';
 import { useTheme } from '../hooks/use-theme';
 import { apiClient } from '../services/api.client';
@@ -114,6 +115,13 @@ export default function SettingsPage() {
   const [sendPosters, setSendPosters] = useState(true);
   const [sendPostersViewOnce, setSendPostersViewOnce] = useState(false);
 
+  // Request Quotas state
+  const [quotaEnabled, setQuotaEnabled] = useState(false);
+  const [quotaGlobalMaxRequests, setQuotaGlobalMaxRequests] = useState(5);
+  const [quotaGlobalWindowType, setQuotaGlobalWindowType] = useState<
+    'daily' | 'weekly' | 'monthly'
+  >('daily');
+
   // Fetch settings from backend on mount
   useEffect(() => {
     const fetchSettings = async () => {
@@ -155,6 +163,28 @@ export default function SettingsPage() {
           setSendPostersViewOnce(Boolean(settings['sendPostersViewOnce']));
         } else {
           await apiClient.put('/api/settings/sendPostersViewOnce', { value: false });
+        }
+
+        // Load quota settings
+        if (settings['quotaEnabled'] !== undefined) {
+          setQuotaEnabled(Boolean(settings['quotaEnabled']));
+        } else {
+          await apiClient.put('/api/settings/quotaEnabled', { value: false });
+        }
+        if (settings['quotaGlobalMaxRequests'] !== undefined) {
+          setQuotaGlobalMaxRequests(Number(settings['quotaGlobalMaxRequests']) || 5);
+        } else {
+          await apiClient.put('/api/settings/quotaGlobalMaxRequests', { value: 5 });
+        }
+        if (settings['quotaGlobalWindowType'] !== undefined) {
+          const windowType = settings['quotaGlobalWindowType'] as string;
+          if (['daily', 'weekly', 'monthly'].includes(windowType)) {
+            setQuotaGlobalWindowType(windowType as 'daily' | 'weekly' | 'monthly');
+          } else {
+            setQuotaGlobalWindowType('daily');
+          }
+        } else {
+          await apiClient.put('/api/settings/quotaGlobalWindowType', { value: 'daily' });
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -240,6 +270,44 @@ export default function SettingsPage() {
     };
     syncSendPostersViewOnce();
   }, [sendPostersViewOnce]);
+
+  // Sync quota settings to backend
+  useEffect(() => {
+    const syncQuota = async () => {
+      try {
+        await apiClient.put('/api/settings/quotaEnabled', { value: quotaEnabled });
+      } catch (error) {
+        console.error('Failed to sync quotaEnabled:', error);
+      }
+    };
+    syncQuota();
+  }, [quotaEnabled]);
+
+  useEffect(() => {
+    const syncQuotaMax = async () => {
+      try {
+        await apiClient.put('/api/settings/quotaGlobalMaxRequests', {
+          value: quotaGlobalMaxRequests,
+        });
+      } catch (error) {
+        console.error('Failed to sync quotaGlobalMaxRequests:', error);
+      }
+    };
+    syncQuotaMax();
+  }, [quotaGlobalMaxRequests]);
+
+  useEffect(() => {
+    const syncQuotaWindow = async () => {
+      try {
+        await apiClient.put('/api/settings/quotaGlobalWindowType', {
+          value: quotaGlobalWindowType,
+        });
+      } catch (error) {
+        console.error('Failed to sync quotaGlobalWindowType:', error);
+      }
+    };
+    syncQuotaWindow();
+  }, [quotaGlobalWindowType]);
 
   const handleLogout = () => {
     logout();
@@ -957,6 +1025,66 @@ export default function SettingsPage() {
                 onCheckedChange={setSendPostersViewOnce}
               />
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Request Quotas Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Gauge className="h-5 w-5" />
+            Request Quotas
+          </CardTitle>
+          <CardDescription>Limit how many requests each user can make</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="quota-enabled">Enable Quotas</Label>
+              <p className="text-sm text-muted-foreground">
+                Limit requests per user per time window
+              </p>
+            </div>
+            <Switch id="quota-enabled" checked={quotaEnabled} onCheckedChange={setQuotaEnabled} />
+          </div>
+
+          {quotaEnabled && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="quota-max">Max Requests Per User</Label>
+                <Input
+                  id="quota-max"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={quotaGlobalMaxRequests}
+                  onChange={(e) =>
+                    setQuotaGlobalMaxRequests(
+                      Math.max(1, Math.min(100, parseInt(e.target.value) || 1))
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quota-window">Time Window</Label>
+                <Select
+                  value={quotaGlobalWindowType}
+                  onValueChange={(v) =>
+                    setQuotaGlobalWindowType(v as 'daily' | 'weekly' | 'monthly')
+                  }
+                >
+                  <SelectTrigger id="quota-window">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
