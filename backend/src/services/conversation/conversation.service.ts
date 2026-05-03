@@ -595,7 +595,8 @@ export class ConversationService {
 
               await whatsappClientService.sendImage(replyJid, imageBuffer, confirmationMessage);
 
-              return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
+              // Return empty message to prevent duplicate text send
+              return this.createResponse(session, '', 'AWAITING_CONFIRMATION');
             }
           }
         }
@@ -723,7 +724,8 @@ export class ConversationService {
 
               await whatsappClientService.sendImage(replyJid, imageBuffer, confirmationMessage);
 
-              return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
+              // Return empty message to prevent duplicate text send
+              return this.createResponse(session, '', 'AWAITING_CONFIRMATION');
             }
           }
         }
