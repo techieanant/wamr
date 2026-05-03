@@ -10,6 +10,7 @@ import { encryptionService } from '../encryption/encryption.service.js';
 import { whatsappClientService } from '../whatsapp/whatsapp-client.service.js';
 import { webSocketService, SocketEvents } from '../websocket/websocket.service.js';
 import { adminNotificationService } from '../notifications/admin-notification.service.js';
+import { quotaCheckService } from './quota-check.service.js';
 import { OverseerrClient } from '../integrations/overseerr.client.js';
 import { RadarrClient } from '../integrations/radarr.client.js';
 import { SonarrClient } from '../integrations/sonarr.client.js';
@@ -76,6 +77,51 @@ export class RequestApprovalService {
         } else if (autoApprovalMode === 'auto_deny') {
           effectiveApprovalMode = 'auto_approve';
         }
+      }
+
+      // Check quota before proceeding
+      const quotaCheck = await quotaCheckService.checkQuota(phoneNumberHash);
+      if (!quotaCheck.allowed) {
+        const request = await requestHistoryRepository.create({
+          phoneNumberHash,
+          phoneNumberEncrypted,
+          contactName,
+          mediaType,
+          title: selectedResult.title,
+          year: selectedResult.year ?? undefined,
+          tmdbId: selectedResult.tmdbId ?? undefined,
+          tvdbId: selectedResult.tvdbId ?? undefined,
+          serviceType,
+          serviceConfigId,
+          selectedSeasons,
+          status: 'REJECTED',
+          adminNotes: 'Quota limit reached',
+          replyJid: replyJid ?? undefined,
+        });
+
+        if (sendTarget) {
+          const emoji = mediaType === 'movie' ? '🎬' : '📺';
+          const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
+          const message =
+            `❌ Request limit reached\n\n` +
+            `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
+            `Your quota resets ${quotaCheck.resetTime}.\n\n` +
+            `Try again then!`;
+          await whatsappClientService.sendMessage(sendTarget, message);
+        }
+
+        webSocketService.emit(SocketEvents.REQUEST_NEW, {
+          requestId: request.id,
+          title: selectedResult.title,
+          user: phoneNumber?.slice(-4) || 'Unknown',
+          status: 'REJECTED',
+        });
+
+        return {
+          success: false,
+          errorMessage: `Quota limit reached: ${quotaCheck.used}/${quotaCheck.max} ${quotaCheck.windowType}`,
+          status: 'REJECTED',
+        };
       }
 
       // Handle based on effective approval mode
