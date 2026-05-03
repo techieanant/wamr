@@ -17,6 +17,7 @@ import { encryptionService } from '../encryption/encryption.service.js';
 import { mediaSearchService } from '../media-search/media-search.service.js';
 import { mediaServiceConfigRepository } from '../../repositories/media-service-config.repository.js';
 import { requestApprovalService } from './request-approval.service.js';
+import { settingRepository } from '../../repositories/setting.repository.js';
 
 /**
  * Conversation service response
@@ -38,6 +39,18 @@ export class ConversationService {
   private activePhoneNumbers = new Map<string, string>();
   // Store active contact names for async callbacks (sessionId -> contactName)
   private activeContactNames = new Map<string, string>();
+
+  /**
+   * Resolve a full poster URL from a NormalizedResult
+   */
+  private resolvePosterUrl(result: NormalizedResult): string | null {
+    if (!result.posterPath) return null;
+    if (result.posterPath.startsWith('http')) {
+      return result.posterPath;
+    }
+    // TMDB path from Seerr
+    return `https://image.tmdb.org/t/p/w500${result.posterPath}`;
+  }
 
   /**
    * Process an incoming message from a user
@@ -562,6 +575,38 @@ export class ConversationService {
       `${selectedResult.overview || 'No description available.'}\n\n` +
       `Reply *YES* to confirm or *NO* to cancel.`;
 
+    // Send poster image if enabled and available
+    const replyJid = this.activeReplyJids.get(session.id);
+    if (replyJid) {
+      try {
+        const sendPostersSetting = await settingRepository.findByKey('sendPosters');
+        const sendPosters = sendPostersSetting?.value !== false; // default true
+
+        if (sendPosters) {
+          const posterUrl = this.resolvePosterUrl(selectedResult);
+          if (posterUrl) {
+            const response = await fetch(posterUrl, { signal: AbortSignal.timeout(5000) });
+            if (response.ok) {
+              const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+              const { whatsappClientService } = await import(
+                '../whatsapp/whatsapp-client.service.js'
+              );
+
+              await whatsappClientService.sendImage(replyJid, imageBuffer, confirmationMessage);
+
+              return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn(
+          { sessionId: session.id, error, posterUrl: this.resolvePosterUrl(selectedResult) },
+          'Failed to send poster image, falling back to text'
+        );
+      }
+    }
+
     return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
   }
 
@@ -657,6 +702,38 @@ export class ConversationService {
       `📺 ${seasonSummary}\n\n` +
       `${selectedResult.overview || 'No description available.'}\n\n` +
       `Reply *YES* to confirm or *NO* to cancel.`;
+
+    // Send poster image if enabled and available
+    const replyJid = this.activeReplyJids.get(session.id);
+    if (replyJid) {
+      try {
+        const sendPostersSetting = await settingRepository.findByKey('sendPosters');
+        const sendPosters = sendPostersSetting?.value !== false; // default true
+
+        if (sendPosters) {
+          const posterUrl = this.resolvePosterUrl(selectedResult);
+          if (posterUrl) {
+            const response = await fetch(posterUrl, { signal: AbortSignal.timeout(5000) });
+            if (response.ok) {
+              const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+              const { whatsappClientService } = await import(
+                '../whatsapp/whatsapp-client.service.js'
+              );
+
+              await whatsappClientService.sendImage(replyJid, imageBuffer, confirmationMessage);
+
+              return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn(
+          { sessionId: session.id, error, posterUrl: this.resolvePosterUrl(selectedResult) },
+          'Failed to send poster image, falling back to text'
+        );
+      }
+    }
 
     return this.createResponse(session, confirmationMessage, 'AWAITING_CONFIRMATION');
   }
