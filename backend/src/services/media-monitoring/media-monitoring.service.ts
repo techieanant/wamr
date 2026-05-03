@@ -457,9 +457,7 @@ class MediaMonitoringService {
 
   /**
    * Handle season-level updates for TV series
-   * This handles both:
-   * 1. Notifying when additional requested seasons become available
-   * 2. Notifying when new seasons are released beyond the original request
+   * Consolidates all season updates into a single notification to prevent spam.
    */
   private async handleSeriesSeasonUpdates(
     request: any,
@@ -498,91 +496,61 @@ class MediaMonitoringService {
       return;
     }
 
-    // Feature 1: Notify about newly available REQUESTED seasons
+    // Collect all updates to send in a single notification
     const newlyAvailableRequestedSeasons = newlyAvailableSeasons.filter((season) =>
       requestedSeasons.includes(season)
     );
 
-    if (newlyAvailableRequestedSeasons.length > 0) {
-      logger.info(
-        {
-          requestId: request.id,
-          title: request.title,
-          seasons: newlyAvailableRequestedSeasons,
-        },
-        'Requested seasons newly available - notifying user'
-      );
-
-      await this.notifyUserSeasonsAvailable(request, newlyAvailableRequestedSeasons, 'requested');
-
-      // Update notified seasons
-      const updatedNotifiedSeasons = [...notifiedSeasons, ...newlyAvailableRequestedSeasons];
-      await requestHistoryRepository.update(request.id, {
-        notifiedSeasons: updatedNotifiedSeasons,
-        totalSeasons: currentTotalSeasons,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    // Feature 2: Detect and notify about NEW seasons beyond the original request
-    if (currentTotalSeasons > previousTotalSeasons && previousTotalSeasons > 0) {
-      // New season(s) have been released!
-      const newSeasonNumbers: number[] = [];
-      for (let i = previousTotalSeasons + 1; i <= currentTotalSeasons; i++) {
-        newSeasonNumbers.push(i);
-      }
-
-      logger.info(
-        {
-          requestId: request.id,
-          title: request.title,
-          newSeasons: newSeasonNumbers,
-          previousTotal: previousTotalSeasons,
-          currentTotal: currentTotalSeasons,
-        },
-        'New seasons released - notifying user'
-      );
-
-      await this.notifyUserNewSeasonReleased(request, newSeasonNumbers);
-
-      // Update total seasons count
-      await requestHistoryRepository.update(request.id, {
-        totalSeasons: currentTotalSeasons,
-        updatedAt: new Date().toISOString(),
-      });
-    } else if (currentTotalSeasons > 0 && previousTotalSeasons === 0) {
-      // First time we're tracking total seasons - initialize
-      await requestHistoryRepository.update(request.id, {
-        totalSeasons: currentTotalSeasons,
-        updatedAt: new Date().toISOString(),
-      });
-    }
-
-    // Feature 2 (alternative): Notify about new seasons that are already AVAILABLE but weren't requested
     const newAvailableUnrequestedSeasons = newlyAvailableSeasons.filter(
       (season) => !requestedSeasons.includes(season) && season > Math.max(...requestedSeasons, 0)
     );
 
-    if (newAvailableUnrequestedSeasons.length > 0) {
+    const hasNewReleases = currentTotalSeasons > previousTotalSeasons && previousTotalSeasons > 0;
+    const newReleaseSeasonNumbers: number[] = [];
+    if (hasNewReleases) {
+      for (let i = previousTotalSeasons + 1; i <= currentTotalSeasons; i++) {
+        newReleaseSeasonNumbers.push(i);
+      }
+    }
+
+    // Only send ONE consolidated notification per check cycle
+    const hasRequestedUpdates = newlyAvailableRequestedSeasons.length > 0;
+    const hasUnrequestedUpdates = newAvailableUnrequestedSeasons.length > 0;
+
+    if (hasRequestedUpdates || hasUnrequestedUpdates || hasNewReleases) {
       logger.info(
         {
           requestId: request.id,
           title: request.title,
-          seasons: newAvailableUnrequestedSeasons,
+          requestedSeasons: newlyAvailableRequestedSeasons,
+          unrequestedSeasons: newAvailableUnrequestedSeasons,
+          newReleases: newReleaseSeasonNumbers,
         },
-        'New seasons available (beyond request) - notifying user'
+        'Sending consolidated season availability notification'
       );
 
-      await this.notifyUserSeasonsAvailable(request, newAvailableUnrequestedSeasons, 'new-release');
-
-      // Update notified seasons
-      const updatedNotifiedSeasons = [...notifiedSeasons, ...newAvailableUnrequestedSeasons];
-      await requestHistoryRepository.update(request.id, {
-        notifiedSeasons: updatedNotifiedSeasons,
-        totalSeasons: currentTotalSeasons,
-        updatedAt: new Date().toISOString(),
-      });
+      await this.notifyUserConsolidatedSeasonUpdate(
+        request,
+        newlyAvailableRequestedSeasons,
+        newAvailableUnrequestedSeasons,
+        newReleaseSeasonNumbers
+      );
     }
+
+    // Update notified seasons (all newly available seasons)
+    const allNewlyNotified = [...new Set([...notifiedSeasons, ...newlyAvailableSeasons])].sort(
+      (a, b) => a - b
+    );
+
+    // Update total seasons count if needed
+    const updateData: any = {
+      notifiedSeasons: allNewlyNotified,
+      updatedAt: new Date().toISOString(),
+    };
+    if (currentTotalSeasons > 0) {
+      updateData.totalSeasons = currentTotalSeasons;
+    }
+    await requestHistoryRepository.update(request.id, updateData);
 
     // Check if all requested seasons are now available
     const allRequestedAvailable =
@@ -599,6 +567,81 @@ class MediaMonitoringService {
         status: 'APPROVED',
         updatedAt: new Date().toISOString(),
       });
+    }
+  }
+
+  /**
+   * Send a single consolidated notification for all season updates
+   * Prevents spam by combining requested, unrequested, and new-release seasons into one message.
+   */
+  private async notifyUserConsolidatedSeasonUpdate(
+    request: any,
+    requestedSeasons: number[],
+    unrequestedSeasons: number[],
+    newReleases: number[]
+  ): Promise<void> {
+    try {
+      const phoneNumber = await this.getPhoneNumber(request);
+      if (!phoneNumber) return;
+
+      const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+      const yearStr = request.year ? ` (${request.year})` : '';
+
+      let message = `🎉 *Update on ${request.title}${yearStr}*\n\n`;
+
+      if (requestedSeasons.length > 0) {
+        const list = requestedSeasons
+          .sort((a, b) => a - b)
+          .map((s) => `Season ${s}`)
+          .join(', ');
+        message += `✅ *Available:* ${list}\n`;
+        message +=
+          requestedSeasons.length === 1
+            ? 'Your requested season is now ready!\n'
+            : 'Your requested seasons are now ready!\n';
+      }
+
+      if (unrequestedSeasons.length > 0) {
+        const list = unrequestedSeasons
+          .sort((a, b) => a - b)
+          .map((s) => `Season ${s}`)
+          .join(', ');
+        message += `\n🆕 *Also Available:* ${list}\n`;
+        message += `These weren't part of your original request, but they're ready too!\n`;
+      }
+
+      if (newReleases.length > 0) {
+        const list = newReleases
+          .sort((a, b) => a - b)
+          .map((s) => `Season ${s}`)
+          .join(', ');
+        message += `\n📢 *Announced:* ${list}\n`;
+        message +=
+          newReleases.length === 1
+            ? "It's been announced and may be available soon!\n"
+            : "They've been announced and may be available soon!\n";
+      }
+
+      message += `\nHappy watching! 🍿`;
+
+      await whatsappClientService.sendMessage(phoneNumber, message);
+
+      logger.info(
+        {
+          requestId: request.id,
+          title: request.title,
+          requestedSeasons,
+          unrequestedSeasons,
+          newReleases,
+          phoneNumber: phoneNumber.slice(-4),
+        },
+        'Sent consolidated season update notification'
+      );
+    } catch (error) {
+      logger.error(
+        { error, requestId: request.id },
+        'Error sending consolidated season notification'
+      );
     }
   }
 
@@ -712,7 +755,16 @@ class MediaMonitoringService {
       }
     }
 
-    // Fallback: try to get from active phone numbers map (if user has active session)
+    // Fallback 1: replyJid (for LID users without phoneNumber)
+    if (!phoneNumber && request.replyJid) {
+      phoneNumber = request.replyJid;
+      logger.debug(
+        { requestId: request.id, replyJid: request.replyJid },
+        'Using replyJid as notification target'
+      );
+    }
+
+    // Fallback 2: try to get from active phone numbers map (if user has active session)
     if (!phoneNumber) {
       const { conversationService } = await import('../conversation/conversation.service.js');
       const { conversationSessionRepository } = await import(
@@ -902,44 +954,8 @@ class MediaMonitoringService {
     }
   ): Promise<void> {
     try {
-      // First, try to get phone number from encrypted field
-      let phoneNumber: string | null = null;
-
-      if (request.phoneNumberEncrypted) {
-        try {
-          phoneNumber = encryptionService.decrypt(request.phoneNumberEncrypted);
-          logger.debug(
-            { requestId: request.id, hasPhone: !!phoneNumber },
-            'Decrypted phone number from request'
-          );
-        } catch (error) {
-          logger.error({ error, requestId: request.id }, 'Failed to decrypt phone number');
-        }
-      }
-
-      // Fallback: try to get from active phone numbers map (if user has active session)
-      if (!phoneNumber) {
-        const { conversationService } = await import('../conversation/conversation.service.js');
-        const { conversationSessionRepository } = await import(
-          '../../repositories/conversation-session.repository.js'
-        );
-        const session = await conversationSessionRepository.findByPhoneHash(
-          request.phoneNumberHash
-        );
-
-        if (session) {
-          // @ts-ignore - accessing private property for notification
-          phoneNumber = conversationService.activePhoneNumbers?.get(session.id);
-        }
-      }
-
-      if (!phoneNumber) {
-        logger.info(
-          { requestId: request.id, phoneHash: request.phoneNumberHash.slice(-4) },
-          'No phone number available - user will see media next time they interact'
-        );
-        return;
-      }
+      const phoneNumber = await this.getPhoneNumber(request);
+      if (!phoneNumber) return;
 
       // Send notification via WhatsApp
       const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');

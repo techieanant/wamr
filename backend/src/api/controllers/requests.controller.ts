@@ -335,16 +335,23 @@ export const approveRequest = async (
       });
 
       // Send WhatsApp notification
-      if (request.phoneNumberEncrypted) {
+      if (request.phoneNumberEncrypted || request.replyJid) {
         try {
-          const phoneNumber = encryptionService.decrypt(request.phoneNumberEncrypted);
+          const phoneNumber = request.phoneNumberEncrypted
+            ? encryptionService.decrypt(request.phoneNumberEncrypted)
+            : null;
+          const replyTarget = phoneNumber || request.replyJid;
+          if (!replyTarget) {
+            throw new Error('No phone number or reply Jid available for notification');
+          }
+
           const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
           const yearStr = request.year ? ` (${request.year})` : '';
           const message = `✅ Your request has been approved!\n\n${emoji} *${request.title}${yearStr}* has been added to the queue.\n\nYou will be notified when it's available.`;
 
-          await whatsappClientService.sendMessage(phoneNumber, message);
+          await whatsappClientService.sendMessage(replyTarget, message);
           logger.info(
-            { requestId, phoneNumber: phoneNumber.slice(-4) },
+            { requestId, recipient: replyTarget.slice(-4) },
             'Approval notification sent'
           );
         } catch (error) {
