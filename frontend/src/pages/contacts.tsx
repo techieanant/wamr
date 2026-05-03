@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useContacts } from '../hooks/use-contacts';
+import { useToast } from '../hooks/use-toast';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Edit, Trash2, UserPlus, Users, X, Loader2 } from 'lucide-react';
+import { Label } from '../components/ui/label';
+import { Badge } from '../components/ui/badge';
+import { Edit, Trash2, UserPlus, Users, X, Loader2, Gauge } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -29,10 +32,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 
 export default function ContactsPage() {
-  const { contacts, isLoading, updateContact, deleteContact, createContact, isDeleting } =
-    useContacts();
+  const {
+    contacts,
+    isLoading,
+    updateContact,
+    deleteContact,
+    createContact,
+    updateQuota,
+    deleteQuota,
+    isDeleting,
+    isUpdatingQuota,
+  } = useContacts();
+  const { toast } = useToast();
   const [newPhone, setNewPhone] = useState('');
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -44,6 +65,10 @@ export default function ContactsPage() {
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contactToDelete, setContactToDelete] = useState<number | null>(null);
+  const [quotaDialogOpen, setQuotaDialogOpen] = useState(false);
+  const [quotaContact, setQuotaContact] = useState<number | null>(null);
+  const [quotaMaxRequests, setQuotaMaxRequests] = useState(5);
+  const [quotaWindowType, setQuotaWindowType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const startEdit = (id: number, name?: string | null, phone?: string | null) => {
@@ -79,6 +104,59 @@ export default function ContactsPage() {
     createContact({ phoneNumber: newPhone, contactName: newName });
     setNewPhone('');
     setNewName('');
+  };
+
+  const openQuotaDialog = (contactId: number) => {
+    const contact = contacts.find((c) => c.id === contactId);
+    if (!contact) return;
+    setQuotaContact(contactId);
+    if (contact.quota) {
+      setQuotaMaxRequests(contact.quota.maxRequests);
+      setQuotaWindowType(contact.quota.windowType);
+    } else {
+      setQuotaMaxRequests(5);
+      setQuotaWindowType('daily');
+    }
+    setQuotaDialogOpen(true);
+  };
+
+  const handleSaveQuota = () => {
+    if (!quotaContact) return;
+    updateQuota(
+      { id: quotaContact, data: { maxRequests: quotaMaxRequests, windowType: quotaWindowType } },
+      {
+        onSuccess: () => {
+          toast({ title: 'Quota Updated', description: 'Contact quota has been updated.' });
+          setQuotaDialogOpen(false);
+          setQuotaContact(null);
+        },
+        onError: (error: Error) => {
+          toast({
+            title: 'Error',
+            description: error.message || 'Failed to update quota.',
+            variant: 'destructive',
+          });
+        },
+      }
+    );
+  };
+
+  const handleResetQuota = () => {
+    if (!quotaContact) return;
+    deleteQuota(quotaContact, {
+      onSuccess: () => {
+        toast({ title: 'Quota Reset', description: 'Contact quota has been reset to default.' });
+        setQuotaDialogOpen(false);
+        setQuotaContact(null);
+      },
+      onError: (error: Error) => {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to reset quota.',
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   // Auto-focus the input for the current editing row
@@ -245,6 +323,8 @@ export default function ContactsPage() {
                     <TableHead className="w-[80px]">ID</TableHead>
                     <TableHead className="min-w-[180px]">Phone</TableHead>
                     <TableHead className="min-w-[150px]">Name</TableHead>
+                    <TableHead className="min-w-[120px]">Quota</TableHead>
+                    <TableHead className="min-w-[120px]">Usage</TableHead>
                     <TableHead className="w-[120px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -298,6 +378,53 @@ export default function ContactsPage() {
                           <span className="cursor-pointer hover:text-primary">
                             {c.contactName || '-'}
                           </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => openQuotaDialog(c.id)}
+                          className="cursor-pointer hover:text-primary"
+                        >
+                          {c.quota ? (
+                            <Badge variant="outline" className="font-mono">
+                              {c.quota.maxRequests}/{formatWindow(c.quota.windowType)}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Default</span>
+                          )}
+                        </button>
+                      </TableCell>
+                      <TableCell>
+                        {c.usage ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span
+                                className={
+                                  c.usage.used >= c.usage.max
+                                    ? 'font-medium text-destructive'
+                                    : 'text-muted-foreground'
+                                }
+                              >
+                                {c.usage.used}/{c.usage.max}
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  c.usage.used >= c.usage.max
+                                    ? 'bg-destructive'
+                                    : c.usage.used / c.usage.max > 0.75
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                }`}
+                                style={{
+                                  width: `${Math.min(100, (c.usage.used / c.usage.max) * 100)}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -375,6 +502,74 @@ export default function ContactsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Quota Edit Dialog */}
+      <Dialog open={quotaDialogOpen} onOpenChange={setQuotaDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gauge className="h-5 w-5" />
+              Edit Contact Quota
+            </DialogTitle>
+            <DialogDescription>
+              Set a custom request quota for this contact, or reset to the global default.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="quota-max">Max Requests</Label>
+              <Input
+                id="quota-max"
+                type="number"
+                min={1}
+                max={100}
+                value={quotaMaxRequests}
+                onChange={(e) =>
+                  setQuotaMaxRequests(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quota-window">Time Window</Label>
+              <Select
+                value={quotaWindowType}
+                onValueChange={(v) => setQuotaWindowType(v as 'daily' | 'weekly' | 'monthly')}
+              >
+                <SelectTrigger id="quota-window">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setQuotaDialogOpen(false)}
+              disabled={isUpdatingQuota}
+            >
+              Cancel
+            </Button>
+            <Button variant="secondary" onClick={handleResetQuota} disabled={isUpdatingQuota}>
+              Reset to Default
+            </Button>
+            <Button onClick={handleSaveQuota} disabled={isUpdatingQuota}>
+              {isUpdatingQuota ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -383,4 +578,17 @@ function truncateHash(hash?: string | null) {
   if (!hash) return '-';
   if (hash.length <= 16) return hash;
   return `${hash.slice(0, 8)}...${hash.slice(-8)}`;
+}
+
+function formatWindow(windowType: string) {
+  switch (windowType) {
+    case 'daily':
+      return 'day';
+    case 'weekly':
+      return 'week';
+    case 'monthly':
+      return 'month';
+    default:
+      return windowType;
+  }
 }

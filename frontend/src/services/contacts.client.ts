@@ -27,3 +27,14 @@ export async function updateContact(
 export async function deleteContact(id: number): Promise<{ success: boolean }> {
   return apiClient.delete(`/api/contacts/${id}`);
 }
+
+export async function updateContactQuota(
+  id: number,
+  data: { maxRequests: number; windowType: 'daily' | 'weekly' | 'monthly' }
+): Promise<Contact> {
+  return apiClient.put(`/api/contacts/${id}/quota`, data);
+}
+
+export async function deleteContactQuota(id: number): Promise<Contact> {
+  return apiClient.delete(`/api/contacts/${id}/quota`);
+}
