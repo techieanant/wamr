@@ -77,12 +77,12 @@ export class ConversationService {
       );
       // When we create a new session and we already have a contact name (from message metadata),
       // persist contact and backfill historical request entries so older requests show a name.
-      if (contactName) {
+      // Only create contacts when we have an actual phone number (not LID-only) to prevent
+      // duplicate contacts with hash IDs showing in the UI.
+      if (contactName && phoneNumber) {
         try {
           // Persist the contact name and backfill historical request entries so older requests show a name.
-          const phoneNumberEncrypted = phoneNumber
-            ? encryptionService.encrypt(phoneNumber)
-            : undefined;
+          const phoneNumberEncrypted = encryptionService.encrypt(phoneNumber);
           await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
           // Backfill contact name to existing request_history entries
           await requestHistoryRepository.updateContactNameForPhone(
@@ -112,29 +112,31 @@ export class ConversationService {
       if (updated) {
         session = updated;
 
-        try {
-          // Upsert to contacts list and backfill historical request entries.
-          const phoneNumberEncrypted = phoneNumber
-            ? encryptionService.encrypt(phoneNumber)
-            : undefined;
-          await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
-          // Backfill contact name to existing request_history entries
-          await requestHistoryRepository.updateContactNameForPhone(
-            phoneNumberHash,
-            contactName,
-            true
-          );
-          // Emit a socket event so admin clients can update their cached request rows immediately
-          webSocketService.emit(SocketEvents.REQUEST_CONTACT_UPDATE, {
-            phoneNumberHash,
-            contactName,
-            timestamp: new Date().toISOString(),
-          });
-        } catch (err) {
-          logger.warn(
-            { sessionId: session.id, phoneNumberHash, contactName, error: err },
-            'Failed to update contact repository'
-          );
+        // Only update contacts when we have an actual phone number (not LID-only) to prevent
+        // duplicate contacts with hash IDs showing in the UI.
+        if (phoneNumber) {
+          try {
+            // Upsert to contacts list and backfill historical request entries.
+            const phoneNumberEncrypted = encryptionService.encrypt(phoneNumber);
+            await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
+            // Backfill contact name to existing request_history entries
+            await requestHistoryRepository.updateContactNameForPhone(
+              phoneNumberHash,
+              contactName,
+              true
+            );
+            // Emit a socket event so admin clients can update their cached request rows immediately
+            webSocketService.emit(SocketEvents.REQUEST_CONTACT_UPDATE, {
+              phoneNumberHash,
+              contactName,
+              timestamp: new Date().toISOString(),
+            });
+          } catch (err) {
+            logger.warn(
+              { sessionId: session.id, phoneNumberHash, contactName, error: err },
+              'Failed to update contact repository'
+            );
+          }
         }
       } else {
         logger.warn({ sessionId: session.id }, 'Failed to update contact name for session');

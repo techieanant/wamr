@@ -48,7 +48,12 @@ export function MainLayout({ children }: MainLayoutProps) {
           >
             <Menu className="h-6 w-6" />
           </button>
-          <h1 className="ml-4 text-lg font-bold">WAMR</h1>
+          <div className="ml-4 flex flex-col justify-center">
+            <h1 className="text-lg font-bold leading-tight">WAMR</h1>
+            <span className="text-[10px] leading-tight text-muted-foreground">
+              v{__APP_VERSION__}
+            </span>
+          </div>
         </header>
 
         {/* Main content */}
