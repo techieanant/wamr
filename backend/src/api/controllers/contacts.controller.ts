@@ -308,3 +308,60 @@ export const deleteContact = async (req: Request, res: Response, next: NextFunct
     return;
   }
 };
+
+export const updateContactQuota = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid contact ID' });
+
+    const { maxRequests, windowType } = req.body as {
+      maxRequests: number;
+      windowType: 'daily' | 'weekly' | 'monthly';
+    };
+
+    if (!maxRequests || maxRequests < 1 || maxRequests > 100) {
+      return res.status(400).json({ error: 'maxRequests must be between 1 and 100' });
+    }
+
+    const contact = await contactRepository.findById(id);
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+    const { requestQuotaRepository } = await import(
+      '../../repositories/request-quota.repository.js'
+    );
+
+    const quota = await requestQuotaRepository.upsert({
+      phoneNumberHash: contact.phoneNumberHash,
+      maxRequests,
+      windowType,
+    });
+
+    return res.json({ success: true, quota });
+  } catch (error) {
+    logger.error({ error }, 'Failed to update contact quota');
+    next(error);
+    return;
+  }
+};
+
+export const deleteContactQuota = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid contact ID' });
+
+    const contact = await contactRepository.findById(id);
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+    const { requestQuotaRepository } = await import(
+      '../../repositories/request-quota.repository.js'
+    );
+
+    const deleted = await requestQuotaRepository.delete(contact.phoneNumberHash);
+
+    return res.json({ success: true, deleted });
+  } catch (error) {
+    logger.error({ error }, 'Failed to delete contact quota');
+    next(error);
+    return;
+  }
+};

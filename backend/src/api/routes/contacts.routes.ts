@@ -6,6 +6,8 @@ import {
   createContact,
   updateContact,
   deleteContact,
+  updateContactQuota,
+  deleteContactQuota,
 } from '../controllers/contacts.controller.js';
 
 const router = Router();
@@ -17,5 +19,7 @@ router.get('/:id', getContactById);
 router.post('/', createContact);
 router.patch('/:id', updateContact);
 router.delete('/:id', deleteContact);
+router.put('/:id/quota', updateContactQuota);
+router.delete('/:id/quota', deleteContactQuota);
 
 export default router;
