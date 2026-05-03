@@ -41,6 +41,7 @@ import {
   MessageSquare,
   Phone,
   Send,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useTheme } from '../hooks/use-theme';
 import { apiClient } from '../services/api.client';
@@ -109,6 +110,10 @@ export default function SettingsPage() {
   const { remainingCodes: remainingBackupCodes, refetch: refetchBackupCodesCount } =
     useBackupCodesCount();
 
+  // Media Display state
+  const [sendPosters, setSendPosters] = useState(true);
+  const [sendPostersViewOnce, setSendPostersViewOnce] = useState(false);
+
   // Fetch settings from backend on mount
   useEffect(() => {
     const fetchSettings = async () => {
@@ -138,6 +143,18 @@ export default function SettingsPage() {
           // Save current notifications if not saved
           await apiClient.put('/api/settings/wamr-notifications', { value: notificationsEnabled });
           localStorage.setItem('wamr-notifications', notificationsEnabled ? 'true' : 'false');
+        }
+
+        // Load media display settings
+        if (settings['sendPosters'] !== undefined) {
+          setSendPosters(Boolean(settings['sendPosters']));
+        } else {
+          await apiClient.put('/api/settings/sendPosters', { value: true });
+        }
+        if (settings['sendPostersViewOnce'] !== undefined) {
+          setSendPostersViewOnce(Boolean(settings['sendPostersViewOnce']));
+        } else {
+          await apiClient.put('/api/settings/sendPostersViewOnce', { value: false });
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -199,6 +216,30 @@ export default function SettingsPage() {
     };
     syncNotificationsToBackend();
   }, [notificationsEnabled]);
+
+  // Sync sendPosters to backend
+  useEffect(() => {
+    const syncSendPosters = async () => {
+      try {
+        await apiClient.put('/api/settings/sendPosters', { value: sendPosters });
+      } catch (error) {
+        console.error('Failed to sync sendPosters:', error);
+      }
+    };
+    syncSendPosters();
+  }, [sendPosters]);
+
+  // Sync sendPostersViewOnce to backend
+  useEffect(() => {
+    const syncSendPostersViewOnce = async () => {
+      try {
+        await apiClient.put('/api/settings/sendPostersViewOnce', { value: sendPostersViewOnce });
+      } catch (error) {
+        console.error('Failed to sync sendPostersViewOnce:', error);
+      }
+    };
+    syncSendPostersViewOnce();
+  }, [sendPostersViewOnce]);
 
   const handleLogout = () => {
     logout();
@@ -877,6 +918,44 @@ export default function SettingsPage() {
                 You need an active WhatsApp connection to configure the request approval mode.
                 Please connect your WhatsApp account first.
               </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Media Display Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="h-5 w-5" />
+            Media Display
+          </CardTitle>
+          <CardDescription>Configure how media is shown in WhatsApp conversations</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="send-posters">Send Poster Images</Label>
+              <p className="text-sm text-muted-foreground">
+                Send movie/show poster when a user selects a search result
+              </p>
+            </div>
+            <Switch id="send-posters" checked={sendPosters} onCheckedChange={setSendPosters} />
+          </div>
+
+          {sendPosters && (
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="send-posters-view-once">View-Once Mode</Label>
+                <p className="text-sm text-muted-foreground">
+                  Posters disappear after first view (saves phone storage)
+                </p>
+              </div>
+              <Switch
+                id="send-posters-view-once"
+                checked={sendPostersViewOnce}
+                onCheckedChange={setSendPostersViewOnce}
+              />
             </div>
           )}
         </CardContent>
