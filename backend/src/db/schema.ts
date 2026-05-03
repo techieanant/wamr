@@ -214,6 +214,31 @@ export const contacts = sqliteTable(
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
 
+// Request Quotas Table (per-user request limits)
+export const requestQuotas = sqliteTable(
+  'request_quotas',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    phoneNumberHash: text('phone_number_hash').notNull().unique(),
+    maxRequests: integer('max_requests').notNull().default(5),
+    windowType: text('window_type', { enum: ['daily', 'weekly', 'monthly'] })
+      .notNull()
+      .default('daily'),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => ({
+    phoneIdx: index('idx_quota_phone').on(table.phoneNumberHash),
+  })
+);
+
+export type RequestQuota = typeof requestQuotas.$inferSelect;
+export type NewRequestQuota = typeof requestQuotas.$inferInsert;
+
 // Settings Table (stores application settings)
 export const settings = sqliteTable(
   'settings',
