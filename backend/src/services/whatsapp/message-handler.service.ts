@@ -145,8 +145,10 @@ class MessageHandlerService {
         {
           rawJid: message.key.remoteJid,
           remoteJidAlt: message.key.remoteJidAlt,
+          senderPn: message.key.senderPn,
           participant: message.key.participant,
           participantAlt: message.key.participantAlt,
+          participantPn: message.key.participantPn,
           fromMe: message.key.fromMe,
           id: message.key.id,
         },
@@ -351,12 +353,26 @@ class MessageHandlerService {
         ? message.key.participantAlt
         : message.key.remoteJidAlt;
 
+      // Primary: use alt JID (remoteJidAlt / participantAlt)
       if (remoteJid?.endsWith('@lid') && remoteJidAlt?.endsWith('@s.whatsapp.net')) {
         const decoded = jidDecode(remoteJidAlt);
         if (decoded?.user) {
           logger.debug(
             { lidJid: remoteJid, pnJid: remoteJidAlt, phoneNumber: decoded.user },
             'Extracted phone number from alt JID'
+          );
+          return `+${decoded.user}`;
+        }
+      }
+
+      // Fallback: use senderPn / participantPn when alt JID is not populated
+      const senderPn = senderJidOverride ? message.key.participantPn : message.key.senderPn;
+      if (remoteJid?.endsWith('@lid') && senderPn?.endsWith('@s.whatsapp.net')) {
+        const decoded = jidDecode(senderPn);
+        if (decoded?.user) {
+          logger.debug(
+            { lidJid: remoteJid, pnJid: senderPn, phoneNumber: decoded.user },
+            'Extracted phone number from senderPn'
           );
           return `+${decoded.user}`;
         }

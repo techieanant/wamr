@@ -25,6 +25,8 @@ export interface BaileysMessage {
   key: proto.IMessageKey & {
     remoteJidAlt?: string; // Alternative JID (PN if LID, LID if PN)
     participantAlt?: string; // Alternative participant (for groups)
+    senderPn?: string; // Sender phone number JID (present on LID messages)
+    participantPn?: string; // Participant phone number JID (present on LID group messages)
   };
   message: proto.IMessage | null | undefined;
   messageTimestamp: number | bigint | null | undefined;
