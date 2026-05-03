@@ -37,7 +37,7 @@ export interface BaileysMessage {
  * WhatsApp Web client service
  * Wraps @whiskeysockets/baileys with session persistence and event handling
  */
-class WhatsAppClientService {
+export class WhatsAppClientService {
   private sock: WASocket | null = null;
   private isInitializing = false;
   private hasCalledReady = false; // Track if ready callback has been called for current connection
@@ -446,6 +446,58 @@ class WhatsAppClientService {
       }
     } catch (error) {
       logger.error({ error, recipient: recipient.slice(-4) }, 'Failed to send message');
+      throw error;
+    }
+  }
+
+  /**
+   * Send image to a recipient
+   * @param recipient - Can be a full JID, phone number, or user ID
+   * @param imageBuffer - Image data as Buffer
+   * @param caption - Optional caption text
+   */
+  async sendImage(recipient: string, imageBuffer: Buffer, caption?: string): Promise<void> {
+    if (!this.sock || !this.isReady()) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      let jid: string;
+
+      if (recipient.includes('@')) {
+        jid = recipient;
+      } else {
+        const cleanRecipient = recipient.replace(/^\+/, '').replace(/\D/g, '');
+        jid = `${cleanRecipient}@s.whatsapp.net`;
+      }
+
+      logger.debug(
+        { originalRecipient: recipient, jid, captionLength: caption?.length },
+        'Sending image via Baileys'
+      );
+
+      const result = await this.sock.sendMessage(jid, {
+        image: imageBuffer,
+        caption,
+      });
+
+      logger.info(
+        { recipient: recipient.slice(-4), messageId: result?.key?.id },
+        'Image sent successfully'
+      );
+
+      if (!this.markOnlineOnConnect) {
+        try {
+          await this.sock.sendPresenceUpdate('unavailable');
+        } catch (presenceError) {
+          logger.debug(
+            { presenceError },
+            'Failed to restore unavailable presence after image send'
+          );
+        }
+      }
+    } catch (error) {
+      logger.error({ error, recipient: recipient.slice(-4) }, 'Failed to send image');
       throw error;
     }
   }

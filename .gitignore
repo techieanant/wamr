@@ -102,3 +102,4 @@ docs/
 
 # OpenCode agent files
 .opencode/
+.grepai/
