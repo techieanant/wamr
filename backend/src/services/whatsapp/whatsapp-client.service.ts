@@ -4,7 +4,6 @@ import {
   useMultiFileAuthState,
   jidDecode,
   fetchLatestBaileysVersion,
-  Browsers,
 } from '@whiskeysockets/baileys';
 import type { proto } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
@@ -119,11 +118,14 @@ export class WhatsAppClientService {
         logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
       }
 
+      // Build browser label: WAMR (DEV) in development, WAMR (PROD) in production
+      const browserLabel = env.NODE_ENV === 'development' ? 'WAMR (DEV)' : 'WAMR (PROD)';
+
       // Create Baileys socket
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, // We'll handle QR code ourselves via WebSocket
-        browser: Browsers.ubuntu('Chrome'),
+        browser: [browserLabel, 'Desktop', ''] as [string, string, string],
         version: waVersion,
         syncFullHistory: false,
         markOnlineOnConnect,
