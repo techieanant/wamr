@@ -468,7 +468,12 @@ export class WhatsAppClientService {
    * @param imageBuffer - Image data as Buffer
    * @param caption - Optional caption text
    */
-  async sendImage(recipient: string, imageBuffer: Buffer, caption?: string): Promise<void> {
+  async sendImage(
+    recipient: string,
+    imageBuffer: Buffer,
+    caption?: string,
+    viewOnce = false
+  ): Promise<void> {
     if (!this.sock || !this.isReady()) {
       throw new Error('WhatsApp client is not ready');
     }
@@ -484,13 +489,14 @@ export class WhatsAppClientService {
       }
 
       logger.debug(
-        { originalRecipient: recipient, jid, captionLength: caption?.length },
+        { originalRecipient: recipient, jid, captionLength: caption?.length, viewOnce },
         'Sending image via Baileys'
       );
 
       const result = await this.sock.sendMessage(jid, {
         image: imageBuffer,
         caption,
+        viewOnce,
       });
 
       logger.info(

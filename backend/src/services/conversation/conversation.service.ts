@@ -593,7 +593,15 @@ export class ConversationService {
                 '../whatsapp/whatsapp-client.service.js'
               );
 
-              await whatsappClientService.sendImage(replyJid, imageBuffer, confirmationMessage);
+              const viewOnceSetting = await settingRepository.findByKey('sendPostersViewOnce');
+              const viewOnce = viewOnceSetting?.value === true;
+
+              await whatsappClientService.sendImage(
+                replyJid,
+                imageBuffer,
+                confirmationMessage,
+                viewOnce
+              );
 
               // Return empty message to prevent duplicate text send
               return this.createResponse(session, '', 'AWAITING_CONFIRMATION');
@@ -722,7 +730,15 @@ export class ConversationService {
                 '../whatsapp/whatsapp-client.service.js'
               );
 
-              await whatsappClientService.sendImage(replyJid, imageBuffer, confirmationMessage);
+              const viewOnceSetting = await settingRepository.findByKey('sendPostersViewOnce');
+              const viewOnce = viewOnceSetting?.value === true;
+
+              await whatsappClientService.sendImage(
+                replyJid,
+                imageBuffer,
+                confirmationMessage,
+                viewOnce
+              );
 
               // Return empty message to prevent duplicate text send
               return this.createResponse(session, '', 'AWAITING_CONFIRMATION');
