@@ -69,9 +69,13 @@ export class RequestQuotaRepository {
 
   async countRequestsInWindow(
     phoneNumberHash: string,
-    windowType: QuotaWindowType
+    windowType: QuotaWindowType,
+    countFailed = false
   ): Promise<number> {
     const windowStart = this.getWindowStart(windowType);
+    const statuses = countFailed
+      ? sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING', 'FAILED')`
+      : sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING')`;
     const countResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(requestHistory)
@@ -79,7 +83,7 @@ export class RequestQuotaRepository {
         and(
           eq(requestHistory.phoneNumberHash, phoneNumberHash),
           gte(requestHistory.createdAt, windowStart.toISOString()),
-          sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING')`
+          statuses
         )
       );
     return countResult[0]?.count || 0;

@@ -121,6 +121,7 @@ export default function SettingsPage() {
   const [quotaGlobalWindowType, setQuotaGlobalWindowType] = useState<
     'daily' | 'weekly' | 'monthly'
   >('daily');
+  const [quotaCountFailedRequests, setQuotaCountFailedRequests] = useState(false);
 
   // Fetch settings from backend on mount
   useEffect(() => {
@@ -185,6 +186,11 @@ export default function SettingsPage() {
           }
         } else {
           await apiClient.put('/api/settings/quotaGlobalWindowType', { value: 'daily' });
+        }
+        if (settings['quotaCountFailedRequests'] !== undefined) {
+          setQuotaCountFailedRequests(Boolean(settings['quotaCountFailedRequests']));
+        } else {
+          await apiClient.put('/api/settings/quotaCountFailedRequests', { value: false });
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -308,6 +314,19 @@ export default function SettingsPage() {
     };
     syncQuotaWindow();
   }, [quotaGlobalWindowType]);
+
+  useEffect(() => {
+    const syncCountFailed = async () => {
+      try {
+        await apiClient.put('/api/settings/quotaCountFailedRequests', {
+          value: quotaCountFailedRequests,
+        });
+      } catch (error) {
+        console.error('Failed to sync quotaCountFailedRequests:', error);
+      }
+    };
+    syncCountFailed();
+  }, [quotaCountFailedRequests]);
 
   const handleLogout = () => {
     logout();
@@ -1056,15 +1075,18 @@ export default function SettingsPage() {
                 <Input
                   id="quota-max"
                   type="number"
-                  min={1}
+                  min={0}
                   max={100}
                   value={quotaGlobalMaxRequests}
                   onChange={(e) =>
                     setQuotaGlobalMaxRequests(
-                      Math.max(1, Math.min(100, parseInt(e.target.value) || 1))
+                      Math.max(0, Math.min(100, parseInt(e.target.value) || 0))
                     )
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Set to 0 to block all requests from users without an override
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="quota-window">Time Window</Label>
@@ -1083,6 +1105,19 @@ export default function SettingsPage() {
                     <SelectItem value="monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="quota-count-failed">Count Failed Requests</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Include failed requests toward the quota limit
+                  </p>
+                </div>
+                <Switch
+                  id="quota-count-failed"
+                  checked={quotaCountFailedRequests}
+                  onCheckedChange={setQuotaCountFailedRequests}
+                />
               </div>
             </>
           )}

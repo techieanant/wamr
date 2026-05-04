@@ -31,9 +31,11 @@ export class QuotaCheckService {
       // Get global defaults
       const maxRequestsSetting = await settingRepository.findByKey('quotaGlobalMaxRequests');
       const windowTypeSetting = await settingRepository.findByKey('quotaGlobalWindowType');
+      const countFailedSetting = await settingRepository.findByKey('quotaCountFailedRequests');
 
-      const globalMax = (maxRequestsSetting?.value as number) || 5;
+      const globalMax = (maxRequestsSetting?.value as number) ?? 5;
       const globalWindow = (windowTypeSetting?.value as QuotaWindowType) || 'daily';
+      const countFailed = countFailedSetting?.value === true;
 
       // Check for per-contact override
       const override = await requestQuotaRepository.findByPhoneHash(phoneNumberHash);
@@ -41,7 +43,11 @@ export class QuotaCheckService {
       const windowType = override?.windowType ?? globalWindow;
 
       // Count requests in current window
-      const used = await requestQuotaRepository.countRequestsInWindow(phoneNumberHash, windowType);
+      const used = await requestQuotaRepository.countRequestsInWindow(
+        phoneNumberHash,
+        windowType,
+        countFailed
+      );
 
       const allowed = used < maxRequests;
       const resetTime = this.formatResetTime(windowType);

@@ -521,13 +521,16 @@ export default function ContactsPage() {
               <Input
                 id="quota-max"
                 type="number"
-                min={1}
+                min={0}
                 max={100}
                 value={quotaMaxRequests}
                 onChange={(e) =>
-                  setQuotaMaxRequests(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))
+                  setQuotaMaxRequests(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                Set to 0 to block all requests from this contact
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="quota-window">Time Window</Label>

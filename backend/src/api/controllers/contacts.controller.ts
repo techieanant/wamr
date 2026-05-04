@@ -319,8 +319,8 @@ export const updateContactQuota = async (req: Request, res: Response, next: Next
       windowType: 'daily' | 'weekly' | 'monthly';
     };
 
-    if (!maxRequests || maxRequests < 1 || maxRequests > 100) {
-      return res.status(400).json({ error: 'maxRequests must be between 1 and 100' });
+    if (typeof maxRequests !== 'number' || maxRequests < 0 || maxRequests > 100) {
+      return res.status(400).json({ error: 'maxRequests must be between 0 and 100' });
     }
 
     const contact = await contactRepository.findById(id);
