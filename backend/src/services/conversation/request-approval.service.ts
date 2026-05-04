@@ -30,8 +30,9 @@ export class RequestApprovalService {
     contactName?: string,
     replyJid?: string
   ): Promise<{ success: boolean; errorMessage?: string; status: string }> {
-    // Use replyJid as fallback when phoneNumber is not available (LID accounts)
-    const sendTarget = phoneNumber ?? replyJid;
+    // Use replyJid (full JID preserving @lid/@s.whatsapp.net) as primary target.
+    // Fall back to phoneNumber only if JID is not available.
+    const sendTarget = replyJid ?? phoneNumber;
     try {
       // Get auto-approval mode from the active WhatsApp connection (admin's connection)
       // Note: We use getActive() because approval mode is a system-wide setting,
