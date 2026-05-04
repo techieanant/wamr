@@ -160,6 +160,7 @@ export const requestHistory = sqliteTable(
     submittedAt: text('submitted_at'),
     errorMessage: text('error_message'),
     adminNotes: text('admin_notes'),
+    replyJid: text('reply_jid'), // Full JID for sending WhatsApp messages (preserves @lid or @s.whatsapp.net)
     createdAt: text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),

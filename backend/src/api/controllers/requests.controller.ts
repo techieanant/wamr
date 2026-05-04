@@ -340,7 +340,8 @@ export const approveRequest = async (
           const phoneNumber = request.phoneNumberEncrypted
             ? encryptionService.decrypt(request.phoneNumberEncrypted)
             : null;
-          const replyTarget = phoneNumber || request.replyJid;
+          // Prefer replyJid (full JID preserving @lid/@s.whatsapp.net) over raw phone number
+          const replyTarget = request.replyJid ?? phoneNumber;
           if (!replyTarget) {
             throw new Error('No phone number or reply Jid available for notification');
           }
@@ -385,6 +386,35 @@ export const approveRequest = async (
         errorMessage,
         updatedAt: new Date().toISOString(),
       });
+
+      // Send WhatsApp notification about the failure
+      if (request.phoneNumberEncrypted || request.replyJid) {
+        try {
+          const phoneNumber = request.phoneNumberEncrypted
+            ? encryptionService.decrypt(request.phoneNumberEncrypted)
+            : null;
+          const replyTarget = request.replyJid ?? phoneNumber;
+          if (!replyTarget) {
+            throw new Error('No phone number or reply Jid available for notification');
+          }
+
+          const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
+          const yearStr = request.year ? ` (${request.year})` : '';
+
+          // Provide a user-friendly message based on the error
+          const isAlreadyExists =
+            errorMessage.toLowerCase().includes('already exists') ||
+            errorMessage.toLowerCase().includes('already in library');
+          const userMessage = isAlreadyExists
+            ? `ℹ️ Good news!\n\n${emoji} *${request.title}${yearStr}* is already available in the library. You can watch it now!`
+            : `❌ Failed to add your request.\n\n${emoji} *${request.title}${yearStr}*\n\n${errorMessage}`;
+
+          await whatsappClientService.sendMessage(replyTarget, userMessage);
+          logger.info({ requestId, recipient: replyTarget.slice(-4) }, 'Failure notification sent');
+        } catch (notifyError) {
+          logger.error({ error: notifyError, requestId }, 'Failed to send failure notification');
+        }
+      }
 
       // Emit WebSocket event
       webSocketService.emit(SocketEvents.REQUEST_STATUS_UPDATE, {
@@ -446,20 +476,24 @@ export const rejectRequest = async (
     });
 
     // Send WhatsApp notification
-    if (request.phoneNumberEncrypted) {
+    if (request.phoneNumberEncrypted || request.replyJid) {
       try {
-        const phoneNumber = encryptionService.decrypt(request.phoneNumberEncrypted);
-        const replyTarget = request.replyJid || phoneNumber;
+        const phoneNumber = request.phoneNumberEncrypted
+          ? encryptionService.decrypt(request.phoneNumberEncrypted)
+          : null;
+        // Prefer replyJid (full JID preserving @lid/@s.whatsapp.net) over raw phone number
+        const replyTarget = request.replyJid ?? phoneNumber;
+        if (!replyTarget) {
+          throw new Error('No phone number or reply Jid available for notification');
+        }
+
         const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
         const yearStr = request.year ? ` (${request.year})` : '';
         const reasonText = reason ? `\n\nReason: ${reason}` : '';
         const message = `❌ Your request was declined by administrator.\n\n${emoji} *${request.title}${yearStr}*${reasonText}`;
 
         await whatsappClientService.sendMessage(replyTarget, message);
-        logger.info(
-          { requestId, phoneNumber: phoneNumber.slice(-4) },
-          'Rejection notification sent'
-        );
+        logger.info({ requestId, recipient: replyTarget.slice(-4) }, 'Rejection notification sent');
       } catch (error) {
         logger.error({ error, requestId }, 'Failed to send rejection notification');
       }

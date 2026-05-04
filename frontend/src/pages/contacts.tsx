@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useContacts } from '../hooks/use-contacts';
 import { useToast } from '../hooks/use-toast';
+import { apiClient } from '../services/api.client';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -69,7 +70,34 @@ export default function ContactsPage() {
   const [quotaContact, setQuotaContact] = useState<number | null>(null);
   const [quotaMaxRequests, setQuotaMaxRequests] = useState(5);
   const [quotaWindowType, setQuotaWindowType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [globalMaxRequests, setGlobalMaxRequests] = useState(5);
+  const [globalWindowType, setGlobalWindowType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Fetch global quota settings on mount
+  useEffect(() => {
+    async function loadGlobalSettings() {
+      try {
+        const response = (await apiClient.get('/api/settings')) as {
+          success?: boolean;
+          data?: Record<string, unknown>;
+        };
+        const settings = response.data || {};
+        if (settings['quotaGlobalMaxRequests'] !== undefined) {
+          setGlobalMaxRequests(Number(settings['quotaGlobalMaxRequests']) || 5);
+        }
+        if (settings['quotaGlobalWindowType'] !== undefined) {
+          const wt = String(settings['quotaGlobalWindowType']);
+          if (wt === 'daily' || wt === 'weekly' || wt === 'monthly') {
+            setGlobalWindowType(wt);
+          }
+        }
+      } catch {
+        // Ignore errors, use defaults
+      }
+    }
+    loadGlobalSettings();
+  }, []);
 
   const startEdit = (id: number, name?: string | null, phone?: string | null) => {
     setEditingId(id);
@@ -114,8 +142,9 @@ export default function ContactsPage() {
       setQuotaMaxRequests(contact.quota.maxRequests);
       setQuotaWindowType(contact.quota.windowType);
     } else {
-      setQuotaMaxRequests(5);
-      setQuotaWindowType('daily');
+      // Use global settings as default when no per-contact override exists
+      setQuotaMaxRequests(globalMaxRequests);
+      setQuotaWindowType(globalWindowType);
     }
     setQuotaDialogOpen(true);
   };

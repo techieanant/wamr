@@ -90,12 +90,13 @@ export class ConversationService {
       );
       // When we create a new session and we already have a contact name (from message metadata),
       // persist contact and backfill historical request entries so older requests show a name.
-      // Only create contacts when we have an actual phone number (not LID-only) to prevent
-      // duplicate contacts with hash IDs showing in the UI.
-      if (contactName && phoneNumber) {
+      if (contactName) {
         try {
           // Persist the contact name and backfill historical request entries so older requests show a name.
-          const phoneNumberEncrypted = encryptionService.encrypt(phoneNumber);
+          // Phone number may be null for LID users; only encrypt if available.
+          const phoneNumberEncrypted = phoneNumber
+            ? encryptionService.encrypt(phoneNumber)
+            : undefined;
           await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
           // Backfill contact name to existing request_history entries
           await requestHistoryRepository.updateContactNameForPhone(
@@ -125,34 +126,56 @@ export class ConversationService {
       if (updated) {
         session = updated;
 
-        // Only update contacts when we have an actual phone number (not LID-only) to prevent
-        // duplicate contacts with hash IDs showing in the UI.
-        if (phoneNumber) {
-          try {
-            // Upsert to contacts list and backfill historical request entries.
-            const phoneNumberEncrypted = encryptionService.encrypt(phoneNumber);
-            await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
-            // Backfill contact name to existing request_history entries
-            await requestHistoryRepository.updateContactNameForPhone(
-              phoneNumberHash,
-              contactName,
-              true
-            );
-            // Emit a socket event so admin clients can update their cached request rows immediately
-            webSocketService.emit(SocketEvents.REQUEST_CONTACT_UPDATE, {
-              phoneNumberHash,
-              contactName,
-              timestamp: new Date().toISOString(),
-            });
-          } catch (err) {
-            logger.warn(
-              { sessionId: session.id, phoneNumberHash, contactName, error: err },
-              'Failed to update contact repository'
-            );
-          }
+        try {
+          // Upsert to contacts list and backfill historical request entries.
+          // Phone number may be null for LID users; only encrypt if available.
+          const phoneNumberEncrypted = phoneNumber
+            ? encryptionService.encrypt(phoneNumber)
+            : undefined;
+          await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
+          // Backfill contact name to existing request_history entries
+          await requestHistoryRepository.updateContactNameForPhone(
+            phoneNumberHash,
+            contactName,
+            true
+          );
+          // Emit a socket event so admin clients can update their cached request rows immediately
+          webSocketService.emit(SocketEvents.REQUEST_CONTACT_UPDATE, {
+            phoneNumberHash,
+            contactName,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (err) {
+          logger.warn(
+            { sessionId: session.id, phoneNumberHash, contactName, error: err },
+            'Failed to update contact repository'
+          );
         }
       } else {
         logger.warn({ sessionId: session.id }, 'Failed to update contact name for session');
+      }
+    } else if (phoneNumber) {
+      // Existing session, name unchanged, but we have a phone number.
+      // Update the contact if it's missing a phone number (e.g. created during regression).
+      try {
+        const existingContact = await contactRepository.findByPhoneHash(phoneNumberHash);
+        if (existingContact && !existingContact.phoneNumberEncrypted) {
+          const phoneNumberEncrypted = encryptionService.encrypt(phoneNumber);
+          await contactRepository.upsert({
+            phoneNumberHash,
+            contactName: existingContact.contactName || contactName,
+            phoneNumberEncrypted,
+          });
+          logger.info(
+            { phoneNumberHash, contactId: existingContact.id },
+            'Updated contact with phone number'
+          );
+        }
+      } catch (err) {
+        logger.warn(
+          { sessionId: session.id, phoneNumberHash, error: err },
+          'Failed to backfill contact phone number'
+        );
       }
     }
 
@@ -345,20 +368,60 @@ export class ConversationService {
       // Handle search completion
       const response = await this.handleSearchComplete(sessionId, searchResult.results);
 
-      if (response) {
-        // Get reply JID for this session (for sending messages)
+      if (!response) {
+        logger.error(
+          { sessionId, query, resultCount: searchResult.results.length },
+          'handleSearchComplete returned null — search results cannot be sent to user'
+        );
+        // Notify user that something went wrong
         const replyJid = this.activeReplyJids.get(sessionId);
-
         if (replyJid) {
-          // Import whatsappClientService dynamically to avoid circular dependency
-          const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+          try {
+            const { whatsappClientService } = await import(
+              '../whatsapp/whatsapp-client.service.js'
+            );
+            await whatsappClientService.sendMessage(
+              replyJid,
+              '❌ Search completed but results could not be displayed. Please try again.'
+            );
+          } catch (sendErr) {
+            logger.error({ sessionId, error: sendErr }, 'Failed to send search error message');
+          }
+        }
+        return;
+      }
 
-          // Send search results to user
-          await whatsappClientService.sendMessage(replyJid, response.message);
+      // Get reply JID for this session (for sending messages)
+      const replyJid = this.activeReplyJids.get(sessionId);
 
-          logger.info({ sessionId, replyJid: replyJid.slice(-4) }, 'Search results sent to user');
-        } else {
-          logger.warn({ sessionId }, 'Reply JID not found for session - cannot send results');
+      if (replyJid) {
+        // Import whatsappClientService dynamically to avoid circular dependency
+        const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+
+        // Send search results to user
+        await whatsappClientService.sendMessage(replyJid, response.message);
+
+        logger.info({ sessionId, replyJid: replyJid.slice(-4) }, 'Search results sent to user');
+      } else {
+        logger.error(
+          { sessionId, query },
+          'Reply JID not found for session — search results cannot be sent to user'
+        );
+        // Try to recover by sending to the session's reply JID if available
+        const session = await conversationSessionRepository.findById(sessionId);
+        if (session?.replyJid) {
+          try {
+            const { whatsappClientService } = await import(
+              '../whatsapp/whatsapp-client.service.js'
+            );
+            await whatsappClientService.sendMessage(session.replyJid, response.message);
+            logger.info({ sessionId }, 'Search results sent using session replyJid fallback');
+          } catch (sendErr) {
+            logger.error(
+              { sessionId, error: sendErr },
+              'Failed to send search results via fallback'
+            );
+          }
         }
       }
     } catch (error) {
@@ -809,15 +872,11 @@ export class ConversationService {
       logger.error({ sessionId: session.id, error }, 'Failed to submit request');
     });
 
-    // For auto-deny mode, don't send "Submitting" message - the rejection message will come from request approval service
-    // For auto-approve and manual modes, send the "Submitting" message
-    if (autoApprovalMode === 'auto_deny') {
-      return this.createResponse(session, '⏳ Processing your request...', 'PROCESSING');
-    }
-
+    // Send a generic processing message. The actual result (submitted/pending/rejected)
+    // will be communicated by the request approval service asynchronously.
     return this.createResponse(
       session,
-      '⏳ Submitting your request...\n\nPlease wait while I add this to your library.',
+      '⏳ Processing your request...\n\nPlease wait...',
       'PROCESSING'
     );
   }

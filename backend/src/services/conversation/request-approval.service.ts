@@ -97,12 +97,11 @@ export class RequestApprovalService {
           selectedSeasons,
           status: 'REJECTED',
           adminNotes: 'Quota limit reached',
+          errorMessage: `Quota limit reached: ${quotaCheck.used}/${quotaCheck.max} ${quotaCheck.windowType}`,
           replyJid: replyJid ?? undefined,
         });
 
         if (sendTarget) {
-          const emoji = mediaType === 'movie' ? '🎬' : '📺';
-          const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
           const message =
             `❌ Request limit reached\n\n` +
             `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
@@ -142,6 +141,7 @@ export class RequestApprovalService {
           selectedSeasons,
           status: 'REJECTED',
           adminNotes: 'Auto-rejected by system settings',
+          errorMessage: 'Automatic approval is currently disabled. Contact the administrator.',
           replyJid: replyJid ?? undefined,
         });
 
@@ -272,6 +272,7 @@ export class RequestApprovalService {
             status: 'FAILED',
             errorMessage: result.errorMessage,
             submittedAt: new Date().toISOString(),
+            replyJid: replyJid ?? undefined,
           });
 
           // Send failure message

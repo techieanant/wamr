@@ -1,45 +1,62 @@
 import type { Request, Response, NextFunction } from 'express';
 import { contactRepository } from '../../repositories/contact.repository.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
+import { requestQuotaRepository } from '../../repositories/request-quota.repository.js';
 import { webSocketService, SocketEvents } from '../../services/websocket/websocket.service.js';
 import { hashingService } from '../../services/encryption/hashing.service.js';
 import { encryptionService } from '../../services/encryption/encryption.service.js';
 import { logger } from '../../config/logger.js';
+import type { ContactModel } from '../../models/contact.model.js';
+
+/**
+ * Enrich a contact with its quota override (if any) and usage stats
+ */
+async function enrichContactWithQuota(contact: ContactModel): Promise<any> {
+  const enriched = { ...contact } as any;
+
+  // Decrypt phone number
+  if (enriched.phoneNumberEncrypted) {
+    try {
+      enriched.phoneNumber = encryptionService.decrypt(enriched.phoneNumberEncrypted);
+    } catch (err) {
+      logger.warn({ error: err, contactId: enriched.id }, 'Failed to decrypt contact phone number');
+      enriched.phoneNumber = null;
+    }
+  } else {
+    enriched.phoneNumber = null;
+  }
+
+  // Add maskedPhone
+  if (enriched.phoneNumber) {
+    try {
+      enriched.maskedPhone = hashingService.maskPhoneNumber(enriched.phoneNumber);
+    } catch {
+      enriched.maskedPhone = null;
+    }
+  } else {
+    enriched.maskedPhone = enriched.phoneNumberHash
+      ? `${enriched.phoneNumberHash.slice(0, 8)}...${enriched.phoneNumberHash.slice(-8)}`
+      : null;
+  }
+
+  // Fetch quota override
+  const quota = await requestQuotaRepository.findByPhoneHash(contact.phoneNumberHash);
+  if (quota) {
+    enriched.quota = {
+      maxRequests: quota.maxRequests,
+      windowType: quota.windowType,
+    };
+  }
+
+  return enriched;
+}
 
 export const getAllContacts = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const contacts = await contactRepository.findAll();
-    // Decrypt phone numbers for admin UI and supply a maskedPhone fallback for UI
-    const contactsWithPhone = contacts.map((c) => {
-      const contact = { ...c } as any;
-      if (contact.phoneNumberEncrypted) {
-        try {
-          contact.phoneNumber = encryptionService.decrypt(contact.phoneNumberEncrypted);
-        } catch (err) {
-          logger.warn(
-            { error: err, contactId: contact.id },
-            'Failed to decrypt contact phone number'
-          );
-          contact.phoneNumber = null;
-        }
-      } else {
-        contact.phoneNumber = null;
-      }
-      // Add a maskedPhone value for the front-end to display (masked or hash fallback)
-      if (contact.phoneNumber) {
-        try {
-          contact.maskedPhone = hashingService.maskPhoneNumber(contact.phoneNumber);
-        } catch {
-          contact.maskedPhone = null;
-        }
-      } else {
-        contact.maskedPhone = contact.phoneNumberHash
-          ? `${contact.phoneNumberHash.slice(0, 8)}...${contact.phoneNumberHash.slice(-8)}`
-          : null;
-      }
-      return contact;
-    });
-    return res.json({ contacts: contactsWithPhone });
+    // Enrich each contact with decrypted phone, masked phone, and quota override
+    const contactsWithQuota = await Promise.all(contacts.map((c) => enrichContactWithQuota(c)));
+    return res.json({ contacts: contactsWithQuota });
   } catch (error) {
     logger.error({ error }, 'Failed to list contacts');
     next(error);
@@ -53,30 +70,8 @@ export const getContactById = async (req: Request, res: Response, next: NextFunc
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid contact ID' });
     const contact = await contactRepository.findById(id);
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
-    if (contact && contact.phoneNumberEncrypted) {
-      try {
-        (contact as any).phoneNumber = encryptionService.decrypt(contact.phoneNumberEncrypted);
-      } catch (err) {
-        logger.warn(
-          { error: err, contactId: contact.id },
-          'Failed to decrypt contact phone number'
-        );
-        (contact as any).phoneNumber = null;
-      }
-    }
-    // Add maskedPhone value
-    if ((contact as any).phoneNumber) {
-      try {
-        (contact as any).maskedPhone = hashingService.maskPhoneNumber((contact as any).phoneNumber);
-      } catch {
-        (contact as any).maskedPhone = null;
-      }
-    } else {
-      (contact as any).maskedPhone = contact.phoneNumberHash
-        ? `${contact.phoneNumberHash.slice(0, 8)}...${contact.phoneNumberHash.slice(-8)}`
-        : null;
-    }
-    return res.json(contact);
+    const enriched = await enrichContactWithQuota(contact);
+    return res.json(enriched);
   } catch (error) {
     logger.error({ error }, 'Failed to get contact');
     next(error);
@@ -326,17 +321,15 @@ export const updateContactQuota = async (req: Request, res: Response, next: Next
     const contact = await contactRepository.findById(id);
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
-    const { requestQuotaRepository } = await import(
-      '../../repositories/request-quota.repository.js'
-    );
-
-    const quota = await requestQuotaRepository.upsert({
+    await requestQuotaRepository.upsert({
       phoneNumberHash: contact.phoneNumberHash,
       maxRequests,
       windowType,
     });
 
-    return res.json({ success: true, quota });
+    // Return the enriched contact so the frontend can update its cache
+    const enriched = await enrichContactWithQuota(contact);
+    return res.json(enriched);
   } catch (error) {
     logger.error({ error }, 'Failed to update contact quota');
     next(error);
@@ -352,13 +345,11 @@ export const deleteContactQuota = async (req: Request, res: Response, next: Next
     const contact = await contactRepository.findById(id);
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
-    const { requestQuotaRepository } = await import(
-      '../../repositories/request-quota.repository.js'
-    );
+    await requestQuotaRepository.delete(contact.phoneNumberHash);
 
-    const deleted = await requestQuotaRepository.delete(contact.phoneNumberHash);
-
-    return res.json({ success: true, deleted });
+    // Return the enriched contact (without quota) so the frontend can update its cache
+    const enriched = await enrichContactWithQuota(contact);
+    return res.json(enriched);
   } catch (error) {
     logger.error({ error }, 'Failed to delete contact quota');
     next(error);
