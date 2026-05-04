@@ -313,6 +313,16 @@ export class WhatsAppClientService {
             logger.info('Logout detected, not attempting automatic reconnection');
             this.isInitializing = false;
             this.sock = null;
+
+            // Clear stale session files so next init generates a fresh QR code
+            try {
+              const fs = await import('fs/promises');
+              const sessionPath = env.WHATSAPP_SESSION_PATH;
+              await fs.rm(sessionPath, { recursive: true, force: true });
+              logger.info({ sessionPath }, 'Cleared stale session files after logout');
+            } catch (err) {
+              logger.warn({ err }, 'Failed to clear session files after logout');
+            }
           } else {
             // shouldReconnect=true but no established session and not a restart request —
             // QR pairing was rejected by WhatsApp. Stop here; user must click Connect again manually.
