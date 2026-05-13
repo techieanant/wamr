@@ -40,6 +40,9 @@ export class ConversationService {
   // Store active contact names for async callbacks (sessionId -> contactName)
   private activeContactNames = new Map<string, string>();
 
+  // Session expiry: 24 hours so users can reply at their leisure
+  private readonly SESSION_EXPIRY_MINUTES = 24 * 60;
+
   /**
    * Resolve a full poster URL from a NormalizedResult
    */
@@ -81,7 +84,7 @@ export class ConversationService {
         id: generateSessionId(),
         phoneNumberHash,
         state: 'IDLE',
-        expiresAt: getExpirationTime(5),
+        expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
         contactName: contactName || undefined,
       });
       logger.info(
@@ -239,6 +242,20 @@ export class ConversationService {
       return this.handleCancel(session);
     }
 
+    // Allow starting a new search from any interactive state
+    if (
+      intent.intent === 'media_request' &&
+      currentState !== 'IDLE' &&
+      currentState !== 'PROCESSING'
+    ) {
+      logger.info(
+        { sessionId: session.id, currentState, query: intent.query },
+        '🔍 DEBUG: Starting new search from interactive state, resetting session'
+      );
+      const resetSession = await this.resetSessionForNewSearch(session);
+      return this.handleIdleState(resetSession, intent);
+    }
+
     // Handle based on current state
     switch (currentState) {
       case 'IDLE':
@@ -320,6 +337,7 @@ export class ConversationService {
       state: 'SEARCHING',
       mediaType: intent.mediaType,
       searchQuery: intent.query,
+      expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
     });
 
     // Trigger media search asynchronously
@@ -407,22 +425,6 @@ export class ConversationService {
           { sessionId, query },
           'Reply JID not found for session — search results cannot be sent to user'
         );
-        // Try to recover by sending to the session's reply JID if available
-        const session = await conversationSessionRepository.findById(sessionId);
-        if (session?.replyJid) {
-          try {
-            const { whatsappClientService } = await import(
-              '../whatsapp/whatsapp-client.service.js'
-            );
-            await whatsappClientService.sendMessage(session.replyJid, response.message);
-            logger.info({ sessionId }, 'Search results sent using session replyJid fallback');
-          } catch (sendErr) {
-            logger.error(
-              { sessionId, error: sendErr },
-              'Failed to send search results via fallback'
-            );
-          }
-        }
       }
     } catch (error) {
       logger.error({ sessionId, error }, 'Error performing media search');
@@ -431,6 +433,7 @@ export class ConversationService {
       const replyJid = this.activeReplyJids.get(sessionId);
 
       // Update session to IDLE and mark as failed
+      this.cleanupSessionMaps(sessionId);
       await conversationSessionRepository.update(sessionId, {
         state: 'IDLE',
         searchResults: [],
@@ -560,6 +563,7 @@ export class ConversationService {
                 selectedResultIndex: selectionNumber - 1,
                 selectedResult,
                 availableSeasons: regularSeasons,
+                expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
               });
 
               // Generate season selection message
@@ -623,6 +627,7 @@ export class ConversationService {
       state: 'AWAITING_CONFIRMATION',
       selectedResultIndex: selectionNumber - 1,
       selectedResult,
+      expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
     });
 
     // Generate confirmation message
@@ -745,6 +750,7 @@ export class ConversationService {
       state: 'AWAITING_CONFIRMATION',
       selectedSeasons:
         intent.seasons === 'all' ? availableSeasons.map((s) => s.seasonNumber) : intent.seasons,
+      expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
     });
 
     // Generate confirmation message
@@ -858,6 +864,7 @@ export class ConversationService {
     // Update session to PROCESSING
     await conversationSessionRepository.update(session.id, {
       state: 'PROCESSING',
+      expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
     });
 
     // Get auto-approval mode to determine the response message
@@ -894,6 +901,7 @@ export class ConversationService {
     }
 
     // Reset to IDLE
+    this.cleanupSessionMaps(session.id);
     await conversationSessionRepository.update(session.id, {
       state: 'IDLE',
       mediaType: null,
@@ -917,6 +925,7 @@ export class ConversationService {
     session: ConversationSessionModel,
     message: string
   ): Promise<ConversationResponse> {
+    this.cleanupSessionMaps(session.id);
     await conversationSessionRepository.update(session.id, {
       state: 'IDLE',
       mediaType: null,
@@ -942,6 +951,40 @@ export class ConversationService {
       state,
       sessionId: session.id,
     };
+  }
+
+  /**
+   * Clean up in-memory Maps for a session to prevent memory leaks
+   */
+  private cleanupSessionMaps(sessionId: string): void {
+    this.activeReplyJids.delete(sessionId);
+    this.activePhoneNumbers.delete(sessionId);
+    this.activeContactNames.delete(sessionId);
+  }
+
+  /**
+   * Reset an interactive session so the user can start a fresh search.
+   * Clears all selection/confirmation state from DB and memory.
+   */
+  private async resetSessionForNewSearch(
+    session: ConversationSessionModel
+  ): Promise<ConversationSessionModel> {
+    this.cleanupSessionMaps(session.id);
+
+    const updated = await conversationSessionRepository.update(session.id, {
+      state: 'IDLE',
+      mediaType: null,
+      searchQuery: null,
+      searchResults: null,
+      selectedResultIndex: null,
+      selectedResult: null,
+      availableSeasons: null,
+      selectedSeasons: null,
+      expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
+    });
+
+    logger.info({ sessionId: session.id }, 'Reset session for new search');
+    return updated || session;
   }
 
   /**
@@ -999,6 +1042,7 @@ export class ConversationService {
     await conversationSessionRepository.update(sessionId, {
       state: 'AWAITING_SELECTION',
       searchResults: results,
+      expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
     });
 
     // Format results for display
@@ -1055,6 +1099,7 @@ export class ConversationService {
 
     stateMachine.processAction(session.state, action);
 
+    this.cleanupSessionMaps(sessionId);
     await conversationSessionRepository.update(sessionId, {
       state: 'IDLE',
     });

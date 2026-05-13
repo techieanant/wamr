@@ -25,6 +25,7 @@ import { qrCodeEmitterService } from './services/whatsapp/qr-code-emitter.servic
 import { whatsappSessionService } from './services/whatsapp/whatsapp-session.service';
 import { messageHandlerService } from './services/whatsapp/message-handler.service';
 import { mediaMonitoringService } from './services/media-monitoring/media-monitoring.service';
+import { conversationSessionRepository } from './repositories/conversation-session.repository';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -179,6 +180,16 @@ async function startServer(): Promise<HttpServer> {
     // Start media monitoring service
     logger.info('Starting media monitoring service');
     mediaMonitoringService.start();
+
+    // Periodically clean up expired conversation sessions (every hour)
+    setInterval(
+      () => {
+        conversationSessionRepository.cleanupExpired().catch((error) => {
+          logger.error({ error }, 'Error cleaning up expired sessions');
+        });
+      },
+      60 * 60 * 1000
+    );
   });
 
   whatsappClientService.onDisconnected(() => {
