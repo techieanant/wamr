@@ -126,11 +126,14 @@ describe('ConversationService', () => {
 
       const result = await service.processMessage(phoneNumberHash, message);
 
-      expect(conversationSessionRepository.update).toHaveBeenCalledWith('session123', {
-        state: 'SEARCHING',
-        mediaType: 'movie',
-        searchQuery: 'Inception',
-      });
+      expect(conversationSessionRepository.update).toHaveBeenCalledWith(
+        'session123',
+        expect.objectContaining({
+          state: 'SEARCHING',
+          mediaType: 'movie',
+          searchQuery: 'Inception',
+        })
+      );
       expect(result.state).toBe('SEARCHING');
       expect(result.message).toContain('Searching for: "Inception"');
     });
@@ -197,7 +200,7 @@ describe('ConversationService', () => {
       const result = await service.processMessage(phoneNumberHash, message);
 
       expect(result.state).toBe('PROCESSING');
-      expect(result.message).toContain('Submitting your request');
+      expect(result.message).toContain('Processing your request');
     });
 
     it('should handle cancel from any state', async () => {

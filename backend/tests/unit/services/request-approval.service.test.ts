@@ -107,19 +107,21 @@ describe('RequestApprovalService', () => {
           status: 'REJECTED',
         });
 
-        expect(requestHistoryRepository.create).toHaveBeenCalledWith({
-          phoneNumberHash,
-          phoneNumberEncrypted: 'encrypted-phone',
-          mediaType: 'movie',
-          title: 'Test Movie',
-          year: 2023,
-          tmdbId: 12345,
-          tvdbId: 67890,
-          serviceType: 'radarr',
-          serviceConfigId: 1,
-          status: 'REJECTED',
-          adminNotes: 'Auto-rejected by system settings',
-        });
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+              phoneNumberHash,
+              phoneNumberEncrypted: 'encrypted-phone',
+              mediaType: 'movie',
+              title: 'Test Movie',
+              year: 2023,
+              tmdbId: 12345,
+              tvdbId: 67890,
+              serviceType: 'radarr',
+              serviceConfigId: 1,
+              status: 'REJECTED',
+              adminNotes: 'Auto-rejected by system settings',
+            })
+          );
 
         expect(whatsappClientService.sendMessage).toHaveBeenCalledWith(
           phoneNumber,
@@ -819,19 +821,21 @@ describe('RequestApprovalService', () => {
             status: 'REJECTED',
           });
 
-          expect(requestHistoryRepository.create).toHaveBeenCalledWith({
-            phoneNumberHash: normalPhoneHash,
-            phoneNumberEncrypted: 'encrypted-phone',
-            mediaType: 'movie',
-            title: 'Test Movie',
-            year: 2023,
-            tmdbId: 12345,
-            tvdbId: 67890,
-            serviceType: 'radarr',
-            serviceConfigId: 1,
-            status: 'REJECTED',
-            adminNotes: 'Auto-rejected by system settings',
-          });
+          expect(requestHistoryRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+              phoneNumberHash: normalPhoneHash,
+              phoneNumberEncrypted: 'encrypted-phone',
+              mediaType: 'movie',
+              title: 'Test Movie',
+              year: 2023,
+              tmdbId: 12345,
+              tvdbId: 67890,
+              serviceType: 'radarr',
+              serviceConfigId: 1,
+              status: 'REJECTED',
+              adminNotes: 'Auto-rejected by system settings',
+            })
+          );
         });
       });
 

@@ -25,6 +25,7 @@ describe('WhatsAppClientService.sendImage', () => {
     expect(mockSendMessage).toHaveBeenCalledWith('1234567890@s.whatsapp.net', {
       image: buffer,
       caption: 'Test caption',
+      viewOnce: false,
     });
   });
 

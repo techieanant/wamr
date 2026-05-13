@@ -1,5 +1,6 @@
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { mkdirSync } from 'fs';
 import dotenv from 'dotenv';
 
 // Load environment variables from root .env first
@@ -15,6 +16,14 @@ import * as schema from './schema';
 import { logger } from '../config/logger';
 
 const DATABASE_PATH = process.env.DATABASE_PATH || './data/wamr.db';
+
+// Ensure the directory for the database exists
+const dbDir = dirname(DATABASE_PATH);
+try {
+  mkdirSync(dbDir, { recursive: true });
+} catch {
+  // Ignore errors (e.g. if path is just a filename with no directory)
+}
 
 // Create database connection
 const sqlite = new Database(DATABASE_PATH);
