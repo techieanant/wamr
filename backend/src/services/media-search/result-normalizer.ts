@@ -18,8 +18,9 @@ import {
   normalizeSonarrResult,
   normalizeOverseerrResult,
   deduplicateResults,
-  sortResultsByYear,
+  rankResults,
   limitResults,
+  type SortMode,
 } from '../../types/media-result.types';
 
 /**
@@ -153,11 +154,17 @@ class ResultNormalizerService {
    * Process and deduplicate search results from multiple sources
    * Returns up to maxResults unique results, sorted by year (most recent first)
    */
-  processResults(results: NormalizedResult[], maxResults: number = 5): NormalizedResult[] {
+  processResults(
+    results: NormalizedResult[],
+    maxResults: number = 5,
+    query: string = '',
+    sortMode: SortMode = 'relevance'
+  ): NormalizedResult[] {
     try {
       logger.debug('Processing search results', {
         inputCount: results.length,
         maxResults,
+        sortMode,
       });
 
       // Step 1: Deduplicate results
@@ -168,8 +175,8 @@ class ResultNormalizerService {
         removed: results.length - deduplicated.length,
       });
 
-      // Step 2: Sort by year (most recent first)
-      const sorted = sortResultsByYear(deduplicated);
+      // Step 2: Rank / sort results
+      const sorted = rankResults(deduplicated, query, sortMode);
 
       // Step 3: Limit to max results
       const limited = limitResults(sorted, maxResults);
@@ -193,7 +200,9 @@ class ResultNormalizerService {
     radarrResults: RadarrMovieResult[] = [],
     sonarrResults: SonarrSeriesResult[] = [],
     overseerrResults: OverseerrSearchResult[] = [],
-    maxResults: number = 5
+    maxResults: number = 5,
+    query: string = '',
+    sortMode: SortMode = 'relevance'
   ): NormalizedResult[] {
     try {
       logger.debug('Combining results from multiple sources', {
@@ -214,8 +223,8 @@ class ResultNormalizerService {
         total: combined.length,
       });
 
-      // Process combined results (deduplicate, sort, limit)
-      return this.processResults(combined, maxResults);
+      // Process combined results (deduplicate, rank, limit)
+      return this.processResults(combined, maxResults, query, sortMode);
     } catch (error) {
       logger.error('Error combining and processing results', { error });
       return [];

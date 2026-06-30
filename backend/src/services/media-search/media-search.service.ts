@@ -6,7 +6,7 @@
  */
 
 import { logger } from '../../config/logger';
-import type { MediaType, NormalizedResult } from '../../types/media-result.types';
+import type { MediaType, NormalizedResult, SortMode } from '../../types/media-result.types';
 import { mediaServiceConfigRepository } from '../../repositories/media-service-config.repository';
 import { encryptionService } from '../encryption/encryption.service';
 import { RadarrClient } from '../integrations/radarr.client';
@@ -14,6 +14,7 @@ import { SonarrClient } from '../integrations/sonarr.client';
 import { OverseerrClient } from '../integrations/overseerr.client';
 import { resultNormalizerService } from './result-normalizer';
 import { cacheService, type CacheStats } from './cache.service';
+import { settingRepository } from '../../repositories/setting.repository';
 
 /**
  * Search result with service information
@@ -102,6 +103,10 @@ class MediaSearchService {
       });
     }
 
+    // Read sort mode from settings (default to 'relevance')
+    const sortModeSetting = await settingRepository.findByKey('search.sortMode');
+    const sortMode: SortMode = sortModeSetting?.value === 'year-desc' ? 'year-desc' : 'relevance';
+
     // Get maxResults from service configs (use the maximum across all enabled services)
     const allConfigs = await mediaServiceConfigRepository.findAll();
     const enabledConfigs = allConfigs.filter((c) => c.enabled);
@@ -162,7 +167,9 @@ class MediaSearchService {
       radarrResults,
       sonarrResults,
       overseerrResults,
-      maxResults // Use dynamic limit from service config
+      maxResults, // Use dynamic limit from service config
+      query,
+      sortMode
     );
 
     // Cache results for 5 minutes

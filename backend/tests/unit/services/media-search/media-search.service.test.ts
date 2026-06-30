@@ -353,7 +353,9 @@ describe('MediaSearchService', () => {
         [],
         [{ title: 'Test Series', year: 2020 }],
         [],
-        10 // Should use the maximum maxResults
+        10, // Should use the maximum maxResults
+        'test query',
+        'relevance'
       );
     });
 
@@ -417,7 +419,9 @@ describe('MediaSearchService', () => {
         [{ title: 'Radarr Movie', year: 2020 }],
         [],
         [],
-        10
+        10,
+        'test query',
+        'relevance'
       );
     });
   });

@@ -43,6 +43,7 @@ import {
   Send,
   Image as ImageIcon,
   Gauge,
+  Search as SearchIcon,
 } from 'lucide-react';
 import { useTheme } from '../hooks/use-theme';
 import { apiClient } from '../services/api.client';
@@ -123,6 +124,10 @@ export default function SettingsPage() {
   >('daily');
   const [quotaCountFailedRequests, setQuotaCountFailedRequests] = useState(false);
 
+  // Search settings state
+  const [searchSortMode, setSearchSortMode] = useState<string>('relevance');
+  const [isSavingSearchSort, setIsSavingSearchSort] = useState(false);
+
   // Fetch settings from backend on mount
   useEffect(() => {
     const fetchSettings = async () => {
@@ -191,6 +196,14 @@ export default function SettingsPage() {
           setQuotaCountFailedRequests(Boolean(settings['quotaCountFailedRequests']));
         } else {
           await apiClient.put('/api/settings/quotaCountFailedRequests', { value: false });
+        }
+
+        // Load search sort mode
+        if (settings['search.sortMode'] !== undefined) {
+          const mode = settings['search.sortMode'] as string;
+          if (mode === 'year-desc' || mode === 'relevance') {
+            setSearchSortMode(mode);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch settings:', error);
@@ -327,6 +340,23 @@ export default function SettingsPage() {
     };
     syncCountFailed();
   }, [quotaCountFailedRequests]);
+
+  const handleSearchSortModeChange = async (value: string) => {
+    setIsSavingSearchSort(true);
+    try {
+      await apiClient.put('/api/settings/search.sortMode', { value });
+      setSearchSortMode(value);
+      toast({ title: 'Search settings saved', description: 'Sort mode updated.' });
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to save search settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingSearchSort(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -1121,6 +1151,38 @@ export default function SettingsPage() {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Search Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <SearchIcon className="h-5 w-5" />
+            Search Settings
+          </CardTitle>
+          <CardDescription>Configure how search results are ranked and displayed.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="search-sort-mode">Search Result Sorting</Label>
+            <Select
+              value={searchSortMode}
+              onValueChange={handleSearchSortModeChange}
+              disabled={isSavingSearchSort}
+            >
+              <SelectTrigger id="search-sort-mode" className="w-full max-w-xs">
+                <SelectValue placeholder="Select sort mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="relevance">Smart Relevance (Recommended)</SelectItem>
+                <SelectItem value="year-desc">Newest First</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Smart Relevance prioritizes exact title and year matches over newer partial results.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

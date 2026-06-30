@@ -212,6 +212,144 @@ export function sortResultsByYear(results: NormalizedResult[]): NormalizedResult
 }
 
 /**
+ * Sort mode for search results
+ */
+export type SortMode = 'relevance' | 'year-desc';
+
+/**
+ * Extract a 4-digit year hint (1900–2099) from the end of a query string.
+ * Returns { cleanQuery, yearHint } where cleanQuery has the year stripped.
+ */
+export function extractYearHint(query: string): { cleanQuery: string; yearHint: number | null } {
+  const match = query.trim().match(/^(.*?)\s*((?:19|20)\d{2})\s*$/);
+  if (match) {
+    return {
+      cleanQuery: match[1].trim().toLowerCase(),
+      yearHint: parseInt(match[2], 10),
+    };
+  }
+  return { cleanQuery: query.trim().toLowerCase(), yearHint: null };
+}
+
+/**
+ * Generate character trigrams from a string (padded with spaces).
+ * Used for fuzzy title matching.
+ */
+export function getTrigrams(str: string): Set<string> {
+  const padded = ` ${str.toLowerCase()} `;
+  const trigrams = new Set<string>();
+  for (let i = 0; i < padded.length - 2; i++) {
+    trigrams.add(padded.slice(i, i + 3));
+  }
+  return trigrams;
+}
+
+/**
+ * Score word overlap between query words and a normalized title.
+ * A query word "matches" if any title word starts with that query word.
+ * Returns a value in [0, 1].
+ */
+export function wordOverlapScore(queryWords: string[], titleNorm: string): number {
+  if (queryWords.length === 0) return 0;
+  const titleWords = titleNorm.split(/\s+/);
+  let matches = 0;
+  for (const qw of queryWords) {
+    if (titleWords.some((tw) => tw.startsWith(qw))) matches++;
+  }
+  return matches / queryWords.length;
+}
+
+/**
+ * Score trigram similarity between a normalized query and a normalized title.
+ * Returns a value in [0, 1].
+ */
+export function trigramSimilarityScore(queryNorm: string, titleNorm: string): number {
+  const queryTrigrams = getTrigrams(queryNorm);
+  if (queryTrigrams.size === 0) return 0;
+  const titleTrigrams = getTrigrams(titleNorm);
+  let shared = 0;
+  for (const t of queryTrigrams) {
+    if (titleTrigrams.has(t)) shared++;
+  }
+  return shared / queryTrigrams.size;
+}
+
+/**
+ * Compute a relevance score for a single result against a parsed query.
+ *
+ * Scoring tiers:
+ *  +100 exact title match
+ *  +60  title starts with full query
+ *  0–50 word overlap (prefix matching)
+ *  0–30 trigram similarity (handles typos)
+ *  +20  year hint exact match
+ *  +10  year hint within ±1
+ *  0–10 title brevity bonus (shorter titles that still match score slightly higher)
+ */
+export function computeRelevanceScore(
+  result: NormalizedResult,
+  cleanQuery: string,
+  queryWords: string[],
+  yearHint: number | null
+): number {
+  const titleNorm = result.title.toLowerCase().trim();
+  let score = 0;
+
+  if (titleNorm === cleanQuery) {
+    score += 100;
+  } else if (titleNorm.startsWith(cleanQuery)) {
+    score += 60;
+  }
+
+  score += wordOverlapScore(queryWords, titleNorm) * 50;
+  score += trigramSimilarityScore(cleanQuery, titleNorm) * 30;
+
+  if (yearHint !== null && result.year !== null) {
+    if (result.year === yearHint) {
+      score += 20;
+    } else if (Math.abs(result.year - yearHint) === 1) {
+      score += 10;
+    }
+  }
+
+  // Brevity bonus: shorter titles score higher when query words match well.
+  // This helps "Interstellar" beat "Interstellar Interference" for query "interst".
+  // Max +10, proportional to how close the title length is to the query length.
+  if (titleNorm.length > 0 && cleanQuery.length > 0) {
+    const lengthRatio =
+      Math.min(cleanQuery.length, titleNorm.length) / Math.max(cleanQuery.length, titleNorm.length);
+    score += lengthRatio * 10;
+  }
+
+  return score;
+}
+
+/**
+ * Rank results by relevance score descending, with year as tie-break.
+ * Falls back to year-desc sort when mode is 'year-desc'.
+ */
+export function rankResults(
+  results: NormalizedResult[],
+  query: string,
+  mode: SortMode
+): NormalizedResult[] {
+  if (mode === 'year-desc') {
+    return sortResultsByYear(results);
+  }
+
+  const { cleanQuery, yearHint } = extractYearHint(query);
+  const queryWords = cleanQuery.split(/\s+/).filter((w) => w.length > 0);
+
+  return [...results].sort((a, b) => {
+    const scoreA = computeRelevanceScore(a, cleanQuery, queryWords, yearHint);
+    const scoreB = computeRelevanceScore(b, cleanQuery, queryWords, yearHint);
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    // Tie-break: newer first
+    return (b.year || 0) - (a.year || 0);
+  });
+}
+
+/**
  * Helper to limit results to maximum count
  */
 export function limitResults(
