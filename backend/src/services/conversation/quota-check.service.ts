@@ -100,4 +100,17 @@ export class QuotaCheckService {
   }
 }
 
+export function formatQuotaWindow(windowType: QuotaWindowType): string {
+  switch (windowType) {
+    case 'daily':
+      return 'today';
+    case 'weekly':
+      return 'this week';
+    case 'monthly':
+      return 'this month';
+    default:
+      return windowType;
+  }
+}
+
 export const quotaCheckService = new QuotaCheckService();

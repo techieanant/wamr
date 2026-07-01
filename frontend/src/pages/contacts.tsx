@@ -559,7 +559,9 @@ export default function ContactsPage() {
               return (
                 <div className="space-y-1 rounded-md bg-muted px-3 py-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Used this {windowType}</span>
+                    <span className="text-muted-foreground">
+                      Used {formatUsagePeriod(windowType)}
+                    </span>
                     <span className="font-medium">
                       {used} / {max === Infinity ? '∞' : max}
                     </span>
@@ -681,6 +683,19 @@ function formatWindow(windowType: string) {
       return 'week';
     case 'monthly':
       return 'month';
+    default:
+      return windowType;
+  }
+}
+
+function formatUsagePeriod(windowType: string) {
+  switch (windowType) {
+    case 'daily':
+      return 'today';
+    case 'weekly':
+      return 'this week';
+    case 'monthly':
+      return 'this month';
     default:
       return windowType;
   }

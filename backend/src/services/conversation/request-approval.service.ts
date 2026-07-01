@@ -10,7 +10,7 @@ import { encryptionService } from '../encryption/encryption.service.js';
 import { whatsappClientService } from '../whatsapp/whatsapp-client.service.js';
 import { webSocketService, SocketEvents } from '../websocket/websocket.service.js';
 import { adminNotificationService } from '../notifications/admin-notification.service.js';
-import { quotaCheckService } from './quota-check.service.js';
+import { quotaCheckService, formatQuotaWindow } from './quota-check.service.js';
 import { OverseerrClient } from '../integrations/overseerr.client.js';
 import { RadarrClient } from '../integrations/radarr.client.js';
 import { SonarrClient } from '../integrations/sonarr.client.js';
@@ -115,7 +115,7 @@ export class RequestApprovalService {
             quotaCheck.max === 0
               ? `❌ Requests are not allowed for your account.\n\nPlease contact the administrator.`
               : `❌ Request limit reached\n\n` +
-                `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
+                `You've used ${quotaCheck.used}/${quotaCheck.max} requests ${formatQuotaWindow(quotaCheck.windowType)}.\n` +
                 `Your quota resets ${quotaCheck.resetTime}.\n\n` +
                 `Try again then!`;
           logger.info(
