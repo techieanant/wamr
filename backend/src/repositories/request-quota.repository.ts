@@ -69,7 +69,6 @@ export class RequestQuotaRepository {
 
   /**
    * Reset a contact's usage by deleting their request history entries in the current window.
-   * Also resets the currentRequests counter to 0.
    * Returns the number of records deleted.
    */
   async resetUsageInWindow(phoneNumberHash: string, windowType: QuotaWindowType): Promise<number> {
@@ -82,56 +81,11 @@ export class RequestQuotaRepository {
           gte(requestHistory.createdAt, windowStart.toISOString())
         )
       );
-
-    // Also reset the currentRequests counter to 0
-    await db
-      .update(requestQuotas)
-      .set({
-        currentRequests: 0,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(requestQuotas.phoneNumberHash, phoneNumberHash));
-
     logger.info(
       { phoneHash: phoneNumberHash.slice(-8), windowType, deleted: result.changes },
       'Reset quota usage'
     );
     return result.changes ?? 0;
-  }
-
-  /**
-   * Reset a contact's quota counter without deleting their request history.
-   * Recalculates currentRequests based on existing requestHistory in the current window.
-   * Returns the new currentRequests count.
-   */
-  async resetCounterOnly(phoneNumberHash: string, windowType: QuotaWindowType): Promise<number> {
-    const windowStart = this.getWindowStart(windowType);
-    const statuses = sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING', 'REJECTED')`;
-    const countResult = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(requestHistory)
-      .where(
-        and(
-          eq(requestHistory.phoneNumberHash, phoneNumberHash),
-          gte(requestHistory.createdAt, windowStart.toISOString()),
-          statuses
-        )
-      );
-    const newCount = countResult[0]?.count || 0;
-
-    await db
-      .update(requestQuotas)
-      .set({
-        currentRequests: newCount,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(requestQuotas.phoneNumberHash, phoneNumberHash));
-
-    logger.info(
-      { phoneHash: phoneNumberHash.slice(-8), windowType, newCount },
-      'Reset quota counter (preserving history)'
-    );
-    return newCount;
   }
 
   async countRequestsInWindow(

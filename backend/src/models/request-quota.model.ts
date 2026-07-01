@@ -10,7 +10,6 @@ export interface RequestQuotaModel {
   phoneNumberHash: string;
   maxRequests: number;
   windowType: QuotaWindowType;
-  currentRequests: number;
   createdAt: string;
   updatedAt: string;
 }

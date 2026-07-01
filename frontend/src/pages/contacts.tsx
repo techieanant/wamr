@@ -615,7 +615,7 @@ export default function ContactsPage() {
                     onSuccess: () => {
                       toast({
                         title: 'Usage Reset',
-                        description: 'Request usage cleared for this contact.',
+                        description: 'Request history cleared and quota counter reset to 0.',
                       });
                     },
                     onError: (error: Error) => {
