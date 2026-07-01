@@ -7,6 +7,7 @@ import {
   deleteContact,
   updateContactQuota,
   deleteContactQuota,
+  resetContactQuotaUsage,
 } from '../services/contacts.client';
 import { useSocket } from './use-socket';
 import type { Contact, ContactsResponse } from '../types/contact.types';
@@ -179,6 +180,20 @@ export function useContacts() {
     },
   });
 
+  const resetQuotaMutation = useMutation<Contact, Error, number>({
+    mutationFn: (id: number) => resetContactQuotaUsage(id),
+    onSuccess: (data: Contact) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.setQueriesData<ContactsResponse>({ queryKey: ['contacts'] }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          contacts: old.contacts.map((c) => (c.id === data.id ? data : c)),
+        };
+      });
+    },
+  });
+
   // Listen for contact update events to refresh contact list and update cached requests
   useEffect(() => {
     if (!socketConnected) return undefined;
@@ -233,10 +248,12 @@ export function useContacts() {
     deleteContact: deleteMutation.mutate,
     updateQuota: updateQuotaMutation.mutate,
     deleteQuota: deleteQuotaMutation.mutate,
+    resetQuota: resetQuotaMutation.mutate,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isUpdatingQuota: updateQuotaMutation.isPending,
     isDeletingQuota: deleteQuotaMutation.isPending,
+    isResettingQuota: resetQuotaMutation.isPending,
   };
 }

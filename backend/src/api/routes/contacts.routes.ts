@@ -8,6 +8,7 @@ import {
   deleteContact,
   updateContactQuota,
   deleteContactQuota,
+  resetContactQuotaUsage,
 } from '../controllers/contacts.controller.js';
 
 const router = Router();
@@ -21,5 +22,6 @@ router.patch('/:id', updateContact);
 router.delete('/:id', deleteContact);
 router.put('/:id/quota', updateContactQuota);
 router.delete('/:id/quota', deleteContactQuota);
+router.post('/:id/quota/reset', resetContactQuotaUsage);
 
 export default router;

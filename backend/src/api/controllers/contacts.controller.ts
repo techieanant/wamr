@@ -2,11 +2,14 @@ import type { Request, Response, NextFunction } from 'express';
 import { contactRepository } from '../../repositories/contact.repository.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
 import { requestQuotaRepository } from '../../repositories/request-quota.repository.js';
+import { settingRepository } from '../../repositories/setting.repository.js';
+import { quotaCheckService } from '../../services/conversation/quota-check.service.js';
 import { webSocketService, SocketEvents } from '../../services/websocket/websocket.service.js';
 import { hashingService } from '../../services/encryption/hashing.service.js';
 import { encryptionService } from '../../services/encryption/encryption.service.js';
 import { logger } from '../../config/logger.js';
 import type { ContactModel } from '../../models/contact.model.js';
+import type { QuotaWindowType } from '../../models/request-quota.model.js';
 
 /**
  * Enrich a contact with its quota override (if any) and usage stats
@@ -39,13 +42,33 @@ async function enrichContactWithQuota(contact: ContactModel): Promise<any> {
       : null;
   }
 
-  // Fetch quota override
+  // Fetch quota override + live usage stats
   const quota = await requestQuotaRepository.findByPhoneHash(contact.phoneNumberHash);
+
+  // Determine effective window (per-contact override or global default)
+  const globalWindowSetting = await settingRepository.findByKey('quotaGlobalWindowType');
+  const globalMaxSetting = await settingRepository.findByKey('quotaGlobalMaxRequests');
+  const effectiveWindow = (quota?.windowType ??
+    globalWindowSetting?.value ??
+    'daily') as QuotaWindowType;
+  const effectiveMax = quota?.maxRequests ?? (globalMaxSetting?.value as number) ?? 5;
+
+  const used = await requestQuotaRepository.countRequestsInWindow(
+    contact.phoneNumberHash,
+    effectiveWindow
+  );
+  const resetTime = quotaCheckService.getResetTime(effectiveWindow);
+
   if (quota) {
     enriched.quota = {
       maxRequests: quota.maxRequests,
       windowType: quota.windowType,
+      used,
+      resetTime,
     };
+  } else {
+    // No override — still expose usage stats so the UI can show them
+    enriched.quotaUsage = { used, max: effectiveMax, windowType: effectiveWindow, resetTime };
   }
 
   return enriched;
@@ -352,6 +375,40 @@ export const deleteContactQuota = async (req: Request, res: Response, next: Next
     return res.json(enriched);
   } catch (error) {
     logger.error({ error }, 'Failed to delete contact quota');
+    next(error);
+    return;
+  }
+};
+
+/**
+ * POST /:id/quota/reset — Manually reset a contact's request usage for the current window
+ */
+export const resetContactQuotaUsage = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid contact ID' });
+
+    const contact = await contactRepository.findById(id);
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+    // Determine window to reset (per-contact override or global default)
+    const quota = await requestQuotaRepository.findByPhoneHash(contact.phoneNumberHash);
+    const globalWindowSetting = await settingRepository.findByKey('quotaGlobalWindowType');
+    const windowType = (quota?.windowType ??
+      globalWindowSetting?.value ??
+      'daily') as QuotaWindowType;
+
+    const deleted = await requestQuotaRepository.resetUsageInWindow(
+      contact.phoneNumberHash,
+      windowType
+    );
+
+    logger.info({ contactId: id, windowType, deleted }, 'Quota usage reset by admin');
+
+    const enriched = await enrichContactWithQuota(contact);
+    return res.json({ ...enriched, resetCount: deleted });
+  } catch (error) {
+    logger.error({ error }, 'Failed to reset contact quota usage');
     next(error);
     return;
   }

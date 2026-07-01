@@ -51,8 +51,10 @@ export default function ContactsPage() {
     createContact,
     updateQuota,
     deleteQuota,
+    resetQuota,
     isDeleting,
     isUpdatingQuota,
+    isResettingQuota,
   } = useContacts();
   const { toast } = useToast();
   const [newPhone, setNewPhone] = useState('');
@@ -545,6 +547,32 @@ export default function ContactsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Live usage stats */}
+            {(() => {
+              const contact = contacts.find((c) => c.id === quotaContact);
+              const used = contact?.quota?.used ?? contact?.quotaUsage?.used ?? 0;
+              const max =
+                contact?.quota?.maxRequests ?? contact?.quotaUsage?.max ?? globalMaxRequests;
+              const resetTime = contact?.quota?.resetTime ?? contact?.quotaUsage?.resetTime ?? '';
+              const windowType =
+                contact?.quota?.windowType ?? contact?.quotaUsage?.windowType ?? globalWindowType;
+              return (
+                <div className="space-y-1 rounded-md bg-muted px-3 py-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Used this {windowType}</span>
+                    <span className="font-medium">
+                      {used} / {max === Infinity ? '∞' : max}
+                    </span>
+                  </div>
+                  {resetTime && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Resets</span>
+                      <span className="font-medium">{resetTime}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <Label htmlFor="quota-max">Max Requests</Label>
               <Input
@@ -579,6 +607,39 @@ export default function ContactsPage() {
             </div>
           </div>
           <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (quotaContact) {
+                  resetQuota(quotaContact, {
+                    onSuccess: () => {
+                      toast({
+                        title: 'Usage Reset',
+                        description: 'Request usage cleared for this contact.',
+                      });
+                    },
+                    onError: (error: Error) => {
+                      toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: error.message || 'Failed to reset usage.',
+                      });
+                    },
+                  });
+                }
+              }}
+              disabled={isResettingQuota || isUpdatingQuota}
+              className="mr-auto"
+            >
+              {isResettingQuota ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                'Reset Usage'
+              )}
+            </Button>
             <Button
               variant="outline"
               onClick={() => setQuotaDialogOpen(false)}

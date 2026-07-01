@@ -38,3 +38,7 @@ export async function updateContactQuota(
 export async function deleteContactQuota(id: number): Promise<Contact> {
   return apiClient.delete(`/api/contacts/${id}/quota`);
 }
+
+export async function resetContactQuotaUsage(id: number): Promise<Contact> {
+  return apiClient.post(`/api/contacts/${id}/quota/reset`, {});
+}

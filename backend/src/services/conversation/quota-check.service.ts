@@ -67,6 +67,13 @@ export class QuotaCheckService {
   }
 
   /**
+   * Format a human-readable reset time description (public for use by other services)
+   */
+  getResetTime(windowType: QuotaWindowType): string {
+    return this.formatResetTime(windowType);
+  }
+
+  /**
    * Format a human-readable reset time description
    */
   private formatResetTime(windowType: QuotaWindowType): string {

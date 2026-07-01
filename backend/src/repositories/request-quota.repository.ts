@@ -67,6 +67,27 @@ export class RequestQuotaRepository {
     return result.changes > 0;
   }
 
+  /**
+   * Reset a contact's usage by deleting their request history entries in the current window.
+   * Returns the number of records deleted.
+   */
+  async resetUsageInWindow(phoneNumberHash: string, windowType: QuotaWindowType): Promise<number> {
+    const windowStart = this.getWindowStart(windowType);
+    const result = await db
+      .delete(requestHistory)
+      .where(
+        and(
+          eq(requestHistory.phoneNumberHash, phoneNumberHash),
+          gte(requestHistory.createdAt, windowStart.toISOString())
+        )
+      );
+    logger.info(
+      { phoneHash: phoneNumberHash.slice(-8), windowType, deleted: result.changes },
+      'Reset quota usage'
+    );
+    return result.changes ?? 0;
+  }
+
   async countRequestsInWindow(
     phoneNumberHash: string,
     windowType: QuotaWindowType,
@@ -74,8 +95,8 @@ export class RequestQuotaRepository {
   ): Promise<number> {
     const windowStart = this.getWindowStart(windowType);
     const statuses = countFailed
-      ? sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING', 'FAILED')`
-      : sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING')`;
+      ? sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING', 'FAILED', 'REJECTED')`
+      : sql`${requestHistory.status} IN ('SUBMITTED', 'PENDING', 'REJECTED')`;
     const countResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(requestHistory)

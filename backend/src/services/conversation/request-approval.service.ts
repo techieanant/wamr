@@ -112,10 +112,12 @@ export class RequestApprovalService {
 
         if (sendTarget) {
           const message =
-            `❌ Request limit reached\n\n` +
-            `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
-            `Your quota resets ${quotaCheck.resetTime}.\n\n` +
-            `Try again then!`;
+            quotaCheck.max === 0
+              ? `❌ Requests are not allowed for your account.\n\nPlease contact the administrator.`
+              : `❌ Request limit reached\n\n` +
+                `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
+                `Your quota resets ${quotaCheck.resetTime}.\n\n` +
+                `Try again then!`;
           logger.info(
             { sendTarget: sendTarget.slice(-12), messageLen: message.length },
             'Quota rejection - sending message'

@@ -857,6 +857,21 @@ export class ConversationService {
       return this.handleCancel(session);
     }
 
+    // Pre-check quota before transitioning to PROCESSING — avoids sending ⏳ then a
+    // rejection 8ms later (two rapid sends to the same @lid JID causes the second to drop).
+    const { quotaCheckService } = await import('./quota-check.service.js');
+    const quotaCheck = await quotaCheckService.checkQuota(session.phoneNumberHash);
+    if (!quotaCheck.allowed) {
+      const msg =
+        quotaCheck.max === 0
+          ? `❌ Requests are not allowed for your account.\n\nPlease contact the administrator.`
+          : `❌ Request limit reached\n\n` +
+            `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
+            `Your quota resets ${quotaCheck.resetTime}.\n\n` +
+            `Try again then!`;
+      return this.createResponse(session, msg, 'AWAITING_CONFIRMATION');
+    }
+
     // User confirmed - transition to PROCESSING
     const action: StateMachineAction = { type: 'CONFIRM' };
     const transitionResult = stateMachine.processAction(session.state, action);
