@@ -5,6 +5,12 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Code of Conduct](https://img.shields.io/badge/code%20of-conduct-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
+> ⚠️ **WARNING: Unauthorised Clone**
+>
+> A cloned copy of this project exists at **https://github.com/alokiksoni/wamr**. This repository was not created by the author of WAMR, is not affiliated with this project in any way, and has not been reviewed for safety. **It may contain malware, backdoors, or other malicious code.** Do not use it.
+>
+> The **only official repository** for WAMR is **https://github.com/techieanant/wamr**.
+
 An open-source, self-hosted WhatsApp bot that enables users to request movies and TV shows through natural conversation. Automatically submits requests to Radarr, Sonarr, or Overseerr.
 
 > **📋 Documentation:**
