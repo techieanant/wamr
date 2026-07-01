@@ -59,8 +59,8 @@ interface RadarrRootFolder {
 export class RadarrClient {
   private client: AxiosInstance;
 
-  constructor(baseUrl: string, apiKey: string) {
-    this.client = BaseServiceClient.createClient(baseUrl, apiKey);
+  constructor(baseUrl: string, apiKey: string, allowInsecure = false) {
+    this.client = BaseServiceClient.createClient(baseUrl, apiKey, allowInsecure);
   }
 
   /**

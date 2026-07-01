@@ -1,7 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { queryClient } from './lib/query-client';
 import { useAuth } from './hooks/use-auth';
 import { useSetup } from './hooks/use-setup';
 import { useNotifications } from './hooks/use-notifications';
@@ -103,7 +100,7 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <BrowserRouter>
         <Routes>
           {/* Setup route - always render, handles redirect internally */}
@@ -209,12 +206,9 @@ function App() {
         </Routes>
       </BrowserRouter>
 
-      {/* React Query Devtools (only in development) */}
-      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
-
       {/* Toast notifications */}
       <Toaster />
-    </QueryClientProvider>
+    </>
   );
 }
 

@@ -40,7 +40,7 @@ describe('RadarrClient', () => {
 
   describe('constructor', () => {
     it('should create client with correct base URL and API key', () => {
-      expect(BaseServiceClient.createClient).toHaveBeenCalledWith(baseUrl, apiKey);
+      expect(BaseServiceClient.createClient).toHaveBeenCalledWith(baseUrl, apiKey, false);
     });
   });
 

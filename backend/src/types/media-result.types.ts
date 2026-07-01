@@ -32,6 +32,10 @@ export interface NormalizedResult {
 
   // Source information (for debugging/logging)
   source?: ServiceType;
+
+  // Overseerr media status (1=unknown,2=pending,3=processing,4=partial,5=available)
+  // undefined means Overseerr has no record of this media (safe to request)
+  mediaStatus?: number;
 }
 
 /**
@@ -82,6 +86,11 @@ export interface OverseerrSearchResult {
     tvdbId?: number;
   };
   numberOfSeasons?: number; // For TV series
+  // Populated by Overseerr when the media is known to the system
+  // status: 1=unknown, 2=pending, 3=processing, 4=partially_available, 5=available
+  mediaInfo?: {
+    status: number;
+  };
 }
 
 /**
@@ -162,6 +171,9 @@ export function normalizeOverseerrResult(
     mediaType,
     seasonCount: result.numberOfSeasons,
     source,
+    // Carry Overseerr's media status so the conversation layer can block duplicate requests.
+    // undefined = Overseerr has no record → safe to request.
+    mediaStatus: result.mediaInfo?.status,
   };
 }
 

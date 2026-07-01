@@ -340,22 +340,30 @@ export class ConversationService {
       expiresAt: getExpirationTime(this.SESSION_EXPIRY_MINUTES),
     });
 
-    // Trigger media search asynchronously
-    logger.info(
-      { sessionId: session.id, mediaType: intent.mediaType, query: intent.query },
-      'Started media search'
-    );
+    // Trigger media search asynchronously — but first send the "searching" ack
+    // directly here so it's guaranteed to be dispatched before search results arrive.
+    // (The caller also returns this message and sends it, but race conditions between
+    // fast cached searches and WhatsApp message delivery mean results can arrive first.)
+    const replyJid = this.activeReplyJids.get(session.id);
+    if (replyJid) {
+      try {
+        const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+        await whatsappClientService.sendMessage(
+          replyJid,
+          `🔍 Searching for: "${intent.query}"...\n\nPlease wait...`
+        );
+      } catch (sendErr) {
+        logger.warn({ sessionId: session.id, error: sendErr }, 'Failed to send search ack');
+      }
+    }
 
-    // Perform search in background and handle completion
+    // Perform search in background — results sent directly to user from performSearch()
     this.performSearch(session.id, intent.mediaType, intent.query).catch((error) => {
       logger.error({ sessionId: session.id, error }, 'Media search failed');
     });
 
-    return this.createResponse(
-      session,
-      `🔍 Searching for: "${intent.query}"...\n\nPlease wait...`,
-      'SEARCHING'
-    );
+    // Return empty message — the ack was already sent above, don't double-send
+    return this.createResponse(session, '', 'SEARCHING');
   }
 
   /**
@@ -387,25 +395,12 @@ export class ConversationService {
       const response = await this.handleSearchComplete(sessionId, searchResult.results);
 
       if (!response) {
-        logger.error(
-          { sessionId, query, resultCount: searchResult.results.length },
-          'handleSearchComplete returned null — search results cannot be sent to user'
+        // null means the session was no longer in SEARCHING state — most likely the user
+        // cancelled mid-search. Silently discard; no error message needed.
+        logger.info(
+          { sessionId, query },
+          'handleSearchComplete returned null — session was cancelled or state changed, discarding results'
         );
-        // Notify user that something went wrong
-        const replyJid = this.activeReplyJids.get(sessionId);
-        if (replyJid) {
-          try {
-            const { whatsappClientService } = await import(
-              '../whatsapp/whatsapp-client.service.js'
-            );
-            await whatsappClientService.sendMessage(
-              replyJid,
-              '❌ Search completed but results could not be displayed. Please try again.'
-            );
-          } catch (sendErr) {
-            logger.error({ sessionId, error: sendErr }, 'Failed to send search error message');
-          }
-        }
         return;
       }
 
@@ -489,6 +484,23 @@ export class ConversationService {
 
     // Get selected result (convert to 0-indexed)
     const selectedResult = results[selectionNumber - 1];
+
+    // Block requests for media that Overseerr already knows about (status >= 2).
+    // 2=pending, 3=processing, 4=partially_available, 5=available
+    if (selectedResult.mediaStatus !== undefined && selectedResult.mediaStatus >= 2) {
+      const emoji = selectedResult.mediaType === 'movie' ? '🎬' : '📺';
+      const yearStr = selectedResult.year ? ` (${selectedResult.year})` : '';
+      const statusMessages: Record<number, string> = {
+        2: `⏳ *${selectedResult.title}${yearStr}* has already been requested and is pending approval.`,
+        3: `⚙️ *${selectedResult.title}${yearStr}* is already being processed/downloaded.`,
+        4: `✅ *${selectedResult.title}${yearStr}* is partially available — some content can already be watched!`,
+        5: `✅ *${selectedResult.title}${yearStr}* is already available in the library. You can watch it now!`,
+      };
+      const msg =
+        statusMessages[selectedResult.mediaStatus] ??
+        `ℹ️ ${emoji} *${selectedResult.title}${yearStr}* is already in the system.`;
+      return this.createResponse(session, msg, 'AWAITING_SELECTION');
+    }
 
     // Check if this is a TV series - if so, fetch season details and ask for season selection
     if (selectedResult.mediaType === 'series' && selectedResult.tmdbId) {
@@ -965,11 +977,15 @@ export class ConversationService {
   /**
    * Reset an interactive session so the user can start a fresh search.
    * Clears all selection/confirmation state from DB and memory.
+   * Preserves activeReplyJids (and activePhoneNumbers/activeContactNames) because
+   * the new search that follows will need them to deliver results.
    */
   private async resetSessionForNewSearch(
     session: ConversationSessionModel
   ): Promise<ConversationSessionModel> {
-    this.cleanupSessionMaps(session.id);
+    // Do NOT call cleanupSessionMaps() here — the subsequent search
+    // needs activeReplyJids/activePhoneNumbers/activeContactNames
+    // to deliver results to the user. Only clear the DB state.
 
     const updated = await conversationSessionRepository.update(session.id, {
       state: 'IDLE',
@@ -1131,7 +1147,16 @@ export class ConversationService {
 
       if (!session || !session.selectedResult) {
         logger.error({ sessionId }, 'Session or selected result not found for submission');
-        await this.handleSubmissionComplete(sessionId, false, 'Session not found');
+        const errResponse = await this.handleSubmissionComplete(
+          sessionId,
+          false,
+          'Session not found'
+        );
+        const replyJid = this.activeReplyJids.get(sessionId);
+        if (errResponse?.message && replyJid) {
+          const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+          await whatsappClientService.sendMessage(replyJid, errResponse.message).catch(() => {});
+        }
         return;
       }
 
@@ -1145,7 +1170,16 @@ export class ConversationService {
 
       if (enabledServices.length === 0) {
         logger.error({ sessionId }, 'No enabled services found');
-        await this.handleSubmissionComplete(sessionId, false, 'No services configured');
+        const errResponse = await this.handleSubmissionComplete(
+          sessionId,
+          false,
+          'No services configured'
+        );
+        const replyJid = this.activeReplyJids.get(sessionId);
+        if (errResponse?.message && replyJid) {
+          const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+          await whatsappClientService.sendMessage(replyJid, errResponse.message).catch(() => {});
+        }
         return;
       }
 
@@ -1180,25 +1214,40 @@ export class ConversationService {
         this.activeReplyJids.get(sessionId)
       );
 
-      // Note: The request approval service already sends WhatsApp notifications to the user,
-      // so we don't need to send duplicate messages here. Only send a message if the
-      // request approval service didn't send one (which shouldn't happen in normal flow).
-
       logger.info(
         {
           sessionId,
           status: result.status,
           phoneNumber: phoneNumber ? phoneNumber.slice(-4) : 'unknown',
+          replyJid: this.activeReplyJids.get(sessionId)?.slice(-8),
         },
         'Request processing completed'
       );
 
+      const isSuccess = result.status === 'SUBMITTED' || result.status === 'PENDING';
+
+      // Capture replyJid BEFORE handleSubmissionComplete clears session maps
+      const replyJid = this.activeReplyJids.get(sessionId);
+
       // Handle completion - transition back to IDLE
-      await this.handleSubmissionComplete(
+      const response = await this.handleSubmissionComplete(
         sessionId,
-        result.status === 'SUBMITTED' || result.status === 'PENDING',
+        isSuccess,
         result.errorMessage
       );
+
+      // Send confirmation message to the user.
+      // For quota rejections, createAndProcessRequest already sent the detailed message,
+      // so only send for successful submissions (PENDING/SUBMITTED).
+      // For REJECTED status, skip to avoid duplicating the quota rejection message.
+      if (isSuccess && response?.message && replyJid) {
+        try {
+          const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
+          await whatsappClientService.sendMessage(replyJid, response.message);
+        } catch (sendError) {
+          logger.error({ sessionId, error: sendError }, 'Failed to send success message');
+        }
+      }
     } catch (error) {
       logger.error({ sessionId, error }, 'Fatal error in submitRequest');
 

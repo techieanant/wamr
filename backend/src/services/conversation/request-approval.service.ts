@@ -101,13 +101,31 @@ export class RequestApprovalService {
           replyJid: replyJid ?? undefined,
         });
 
+        logger.info(
+          {
+            phoneNumberHash: phoneNumberHash?.slice(-8),
+            hasSendTarget: !!sendTarget,
+            sendTargetPreview: sendTarget?.slice(-12),
+          },
+          'Quota rejection - sendTarget check'
+        );
+
         if (sendTarget) {
           const message =
             `❌ Request limit reached\n\n` +
             `You've used ${quotaCheck.used}/${quotaCheck.max} requests for this ${quotaCheck.windowType}.\n` +
             `Your quota resets ${quotaCheck.resetTime}.\n\n` +
             `Try again then!`;
+          logger.info(
+            { sendTarget: sendTarget.slice(-12), messageLen: message.length },
+            'Quota rejection - sending message'
+          );
           await whatsappClientService.sendMessage(sendTarget, message);
+        } else {
+          logger.warn(
+            { phoneNumberHash: phoneNumberHash?.slice(-8) },
+            'Quota rejection - no sendTarget, message will not be delivered'
+          );
         }
 
         webSocketService.emit(SocketEvents.REQUEST_NEW, {
@@ -215,8 +233,13 @@ export class RequestApprovalService {
           service.baseUrl,
           encryptionService.decrypt(service.apiKeyEncrypted),
           service.qualityProfileId ?? 1,
-          service.rootFolderPath || (mediaType === 'movie' ? '/movies' : '/tv'),
-          selectedSeasons
+          // For seerr (Overseerr), if no rootFolderPath is configured, pass null so we
+          // omit the field and let Overseerr use its own server defaults (avoids Windows path issues).
+          service.serviceType === 'seerr'
+            ? (service.rootFolderPath ?? null)
+            : service.rootFolderPath || (mediaType === 'movie' ? '/movies' : '/tv'),
+          selectedSeasons,
+          service.allowInsecure ?? false
         );
 
         if (result.success) {
@@ -313,14 +336,15 @@ export class RequestApprovalService {
     baseUrl: string,
     apiKey: string,
     qualityProfileId: number,
-    rootFolderPath: string,
-    selectedSeasons?: number[]
+    rootFolderPath: string | null,
+    selectedSeasons?: number[],
+    allowInsecure = false
   ): Promise<{ success: boolean; errorMessage?: string }> {
     try {
       const mediaType = selectedResult.mediaType;
 
       if (serviceType === 'seerr') {
-        const client = new OverseerrClient(baseUrl, apiKey);
+        const client = new OverseerrClient(baseUrl, apiKey, allowInsecure);
 
         if (mediaType === 'movie' && selectedResult.tmdbId) {
           const radarrServers = await client.getRadarrServers();
@@ -334,7 +358,9 @@ export class RequestApprovalService {
             mediaId: selectedResult.tmdbId,
             serverId: defaultServer.id,
             profileId: qualityProfileId,
-            rootFolder: rootFolderPath,
+            // Pass undefined when not configured so Overseerr uses its own server defaults.
+            // This avoids injecting Linux-style paths into Windows-hosted Sonarr/Radarr.
+            rootFolder: rootFolderPath ?? undefined,
           });
         } else if (mediaType === 'series' && selectedResult.tmdbId) {
           const sonarrServers = await client.getSonarrServers();
@@ -348,12 +374,12 @@ export class RequestApprovalService {
             mediaId: selectedResult.tmdbId,
             serverId: defaultServer.id,
             profileId: qualityProfileId,
-            rootFolder: rootFolderPath,
+            rootFolder: rootFolderPath ?? undefined,
             seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
           });
         }
       } else if (serviceType === 'radarr' && mediaType === 'movie') {
-        const client = new RadarrClient(baseUrl, apiKey);
+        const client = new RadarrClient(baseUrl, apiKey, allowInsecure);
 
         if (!selectedResult.tmdbId) {
           throw new Error('Missing TMDB ID for movie request');
@@ -370,12 +396,12 @@ export class RequestApprovalService {
           year: selectedResult.year ?? 0,
           titleSlug,
           qualityProfileId,
-          rootFolderPath,
+          rootFolderPath: rootFolderPath || '/movies',
           monitored: true,
           searchForMovie: true,
         });
       } else if (serviceType === 'sonarr' && mediaType === 'series') {
-        const client = new SonarrClient(baseUrl, apiKey);
+        const client = new SonarrClient(baseUrl, apiKey, allowInsecure);
 
         if (!selectedResult.tvdbId) {
           throw new Error('Missing TVDB ID for series request');
@@ -392,7 +418,7 @@ export class RequestApprovalService {
           year: selectedResult.year ?? 0,
           titleSlug,
           qualityProfileId,
-          rootFolderPath,
+          rootFolderPath: rootFolderPath || '/tv',
           monitored: true,
           searchForMissingEpisodes: true,
         });
@@ -417,6 +443,19 @@ export class RequestApprovalService {
           { error, statusCode: (error as any)?.statusCode || (error as any)?.response?.status },
           'Conflict error (409) submitting to service'
         );
+      } else if ((error as any)?.response?.status === 400) {
+        // Radarr/Sonarr return 400 with a message body when media already exists
+        const responseData = (error as any)?.response?.data;
+        const responseMsg: string =
+          typeof responseData === 'string'
+            ? responseData
+            : responseData?.message || responseData?.errorMessage || JSON.stringify(responseData);
+        if (responseMsg && responseMsg.toLowerCase().includes('already')) {
+          errorMessage = '✅ This media is already available on the server!';
+          logger.info({ error }, 'Media already exists (400) submitting to service');
+        } else {
+          logger.error({ error }, 'Bad request (400) submitting to service');
+        }
       } else {
         logger.error({ error }, 'Error submitting to service');
       }

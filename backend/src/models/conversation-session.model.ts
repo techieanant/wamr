@@ -36,6 +36,8 @@ export interface NormalizedResult {
   mediaType: MediaType;
   // For TV series
   seasonCount?: number;
+  // Overseerr media status: 2=pending,3=processing,4=partial,5=available; undefined=not in system
+  mediaStatus?: number;
 }
 
 /**

@@ -48,6 +48,8 @@ interface FormData {
   // Radarr/Sonarr specific (not applicable for Overseerr)
   qualityProfileId?: number;
   rootFolderPath?: string;
+  // Allow self-signed/untrusted TLS certificates
+  allowInsecure: boolean;
 }
 
 interface ConnectionTestResult {
@@ -73,6 +75,7 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
     enabled: true,
     priorityOrder: 1,
     maxResults: 5,
+    allowInsecure: false,
   });
 
   const [connectionTest, setConnectionTest] = useState<ConnectionTestResult | null>(null);
@@ -90,6 +93,7 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
     if (formData.priorityOrder !== service.priorityOrder) return true;
     if (formData.maxResults !== service.maxResults) return true;
     if (formData.apiKey) return true; // New API key provided
+    if (formData.allowInsecure !== (service.allowInsecure ?? false)) return true;
 
     // Check service-specific fields
     if (formData.serviceType === 'radarr' || formData.serviceType === 'sonarr') {
@@ -116,6 +120,7 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
         maxResults: service.maxResults ?? 5,
         qualityProfileId: service.qualityProfileId ?? undefined,
         rootFolderPath: service.rootFolderPath ?? undefined,
+        allowInsecure: service.allowInsecure ?? false,
       });
     } else {
       // Reset form
@@ -127,6 +132,7 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
         enabled: true,
         priorityOrder: 1,
         maxResults: 5,
+        allowInsecure: false,
       });
       setConnectionTest(null);
       setQualityProfiles([]);
@@ -285,6 +291,11 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
           }
         }
 
+        // Always include allowInsecure when changed
+        if (formData.allowInsecure !== (service.allowInsecure ?? false)) {
+          updateData.allowInsecure = formData.allowInsecure;
+        }
+
         // Only send update if there are changes
         if (Object.keys(updateData).length === 0) {
           toast({
@@ -314,6 +325,7 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
           enabled: formData.enabled,
           priorityOrder: formData.priorityOrder,
           maxResults: formData.maxResults,
+          allowInsecure: formData.allowInsecure,
         };
 
         // Add service-specific fields (only for Radarr/Sonarr, not Overseerr)
@@ -596,6 +608,21 @@ export function ServiceForm({ service, open, onClose, onSuccess }: ServiceFormPr
               id="enabled"
               checked={formData.enabled}
               onCheckedChange={(checked) => handleFieldChange('enabled', checked)}
+            />
+          </div>
+
+          {/* Allow Insecure (self-signed certificates) */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="allowInsecure">Allow Insecure Certificates</Label>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Skip TLS verification for self-signed or untrusted certificates
+              </p>
+            </div>
+            <Switch
+              id="allowInsecure"
+              checked={formData.allowInsecure}
+              onCheckedChange={(checked) => handleFieldChange('allowInsecure', checked)}
             />
           </div>
 

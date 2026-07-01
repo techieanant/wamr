@@ -475,7 +475,11 @@ class AdminNotificationService {
 
       try {
         if (service.serviceType === 'seerr') {
-          const client = new OverseerrClient(service.baseUrl, apiKey);
+          const client = new OverseerrClient(
+            service.baseUrl,
+            apiKey,
+            service.allowInsecure ?? false
+          );
 
           if (request.mediaType === 'movie' && request.tmdbId) {
             const radarrServers = await client.getRadarrServers();
@@ -489,7 +493,8 @@ class AdminNotificationService {
               mediaId: request.tmdbId,
               serverId: defaultServer.id,
               profileId: 1,
-              rootFolder: '/movies',
+              // Omit rootFolder when not configured so Overseerr uses its own defaults
+              rootFolder: service.rootFolderPath ?? undefined,
             });
           } else if (request.mediaType === 'series' && request.tmdbId) {
             const sonarrServers = await client.getSonarrServers();
@@ -505,12 +510,13 @@ class AdminNotificationService {
               mediaId: request.tmdbId,
               serverId: defaultServer.id,
               profileId: 1,
-              rootFolder: '/tv',
+              // Omit rootFolder when not configured so Overseerr uses its own defaults
+              rootFolder: service.rootFolderPath ?? undefined,
               seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
             });
           }
         } else if (service.serviceType === 'radarr' && request.mediaType === 'movie') {
-          const client = new RadarrClient(service.baseUrl, apiKey);
+          const client = new RadarrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
 
           if (!request.tmdbId) {
             throw new Error('Missing TMDB ID for movie request');
@@ -532,7 +538,7 @@ class AdminNotificationService {
             searchForMovie: true,
           });
         } else if (service.serviceType === 'sonarr' && request.mediaType === 'series') {
-          const client = new SonarrClient(service.baseUrl, apiKey);
+          const client = new SonarrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
 
           if (!request.tvdbId) {
             throw new Error('Missing TVDB ID for series request');

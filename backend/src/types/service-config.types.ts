@@ -19,6 +19,8 @@ export interface CreateServiceConfigRequest {
   // Radarr/Sonarr specific (not applicable for Overseerr)
   qualityProfileId?: number;
   rootFolderPath?: string;
+  // Allow self-signed/untrusted TLS certificates (use with caution)
+  allowInsecure?: boolean;
 }
 
 /**
@@ -34,6 +36,8 @@ export interface UpdateServiceConfigRequest {
   // Radarr/Sonarr specific (not applicable for Overseerr)
   qualityProfileId?: number;
   rootFolderPath?: string;
+  // Allow self-signed/untrusted TLS certificates (use with caution)
+  allowInsecure?: boolean;
 }
 
 /**
@@ -50,6 +54,7 @@ export interface ServiceConfigResponse {
   // Radarr/Sonarr specific (null for Overseerr)
   qualityProfileId: number | null;
   rootFolderPath: string | null;
+  allowInsecure: boolean;
   createdAt: string;
   updatedAt: string;
 }

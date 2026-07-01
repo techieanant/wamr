@@ -19,6 +19,22 @@ import { adminNotificationService } from '../notifications/admin-notification.se
  * Service for handling incoming WhatsApp messages
  */
 class MessageHandlerService {
+  // Deduplicate incoming messages by key ID — Baileys delivers each message
+  // twice on accounts using the new LID system (once via @lid, once via @s.whatsapp.net).
+  // Track processed IDs with a short TTL so the Set doesn't grow forever.
+  private readonly processedMessageIds = new Map<string, number>(); // id → timestamp
+  private readonly DEDUP_TTL_MS = 30_000; // 30 seconds is plenty for dedup
+
+  private markProcessed(id: string): boolean {
+    const now = Date.now();
+    // Purge stale entries first
+    for (const [k, ts] of this.processedMessageIds) {
+      if (now - ts > this.DEDUP_TTL_MS) this.processedMessageIds.delete(k);
+    }
+    if (this.processedMessageIds.has(id)) return false; // already seen
+    this.processedMessageIds.set(id, now);
+    return true;
+  }
   /**
    * Initialize message handler
    * Registers message callback with WhatsApp client
@@ -140,6 +156,23 @@ class MessageHandlerService {
    */
   private async handleIncomingMessage(message: BaileysMessage): Promise<void> {
     try {
+      // Skip fromMe messages that the bot sent programmatically (acK messages,
+      // search results, etc.) — they would be re-parsed as new user requests.
+      // Messages the user types manually (even from the same device) have their
+      // own key IDs that won't be in the sent-by-bot set.
+      if (message.key.fromMe && whatsappClientService.isSentByBot(message.key.id as string)) {
+        logger.debug({ msgId: message.key.id }, 'Skipping bot-sent message (fromMe + in sent set)');
+        return;
+      }
+
+      // Deduplicate: Baileys fires this event twice per message on LID accounts
+      // (once for the @lid JID, once for the @s.whatsapp.net JID).
+      const msgId = message.key.id;
+      if (!msgId || !this.markProcessed(msgId)) {
+        logger.debug({ msgId }, 'Skipping duplicate message delivery');
+        return;
+      }
+
       // Debug: Log raw message key details including alternative JID
       logger.info(
         {
@@ -246,8 +279,24 @@ class MessageHandlerService {
         // Continue with normal message processing
       }
 
-      // Hash phone number for database storage (use actual phone if available for consistent hashing)
-      const phoneNumberHash = hashingService.hashPhoneNumber(phoneNumber || userIdentifier);
+      // Determine the phone number / identifier for session keying.
+      // For fromMe messages (user typing from bot device), remoteJid is the recipient/user,
+      // so phoneNumber/userIdentifier already identifies the correct user.
+      // We no longer override with the bot's own number because:
+      //   1. isSentByBot() prevents bot-generated messages from re-processing
+      //   2. Quota checks must use the user's hash, not the bot's (no limits set on bot)
+      //   3. Session keying must be consistent so the user's flow works from either device
+      // Skip contact creation for fromMe messages to avoid duplicate contact entries
+      // when the user interacts from both their phone and the bot's device.
+      let sessionPhoneNumber = phoneNumber || userIdentifier;
+      let contactPhoneNumber: string | undefined;
+      if (message.key.fromMe) {
+        // Don't create/update contacts for self-messages from bot device
+        contactPhoneNumber = undefined;
+      } else {
+        contactPhoneNumber = phoneNumber || undefined;
+      }
+      const phoneNumberHash = hashingService.hashPhoneNumber(sessionPhoneNumber);
 
       // Check if message should be processed based on filter configuration
       const { shouldProcess, cleanedMessage } = await this.shouldProcessMessage(
@@ -272,7 +321,7 @@ class MessageHandlerService {
         cleanedMessage,
         fullJid, // Full JID for sending responses
         contactName,
-        phoneNumber || undefined // Actual phone number for storage (may be null if LID-only)
+        contactPhoneNumber // Actual phone number for storage (undefined for self-messages)
       );
 
       // Send response back to user using full JID

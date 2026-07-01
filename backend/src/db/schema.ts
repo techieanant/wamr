@@ -112,6 +112,8 @@ export const mediaServiceConfigurations = sqliteTable(
     // Radarr/Sonarr specific (not used for Overseerr)
     qualityProfile: text('quality_profile'),
     rootFolder: text('root_folder'),
+    // Allow self-signed/untrusted TLS certificates (use with caution)
+    allowInsecure: integer('allow_insecure', { mode: 'boolean' }).notNull().default(false),
     // Metadata
     lastHealthCheck: text('last_health_check'),
     healthStatus: text('health_status', { enum: ['ONLINE', 'OFFLINE', 'UNKNOWN'] })

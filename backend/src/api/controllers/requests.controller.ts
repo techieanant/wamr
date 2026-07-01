@@ -245,7 +245,7 @@ export const approveRequest = async (
     try {
       // Submit to appropriate service
       if (service.serviceType === 'seerr') {
-        const client = new OverseerrClient(service.baseUrl, apiKey);
+        const client = new OverseerrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
 
         if (request.mediaType === 'movie' && request.tmdbId) {
           const radarrServers = await client.getRadarrServers();
@@ -259,7 +259,8 @@ export const approveRequest = async (
             mediaId: request.tmdbId,
             serverId: defaultServer.id,
             profileId: 1,
-            rootFolder: '/movies',
+            // Omit rootFolder when not configured so Overseerr uses its own defaults
+            rootFolder: service.rootFolderPath ?? undefined,
           });
         } else if (request.mediaType === 'series' && request.tmdbId) {
           const sonarrServers = await client.getSonarrServers();
@@ -276,12 +277,13 @@ export const approveRequest = async (
             mediaId: request.tmdbId,
             serverId: defaultServer.id,
             profileId: 1,
-            rootFolder: '/tv',
+            // Omit rootFolder when not configured so Overseerr uses its own defaults
+            rootFolder: service.rootFolderPath ?? undefined,
             seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
           });
         }
       } else if (service.serviceType === 'radarr' && request.mediaType === 'movie') {
-        const client = new RadarrClient(service.baseUrl, apiKey);
+        const client = new RadarrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
 
         if (!request.tmdbId) {
           throw new Error('Missing TMDB ID for movie request');
@@ -303,7 +305,7 @@ export const approveRequest = async (
           searchForMovie: true,
         });
       } else if (service.serviceType === 'sonarr' && request.mediaType === 'series') {
-        const client = new SonarrClient(service.baseUrl, apiKey);
+        const client = new SonarrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
 
         if (!request.tvdbId) {
           throw new Error('Missing TVDB ID for series request');
@@ -404,7 +406,10 @@ export const approveRequest = async (
           // Provide a user-friendly message based on the error
           const isAlreadyExists =
             errorMessage.toLowerCase().includes('already exists') ||
-            errorMessage.toLowerCase().includes('already in library');
+            errorMessage.toLowerCase().includes('already in library') ||
+            errorMessage.toLowerCase().includes('already been added') ||
+            ((error as any)?.response?.status === 400 &&
+              ((error as any)?.response?.data?.message ?? '').toLowerCase().includes('already'));
           const userMessage = isAlreadyExists
             ? `ℹ️ Good news!\n\n${emoji} *${request.title}${yearStr}* is already available in the library. You can watch it now!`
             : `❌ Failed to add your request.\n\n${emoji} *${request.title}${yearStr}*\n\n${errorMessage}`;

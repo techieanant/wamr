@@ -90,6 +90,7 @@ export class MediaServiceConfigRepository {
         maxResults: data.maxResults ?? 5,
         qualityProfile: data.qualityProfileId?.toString() ?? null,
         rootFolder: data.rootFolderPath ?? null,
+        allowInsecure: data.allowInsecure ?? false,
       })
       .returning();
 
@@ -134,6 +135,9 @@ export class MediaServiceConfigRepository {
     }
     if (data.rootFolderPath !== undefined) {
       updateData.rootFolder = data.rootFolderPath;
+    }
+    if (data.allowInsecure !== undefined) {
+      updateData.allowInsecure = data.allowInsecure;
     }
 
     const result = await db
@@ -215,6 +219,7 @@ export class MediaServiceConfigRepository {
       maxResults: row.maxResults ?? 5,
       qualityProfileId: row.qualityProfile ? parseInt(row.qualityProfile, 10) : null,
       rootFolderPath: row.rootFolder,
+      allowInsecure: row.allowInsecure ?? false,
       createdAt: new Date(row.createdAt),
       updatedAt: new Date(row.updatedAt),
     };

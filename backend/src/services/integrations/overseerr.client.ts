@@ -151,8 +151,8 @@ interface OverseerrServer {
 export class OverseerrClient {
   private client: AxiosInstance;
 
-  constructor(baseUrl: string, apiKey: string) {
-    this.client = BaseServiceClient.createClient(baseUrl, apiKey);
+  constructor(baseUrl: string, apiKey: string, allowInsecure = false) {
+    this.client = BaseServiceClient.createClient(baseUrl, apiKey, allowInsecure);
   }
 
   /**
@@ -260,18 +260,21 @@ export class OverseerrClient {
     mediaId: number; // TMDB ID
     serverId: number;
     profileId: number;
-    rootFolder: string;
+    rootFolder?: string; // Optional: when omitted, Overseerr uses its own server defaults
     is4k?: boolean;
   }): Promise<OverseerrRequestResponse> {
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         mediaType: 'movie',
         mediaId: params.mediaId,
         is4k: params.is4k ?? false,
         serverId: params.serverId,
         profileId: params.profileId,
-        rootFolder: params.rootFolder,
       };
+      // Only include rootFolder if explicitly configured — avoids injecting wrong paths
+      if (params.rootFolder) {
+        body.rootFolder = params.rootFolder;
+      }
 
       const response = await this.client.post<OverseerrRequestResponse>('/api/v1/request', body);
 
@@ -306,20 +309,23 @@ export class OverseerrClient {
     mediaId: number; // TVDB ID
     serverId: number;
     profileId: number;
-    rootFolder: string;
+    rootFolder?: string; // Optional: when omitted, Overseerr uses its own server defaults
     seasons?: 'all' | number[];
     is4k?: boolean;
   }): Promise<OverseerrRequestResponse> {
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         mediaType: 'tv',
         mediaId: params.mediaId,
         seasons: params.seasons ?? 'all',
         is4k: params.is4k ?? false,
         serverId: params.serverId,
         profileId: params.profileId,
-        rootFolder: params.rootFolder,
       };
+      // Only include rootFolder if explicitly configured — avoids injecting wrong paths
+      if (params.rootFolder) {
+        body.rootFolder = params.rootFolder;
+      }
 
       const response = await this.client.post<OverseerrRequestResponse>('/api/v1/request', body);
 

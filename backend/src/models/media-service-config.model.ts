@@ -28,6 +28,7 @@ export interface MediaServiceConfiguration {
   // Radarr/Sonarr specific fields (null for Overseerr)
   qualityProfileId: number | null;
   rootFolderPath: string | null;
+  allowInsecure: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,7 @@ export interface CreateMediaServiceConfiguration {
   // Radarr/Sonarr specific fields (should be null for Overseerr)
   qualityProfileId?: number | null;
   rootFolderPath?: string | null;
+  allowInsecure?: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export interface UpdateMediaServiceConfiguration {
   // Radarr/Sonarr specific fields (should be null for Overseerr)
   qualityProfileId?: number | null;
   rootFolderPath?: string | null;
+  allowInsecure?: boolean;
 }
 
 /**

@@ -49,6 +49,24 @@ export class WhatsAppClientService {
   private disconnectedCallback: (() => void) | null = null;
   private saveCreds: (() => Promise<void>) | null = null;
 
+  // Track message IDs that the bot sent programmatically, so we can distinguish
+  // bot responses from user-typed messages when both carry fromMe=true.
+  private sentMessageIds = new Map<string, number>(); // key.id → timestamp
+  private readonly SENT_MSG_TTL_MS = 30_000; // Keep for 30s — ample for the upsert event to arrive
+
+  /**
+   * Check if a message key ID was sent by the bot programmatically.
+   * Used by MessageHandlerService to skip re-processing bot responses.
+   */
+  isSentByBot(keyId: string): boolean {
+    const now = Date.now();
+    // Purge stale entries to prevent unbounded growth
+    for (const [k, ts] of this.sentMessageIds) {
+      if (now - ts > this.SENT_MSG_TTL_MS) this.sentMessageIds.delete(k);
+    }
+    return this.sentMessageIds.has(keyId);
+  }
+
   /**
    * Initialize WhatsApp client
    */
@@ -344,8 +362,18 @@ export class WhatsAppClientService {
     this.sock.ev.on('creds.update', async () => {
       logger.debug('Credentials updated, saving...');
       if (this.saveCreds) {
-        await this.saveCreds();
-        logger.debug('Credentials saved successfully');
+        try {
+          await this.saveCreds();
+          logger.debug('Credentials saved successfully');
+        } catch (err: any) {
+          // Session directory may have been deleted (e.g. after a conflict/logout).
+          // Swallow ENOENT so the unhandled-rejection handler doesn't crash the process.
+          if (err?.code === 'ENOENT') {
+            logger.warn({ err }, 'Could not save credentials — session directory was removed');
+          } else {
+            logger.error({ err }, 'Failed to save credentials');
+          }
+        }
       }
     });
 
@@ -410,6 +438,21 @@ export class WhatsAppClientService {
   }
 
   /**
+   * Resolve a recipient JID for sending messages.
+   * If the recipient is a phone number (no @), formats as @s.whatsapp.net.
+   * Otherwise passes through as-is (handles @lid, @s.whatsapp.net, @g.us, etc.)
+   */
+  private resolveRecipient(recipient: string): string {
+    if (recipient.includes('@')) {
+      return recipient;
+    }
+
+    // Recipient is a phone number - format as @s.whatsapp.net
+    const cleanRecipient = recipient.replace(/^\+/, '').replace(/\D/g, '');
+    return `${cleanRecipient}@s.whatsapp.net`;
+  }
+
+  /**
    * Send message to a recipient
    * @param recipient - Can be a full JID (user@lid, user@s.whatsapp.net), phone number (+1234567890), or user ID
    */
@@ -419,17 +462,7 @@ export class WhatsAppClientService {
     }
 
     try {
-      let jid: string;
-
-      // Check if recipient is already a full JID (contains @)
-      if (recipient.includes('@')) {
-        // Use the JID as-is (preserves @lid or @s.whatsapp.net)
-        jid = recipient;
-      } else {
-        // Recipient is a phone number or user ID - format as @s.whatsapp.net
-        const cleanRecipient = recipient.replace(/^\+/, '').replace(/\D/g, '');
-        jid = `${cleanRecipient}@s.whatsapp.net`;
-      }
+      const jid = this.resolveRecipient(recipient);
 
       logger.debug(
         {
@@ -441,6 +474,13 @@ export class WhatsAppClientService {
       );
 
       const result = await this.sock.sendMessage(jid, { text: message });
+
+      // Track message ID so MessageHandlerService can skip re-processing this
+      // message when the upsert event fires for it (fromMe=true).
+      if (result?.key?.id) {
+        this.sentMessageIds.set(result.key.id as string, Date.now());
+      }
+
       logger.info(
         { recipient: recipient.slice(-4), messageId: result?.key?.id },
         'Message sent successfully'
@@ -479,14 +519,7 @@ export class WhatsAppClientService {
     }
 
     try {
-      let jid: string;
-
-      if (recipient.includes('@')) {
-        jid = recipient;
-      } else {
-        const cleanRecipient = recipient.replace(/^\+/, '').replace(/\D/g, '');
-        jid = `${cleanRecipient}@s.whatsapp.net`;
-      }
+      const jid = this.resolveRecipient(recipient);
 
       logger.debug(
         { originalRecipient: recipient, jid, captionLength: caption?.length, viewOnce },
@@ -498,6 +531,11 @@ export class WhatsAppClientService {
         caption,
         viewOnce,
       });
+
+      // Track message ID so MessageHandlerService can skip re-processing
+      if (result?.key?.id) {
+        this.sentMessageIds.set(result.key.id as string, Date.now());
+      }
 
       logger.info(
         { recipient: recipient.slice(-4), messageId: result?.key?.id },
@@ -523,10 +561,25 @@ export class WhatsAppClientService {
   /**
    * Update the cached markOnlineOnConnect setting without restarting the client.
    * Called by the controller when the user changes the setting in the UI.
+   * Also immediately pushes the corresponding presence to WhatsApp so the change
+   * takes effect without requiring a reconnect.
    */
   setMarkOnlineOnConnect(value: boolean): void {
     this.markOnlineOnConnect = value;
     logger.info({ value }, 'Updated markOnlineOnConnect setting');
+
+    // Immediately push presence to WhatsApp if the socket is live
+    if (this.sock && this.isReady()) {
+      const presence = value ? 'available' : 'unavailable';
+      this.sock
+        .sendPresenceUpdate(presence)
+        .then(() => {
+          logger.info({ presence }, 'Pushed presence update after markOnlineOnConnect change');
+        })
+        .catch((err) => {
+          logger.warn({ err }, 'Failed to push presence update after markOnlineOnConnect change');
+        });
+    }
   }
 
   /**

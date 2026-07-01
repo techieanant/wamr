@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import https from 'https';
 import { logger } from '../../config/logger';
 
 /**
@@ -9,7 +10,7 @@ export class BaseServiceClient {
   protected client: AxiosInstance;
   protected serviceName: string;
 
-  constructor(baseURL: string, apiKey: string, serviceName: string) {
+  constructor(baseURL: string, apiKey: string, serviceName: string, allowInsecure = false) {
     this.serviceName = serviceName;
 
     // Create axios instance with common configuration
@@ -22,7 +23,8 @@ export class BaseServiceClient {
       },
       // Keep connections alive for better performance
       httpAgent: undefined,
-      httpsAgent: undefined,
+      // Allow self-signed certificates when allowInsecure is true
+      httpsAgent: allowInsecure ? new https.Agent({ rejectUnauthorized: false }) : undefined,
     });
 
     // Request interceptor for logging
@@ -152,7 +154,7 @@ export class BaseServiceClient {
    * Create a standalone axios client for service integrations
    * This is a factory method for services that don't need to extend BaseServiceClient
    */
-  static createClient(baseURL: string, apiKey: string): AxiosInstance {
+  static createClient(baseURL: string, apiKey: string, allowInsecure = false): AxiosInstance {
     return axios.create({
       baseURL,
       timeout: 9000, // 9 seconds (slightly less than search timeout to allow proper error handling)
@@ -160,6 +162,8 @@ export class BaseServiceClient {
         'Content-Type': 'application/json',
         'X-Api-Key': apiKey,
       },
+      // Allow self-signed certificates when allowInsecure is true
+      httpsAgent: allowInsecure ? new https.Agent({ rejectUnauthorized: false }) : undefined,
     });
   }
 }

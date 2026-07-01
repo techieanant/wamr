@@ -35,6 +35,7 @@ export const listServices = async (
       maxResults: service.maxResults,
       qualityProfileId: service.qualityProfileId,
       rootFolderPath: service.rootFolderPath,
+      allowInsecure: service.allowInsecure ?? false,
       hasApiKey: !!service.apiKeyEncrypted,
       createdAt: service.createdAt.toISOString(),
       updatedAt: service.updatedAt.toISOString(),
@@ -80,6 +81,7 @@ export const getService = async (
       maxResults: service.maxResults,
       qualityProfileId: service.qualityProfileId,
       rootFolderPath: service.rootFolderPath,
+      allowInsecure: service.allowInsecure ?? false,
       createdAt: service.createdAt.toISOString(),
       updatedAt: service.updatedAt.toISOString(),
     };
@@ -130,6 +132,7 @@ export const createService = async (
       maxResults: data.maxResults ?? 5,
       qualityProfileId: data.qualityProfileId,
       rootFolderPath: data.rootFolderPath,
+      allowInsecure: data.allowInsecure ?? false,
     });
 
     logger.info({ serviceId: service.id, name: service.name }, 'Service created');
@@ -144,6 +147,7 @@ export const createService = async (
       maxResults: service.maxResults,
       qualityProfileId: service.qualityProfileId,
       rootFolderPath: service.rootFolderPath,
+      allowInsecure: service.allowInsecure ?? false,
       createdAt: service.createdAt.toISOString(),
       updatedAt: service.updatedAt.toISOString(),
     };
@@ -210,6 +214,7 @@ export const updateService = async (
       maxResults: data.maxResults,
       qualityProfileId: data.qualityProfileId,
       rootFolderPath: data.rootFolderPath,
+      allowInsecure: data.allowInsecure,
     });
 
     if (!service) {
@@ -232,6 +237,7 @@ export const updateService = async (
       maxResults: service.maxResults,
       qualityProfileId: service.qualityProfileId,
       rootFolderPath: service.rootFolderPath,
+      allowInsecure: service.allowInsecure ?? false,
       createdAt: service.createdAt.toISOString(),
       updatedAt: service.updatedAt.toISOString(),
     };
@@ -287,6 +293,7 @@ export const testConnection = async (
     let finalApiKey = apiKey;
     let finalBaseUrl = baseUrl;
     let finalServiceType = serviceType;
+    let finalAllowInsecure = false;
 
     // If serviceId is provided, use stored credentials
     if (serviceId) {
@@ -302,6 +309,7 @@ export const testConnection = async (
       // Use stored values (allow override with provided values)
       finalServiceType = serviceType || service.serviceType;
       finalBaseUrl = baseUrl || service.baseUrl;
+      finalAllowInsecure = service.allowInsecure ?? false;
 
       // Use provided API key if available, otherwise decrypt stored one
       if (!apiKey) {
@@ -323,17 +331,17 @@ export const testConnection = async (
 
     switch (finalServiceType) {
       case 'radarr': {
-        const client = new RadarrClient(finalBaseUrl, finalApiKey);
+        const client = new RadarrClient(finalBaseUrl, finalApiKey, finalAllowInsecure);
         result = await client.testConnection();
         break;
       }
       case 'sonarr': {
-        const client = new SonarrClient(finalBaseUrl, finalApiKey);
+        const client = new SonarrClient(finalBaseUrl, finalApiKey, finalAllowInsecure);
         result = await client.testConnection();
         break;
       }
       case 'seerr': {
-        const client = new OverseerrClient(finalBaseUrl, finalApiKey);
+        const client = new OverseerrClient(finalBaseUrl, finalApiKey, finalAllowInsecure);
         result = await client.testConnection();
         break;
       }
@@ -371,6 +379,7 @@ export const getServiceMetadata = async (
     let finalApiKey = apiKey;
     let finalBaseUrl = baseUrl;
     let finalServiceType = serviceType;
+    let finalAllowInsecure = false;
 
     // If serviceId is provided, use stored credentials
     if (serviceId) {
@@ -386,6 +395,7 @@ export const getServiceMetadata = async (
       // Use stored values (allow override with provided values)
       finalServiceType = serviceType || service.serviceType;
       finalBaseUrl = baseUrl || service.baseUrl;
+      finalAllowInsecure = service.allowInsecure ?? false;
 
       // Use provided API key if available, otherwise decrypt stored one
       if (!apiKey) {
@@ -407,7 +417,7 @@ export const getServiceMetadata = async (
 
     switch (finalServiceType) {
       case 'radarr': {
-        const client = new RadarrClient(finalBaseUrl, finalApiKey);
+        const client = new RadarrClient(finalBaseUrl, finalApiKey, finalAllowInsecure);
         const [qualityProfiles, rootFolders] = await Promise.all([
           client.getQualityProfiles(),
           client.getRootFolders(),
@@ -416,7 +426,7 @@ export const getServiceMetadata = async (
         break;
       }
       case 'sonarr': {
-        const client = new SonarrClient(finalBaseUrl, finalApiKey);
+        const client = new SonarrClient(finalBaseUrl, finalApiKey, finalAllowInsecure);
         const [qualityProfiles, rootFolders] = await Promise.all([
           client.getQualityProfiles(),
           client.getRootFolders(),

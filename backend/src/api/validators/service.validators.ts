@@ -68,6 +68,8 @@ export const createServiceConfigSchema = z
     // Radarr/Sonarr specific fields (not applicable for Overseerr)
     qualityProfileId: z.number().int().positive().optional(),
     rootFolderPath: z.string().min(1).optional(),
+    // Allow self-signed/untrusted TLS certificates
+    allowInsecure: z.boolean().optional().default(false),
   })
   .refine(
     (data) => {
@@ -115,6 +117,8 @@ export const updateServiceConfigSchema = z
     // Radarr/Sonarr specific fields (not applicable for Overseerr)
     qualityProfileId: z.number().int().positive().optional(),
     rootFolderPath: z.string().min(1).optional(),
+    // Allow self-signed/untrusted TLS certificates
+    allowInsecure: z.boolean().optional(),
   })
   .strict();
 

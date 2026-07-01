@@ -15,6 +15,26 @@ export const getStatus = async (
   try {
     // Check if client is currently initializing
     if (whatsappClientService.isClientInitializing()) {
+      // Even during initialization, if the DB says CONNECTING (QR has been generated),
+      // return CONNECTING so the frontend shows the QR display instead of a loading spinner.
+      const conn = await whatsappConnectionRepository.getFirst();
+      if (conn?.status === 'CONNECTING') {
+        res.json({
+          status: 'CONNECTING',
+          isConnected: false,
+          phoneNumber: null,
+          lastConnectedAt: null,
+          filterType: conn.filterType,
+          filterValue: conn.filterValue,
+          processFromSelf: conn.processFromSelf,
+          processGroups: conn.processGroups,
+          markOnlineOnConnect: conn.markOnlineOnConnect,
+          autoApprovalMode: conn.autoApprovalMode,
+          exceptionsEnabled: conn.exceptionsEnabled,
+          exceptionContacts: conn.exceptionContacts,
+        });
+        return;
+      }
       res.json({
         status: 'LOADING',
         isConnected: false,
@@ -28,14 +48,24 @@ export const getStatus = async (
     const activeConnection = await whatsappConnectionRepository.getActive();
 
     if (activeConnection) {
+      const clientIsReady = whatsappClientService.isReady();
       // Get phone number if client is ready
-      const phoneNumber = whatsappClientService.isReady()
-        ? whatsappClientService.getPhoneNumber()
-        : null;
+      const phoneNumber = clientIsReady ? whatsappClientService.getPhoneNumber() : null;
+
+      // If the DB says DISCONNECTED but the client is actually ready, auto-heal the status.
+      // This handles cases where a brief network blip marked us DISCONNECTED but Baileys
+      // recovered on its own without going through the status-change flow.
+      let effectiveStatus = activeConnection.status;
+      if (clientIsReady && activeConnection.status === 'DISCONNECTED') {
+        logger.info('Client is ready but DB status is DISCONNECTED — auto-healing to CONNECTED');
+        effectiveStatus = 'CONNECTED';
+        // Persist the corrected status so future polls don't keep re-healing
+        await whatsappConnectionRepository.update(activeConnection.id, { status: 'CONNECTED' });
+      }
 
       res.json({
-        status: activeConnection.status,
-        isConnected: true,
+        status: effectiveStatus,
+        isConnected: clientIsReady || effectiveStatus === 'CONNECTED',
         phoneNumber,
         lastConnectedAt: activeConnection.lastConnectedAt,
         filterType: activeConnection.filterType,

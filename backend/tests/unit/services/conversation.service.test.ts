@@ -135,7 +135,9 @@ describe('ConversationService', () => {
         })
       );
       expect(result.state).toBe('SEARCHING');
-      expect(result.message).toContain('Searching for: "Inception"');
+      // Ack is sent directly via WhatsApp in handleIdleState; return message is empty
+      // to prevent double-send from the caller.
+      expect(result.message).toBe('');
     });
 
     it('should handle selection in AWAITING_SELECTION state', async () => {

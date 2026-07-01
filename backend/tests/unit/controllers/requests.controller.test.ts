@@ -453,7 +453,7 @@ describe('Requests Controller', () => {
         mediaId: 123,
         serverId: 1,
         profileId: 1,
-        rootFolder: '/movies',
+        rootFolder: undefined,
       });
       expect(requestHistoryRepository.update).toHaveBeenCalledWith(1, {
         status: 'SUBMITTED',
@@ -520,7 +520,7 @@ describe('Requests Controller', () => {
         mediaId: 456,
         serverId: 2,
         profileId: 1,
-        rootFolder: '/tv',
+        rootFolder: undefined,
         seasons: 'all', // Added: default to 'all' when no selectedSeasons
       });
       expect(requestHistoryRepository.update).toHaveBeenCalledWith(1, {

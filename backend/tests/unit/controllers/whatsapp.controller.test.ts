@@ -25,6 +25,7 @@ vi.mock('../../../src/services/whatsapp/whatsapp-client.service', () => ({
 vi.mock('../../../src/repositories/whatsapp-connection.repository', () => ({
   whatsappConnectionRepository: {
     getActive: vi.fn(),
+    getFirst: vi.fn(),
     findAll: vi.fn(),
     upsert: vi.fn(),
     updateMessageFilter: vi.fn(),

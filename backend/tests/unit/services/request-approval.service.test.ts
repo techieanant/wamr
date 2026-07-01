@@ -49,6 +49,7 @@ describe('RequestApprovalService', () => {
     maxResults: 10,
     qualityProfileId: 1,
     rootFolderPath: '/movies',
+    allowInsecure: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -64,6 +65,9 @@ describe('RequestApprovalService', () => {
     autoApprovalMode: 'auto_approve' as const,
     exceptionsEnabled: false,
     exceptionContacts: [],
+    processFromSelf: false,
+    processGroups: false,
+    markOnlineOnConnect: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -252,7 +256,7 @@ describe('RequestApprovalService', () => {
             status: 'SUBMITTED',
           });
 
-          expect(RadarrClient).toHaveBeenCalledWith('http://localhost:7878', 'decrypted-key');
+          expect(RadarrClient).toHaveBeenCalledWith('http://localhost:7878', 'decrypted-key', false);
           expect(mockRadarrClient.addMovie).toHaveBeenCalledWith({
             tmdbId: 12345,
             title: 'Test Movie',
@@ -304,7 +308,7 @@ describe('RequestApprovalService', () => {
 
           await service.createAndProcessRequest(phoneNumberHash, phoneNumber, seriesResult, 1);
 
-          expect(SonarrClient).toHaveBeenCalledWith('http://localhost:7878', 'decrypted-key');
+          expect(SonarrClient).toHaveBeenCalledWith('http://localhost:7878', 'decrypted-key', false);
           expect(mockSonarrClient.addSeries).toHaveBeenCalledWith({
             tvdbId: 67890,
             title: 'Test Movie',
@@ -335,7 +339,7 @@ describe('RequestApprovalService', () => {
             1
           );
 
-          expect(OverseerrClient).toHaveBeenCalledWith('http://localhost:7878', 'decrypted-key');
+          expect(OverseerrClient).toHaveBeenCalledWith('http://localhost:7878', 'decrypted-key', false);
           expect(mockOverseerrClient.getRadarrServers).toHaveBeenCalled();
           expect(mockOverseerrClient.requestMovie).toHaveBeenCalledWith({
             mediaId: 12345,

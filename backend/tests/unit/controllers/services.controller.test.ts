@@ -91,6 +91,7 @@ describe('Services Controller', () => {
           maxResults: 5,
           qualityProfileId: 1,
           rootFolderPath: '/movies',
+        allowInsecure: false,
           createdAt: new Date('2023-01-01'),
           updatedAt: new Date('2023-01-01'),
         },
@@ -113,6 +114,7 @@ describe('Services Controller', () => {
             maxResults: 5,
             qualityProfileId: 1,
             rootFolderPath: '/movies',
+        allowInsecure: false,
             hasApiKey: true,
             createdAt: '2023-01-01T00:00:00.000Z',
             updatedAt: '2023-01-01T00:00:00.000Z',
@@ -158,6 +160,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date('2023-01-01'),
         updatedAt: new Date('2023-01-01'),
       };
@@ -178,6 +181,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: '2023-01-01T00:00:00.000Z',
         updatedAt: '2023-01-01T00:00:00.000Z',
       });
@@ -224,6 +228,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date('2023-01-01'),
         updatedAt: new Date('2023-01-01'),
       };
@@ -235,6 +240,7 @@ describe('Services Controller', () => {
         priorityOrder: 1,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
       };
 
       (mediaServiceConfigRepository.validateUniquePriority as Mock).mockResolvedValue(true);
@@ -255,6 +261,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
       });
       expect(logger.info).toHaveBeenCalledWith(
         { serviceId: 1, name: 'New Radarr Service' },
@@ -271,6 +278,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: '2023-01-01T00:00:00.000Z',
         updatedAt: '2023-01-01T00:00:00.000Z',
       });
@@ -329,6 +337,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date('2023-01-01'),
         updatedAt: new Date('2023-01-01'),
       };
@@ -368,6 +377,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: '2023-01-01T00:00:00.000Z',
         updatedAt: '2023-01-02T00:00:00.000Z',
       });
@@ -385,6 +395,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date('2023-01-01'),
         updatedAt: new Date('2023-01-01'),
       };
@@ -436,6 +447,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date('2023-01-01'),
         updatedAt: new Date('2023-01-01'),
       };
@@ -547,6 +559,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/tv',
+        allowInsecure: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -624,6 +637,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -720,6 +734,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -760,6 +775,7 @@ describe('Services Controller', () => {
         maxResults: 5,
         qualityProfileId: 1,
         rootFolderPath: '/movies',
+        allowInsecure: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
