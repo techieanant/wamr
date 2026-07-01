@@ -227,6 +227,7 @@ export const requestQuotas = sqliteTable(
     windowType: text('window_type', { enum: ['daily', 'weekly', 'monthly'] })
       .notNull()
       .default('daily'),
+    currentRequests: integer('current_requests').notNull().default(0),
     createdAt: text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),

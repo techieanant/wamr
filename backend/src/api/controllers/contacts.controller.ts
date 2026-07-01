@@ -398,15 +398,15 @@ export const resetContactQuotaUsage = async (req: Request, res: Response, next: 
       globalWindowSetting?.value ??
       'daily') as QuotaWindowType;
 
-    const deleted = await requestQuotaRepository.resetUsageInWindow(
+    const newCount = await requestQuotaRepository.resetCounterOnly(
       contact.phoneNumberHash,
       windowType
     );
 
-    logger.info({ contactId: id, windowType, deleted }, 'Quota usage reset by admin');
+    logger.info({ contactId: id, windowType, newCount }, 'Quota counter reset by admin');
 
     const enriched = await enrichContactWithQuota(contact);
-    return res.json({ ...enriched, resetCount: deleted });
+    return res.json({ ...enriched, resetCount: newCount });
   } catch (error) {
     logger.error({ error }, 'Failed to reset contact quota usage');
     next(error);
