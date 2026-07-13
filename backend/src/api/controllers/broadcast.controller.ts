@@ -74,7 +74,15 @@ export class BroadcastController {
 
   async contacts(_req: Request, res: Response): Promise<void> {
     const contacts = await contactRepository.findAll();
-    res.json(contacts);
+    // Expose only what the UI needs; phoneNumber here is the encrypted blob used
+    // purely as a presence flag (LID-only contacts have no decryptable phone).
+    res.json({
+      contacts: contacts.map((c) => ({
+        id: c.id,
+        contactName: c.contactName,
+        phoneNumber: c.phoneNumberEncrypted ?? null,
+      })),
+    });
   }
 }
 
