@@ -25,6 +25,9 @@ export class ContactRepository {
         setValues.phoneNumberEncrypted = input.phoneNumberEncrypted;
       if (typeof input.phoneNumberHash !== 'undefined')
         setValues.phoneNumberHash = input.phoneNumberHash;
+      // Only set replyJid when a non-empty value is provided (never clear an existing one)
+      if (typeof input.replyJid !== 'undefined' && input.replyJid)
+        setValues.replyJid = input.replyJid;
 
       const updated = await db
         .update(contacts)
@@ -46,6 +49,7 @@ export class ContactRepository {
         phoneNumberHash: input.phoneNumberHash,
         contactName: input.contactName || null,
         phoneNumberEncrypted: input.phoneNumberEncrypted || null,
+        replyJid: input.replyJid || null,
         createdAt: now,
         updatedAt: now,
       })
@@ -89,6 +93,7 @@ export class ContactRepository {
       contactName?: string | null;
       phoneNumberHash?: string;
       phoneNumberEncrypted?: string | null;
+      replyJid?: string | null;
     }
   ): Promise<ContactModel | null> {
     const now = new Date().toISOString();
@@ -98,6 +103,8 @@ export class ContactRepository {
       setValues.phoneNumberHash = input.phoneNumberHash;
     if (typeof input.phoneNumberEncrypted !== 'undefined')
       setValues.phoneNumberEncrypted = input.phoneNumberEncrypted;
+    if (typeof input.replyJid !== 'undefined' && input.replyJid)
+      setValues.replyJid = input.replyJid;
 
     const updated = await db.update(contacts).set(setValues).where(eq(contacts.id, id)).returning();
     if (updated.length === 0) return null;

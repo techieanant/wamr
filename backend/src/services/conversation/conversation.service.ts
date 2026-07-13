@@ -100,7 +100,12 @@ export class ConversationService {
           const phoneNumberEncrypted = phoneNumber
             ? encryptionService.encrypt(phoneNumber)
             : undefined;
-          await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
+          await contactRepository.upsert({
+            phoneNumberHash,
+            contactName,
+            phoneNumberEncrypted,
+            replyJid: replyJid ?? undefined,
+          });
           // Backfill contact name to existing request_history entries
           await requestHistoryRepository.updateContactNameForPhone(
             phoneNumberHash,
@@ -135,7 +140,12 @@ export class ConversationService {
           const phoneNumberEncrypted = phoneNumber
             ? encryptionService.encrypt(phoneNumber)
             : undefined;
-          await contactRepository.upsert({ phoneNumberHash, contactName, phoneNumberEncrypted });
+          await contactRepository.upsert({
+            phoneNumberHash,
+            contactName,
+            phoneNumberEncrypted,
+            replyJid: replyJid ?? undefined,
+          });
           // Backfill contact name to existing request_history entries
           await requestHistoryRepository.updateContactNameForPhone(
             phoneNumberHash,
@@ -168,6 +178,7 @@ export class ConversationService {
             phoneNumberHash,
             contactName: existingContact.contactName || contactName,
             phoneNumberEncrypted,
+            replyJid: replyJid ?? undefined,
           });
           logger.info(
             { phoneNumberHash, contactId: existingContact.id },

@@ -202,6 +202,7 @@ export const contacts = sqliteTable(
     phoneNumberHash: text('phone_number_hash').notNull().unique(),
     phoneNumberEncrypted: text('phone_number_encrypted'),
     contactName: text('contact_name'),
+    replyJid: text('reply_jid'), // Full JID for sending (preserves @lid or @s.whatsapp.net); enables LID-only broadcasts
     createdAt: text('created_at')
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
@@ -356,6 +357,7 @@ export const broadcastRecipients = sqliteTable(
       .references(() => broadcasts.id, { onDelete: 'cascade' }),
     contactId: integer('contact_id').notNull(),
     phone: text('phone'),
+    replyJid: text('reply_jid'), // Fallback send target for LID-only contacts (no phone number)
     contactName: text('contact_name'),
     status: text('status', { enum: ['pending', 'sent', 'failed'] })
       .notNull()

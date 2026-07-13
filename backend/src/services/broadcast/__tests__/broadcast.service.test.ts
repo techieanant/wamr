@@ -55,9 +55,13 @@ vi.mock('../../../config/logger.js', () => ({
 }));
 
 import { broadcastRepository } from '../../../repositories/broadcast.repository.js';
+import { contactRepository } from '../../../repositories/contact.repository.js';
+import { encryptionService } from '../../encryption/encryption.service.js';
 import { whatsappClientService } from '../../whatsapp/whatsapp-client.service.js';
 
 const repo = broadcastRepository as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const contacts = contactRepository as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const enc = encryptionService as unknown as Record<string, ReturnType<typeof vi.fn>>;
 const wa = whatsappClientService as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
 describe('computeNextRun', () => {
@@ -226,5 +230,97 @@ describe('BroadcastService management', () => {
     await service.retryFailed(1);
     expect(repo.updateRecipient).toHaveBeenCalledWith(5, { status: 'pending', error: null });
     expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'scheduled' }));
+  });
+});
+
+describe('BroadcastService.expandRecipients (LID fallback)', () => {
+  const service = new BroadcastService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    repo.insertRecipients.mockResolvedValue(undefined);
+    repo.update.mockResolvedValue({});
+  });
+
+  it('creates recipient with replyJid for a LID-only contact', async () => {
+    const b = { id: 1, recipientContactIds: [1], messageText: 'hi', throttleMs: 10, jitterMs: 0 };
+    contacts.findById.mockResolvedValue({
+      id: 1,
+      phoneNumberHash: 'h',
+      contactName: 'Lid',
+      replyJid: '1234567890:lid@lid',
+    });
+    await service.expandRecipients(b as any);
+    expect(repo.insertRecipients).toHaveBeenCalledWith([
+      expect.objectContaining({
+        contactId: 1,
+        phone: null,
+        replyJid: '1234567890:lid@lid',
+        status: 'pending',
+      }),
+    ]);
+    expect(repo.update).toHaveBeenCalledWith(1, { totalRecipients: 1 });
+  });
+
+  it('prefers decrypted phone over replyJid', async () => {
+    const b = { id: 1, recipientContactIds: [1], messageText: 'hi', throttleMs: 10, jitterMs: 0 };
+    contacts.findById.mockResolvedValue({
+      id: 1,
+      phoneNumberHash: 'h',
+      contactName: 'P',
+      phoneNumberEncrypted: 'enc',
+      replyJid: '1234567890:lid@lid',
+    });
+    enc.decrypt.mockReturnValue('+15551234567');
+    await service.expandRecipients(b as any);
+    expect(repo.insertRecipients).toHaveBeenCalledWith([
+      expect.objectContaining({ contactId: 1, phone: '+15551234567', replyJid: null }),
+    ]);
+  });
+
+  it('skips a contact with neither phone nor replyJid', async () => {
+    const b = { id: 1, recipientContactIds: [1], messageText: 'hi', throttleMs: 10, jitterMs: 0 };
+    contacts.findById.mockResolvedValue({ id: 1, phoneNumberHash: 'h', contactName: 'X' });
+    await service.expandRecipients(b as any);
+    expect(repo.insertRecipients).toHaveBeenCalledWith([]);
+    expect(repo.update).toHaveBeenCalledWith(1, { totalRecipients: 0 });
+  });
+});
+
+describe('BroadcastService.runSend (LID target)', () => {
+  const service = new BroadcastService();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    wa.isReady.mockReturnValue(true);
+    wa.sendMessage.mockResolvedValue({ key: { id: 'x' } });
+    repo.countRecipients.mockResolvedValue(1);
+  });
+
+  it('sends to replyJid when phone is absent', async () => {
+    repo.findById.mockResolvedValue({
+      id: 1,
+      messageText: 'Hi {name}',
+      status: 'scheduled',
+      throttleMs: 10,
+      jitterMs: 0,
+      recipientContactIds: [1],
+    });
+    repo.listRecipients.mockResolvedValue([
+      {
+        id: 1,
+        contactId: 1,
+        phone: null,
+        replyJid: '1234567890:lid@lid',
+        contactName: 'Lid',
+        status: 'pending',
+      },
+    ]);
+    await service.runSend(1);
+    expect(wa.sendMessage).toHaveBeenCalledWith('1234567890:lid@lid', 'Hi Lid');
+    expect(repo.updateRecipient).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ status: 'sent' })
+    );
   });
 });

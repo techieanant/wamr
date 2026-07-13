@@ -82,23 +82,31 @@ export class BroadcastService {
     return broadcastRepository.create(newBroadcast as any);
   }
 
-  /** Expand recipient_contact_ids into broadcast_recipients rows (decrypt phones, skip LID-only). */
+  /** Expand recipient_contact_ids into broadcast_recipients rows.
+   *  Prefers the decrypted phone number; falls back to the stored LID JID
+   *  (replyJid) for LID-only contacts so they can still receive broadcasts. */
   async expandRecipients(broadcast: Broadcast): Promise<void> {
     const ids = (broadcast.recipientContactIds as number[]) || [];
     const rows = await Promise.all(
       ids.map(async (contactId) => {
         const contact = await contactRepository.findById(contactId);
-        if (!contact || !contact.phoneNumberEncrypted) return null; // LID-only: skip
+        if (!contact) return null;
         let phone: string | undefined;
-        try {
-          phone = encryptionService.decrypt(contact.phoneNumberEncrypted);
-        } catch {
-          return null;
+        if (contact.phoneNumberEncrypted) {
+          try {
+            phone = encryptionService.decrypt(contact.phoneNumberEncrypted);
+          } catch {
+            phone = undefined;
+          }
         }
+        // Fallback to the stored LID JID for LID-only contacts
+        const replyJid = phone ? undefined : (contact.replyJid ?? undefined);
+        if (!phone && !replyJid) return null; // No send target available
         return {
           broadcastId: broadcast.id,
           contactId,
-          phone,
+          phone: phone ?? null,
+          replyJid: replyJid ?? null,
           contactName: contact.contactName ?? null,
           status: 'pending' as const,
         };
@@ -132,8 +140,10 @@ export class BroadcastService {
 
       try {
         if (!whatsappClientService.isReady()) throw new Error('WhatsApp client is not ready');
+        const target = recipient.phone || recipient.replyJid;
+        if (!target) throw new Error('No send target (phone or LID JID) for recipient');
         const text = replaceName(broadcast.messageText, recipient.contactName);
-        await whatsappClientService.sendMessage(recipient.phone!, text);
+        await whatsappClientService.sendMessage(target, text);
         await broadcastRepository.updateRecipient(recipient.id, {
           status: 'sent',
           sentAt: new Date().toISOString(),
