@@ -55,6 +55,11 @@ const envSchema = z.object({
   // Media Monitoring
   MEDIA_MONITORING_INTERVAL_MS: z.string().transform(Number).default('300000'), // 5 minutes default
 
+  // Broadcast
+  BROADCAST_DEFAULT_THROTTLE_MS: z.string().transform(Number).default('2500'),
+  BROADCAST_DEFAULT_JITTER_MS: z.string().transform(Number).default('500'),
+  BROADCAST_TICKER_INTERVAL_MS: z.string().transform(Number).default('20000'),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_PRETTY: z
