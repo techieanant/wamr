@@ -300,3 +300,74 @@ export const backupCodes = sqliteTable(
 
 export type BackupCode = typeof backupCodes.$inferSelect;
 export type NewBackupCode = typeof backupCodes.$inferInsert;
+
+// Broadcasts Table
+export const broadcasts = sqliteTable(
+  'broadcasts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    parentId: integer('parent_id'),
+    label: text('label'),
+    messageText: text('message_text').notNull(),
+    scheduleType: text('schedule_type', { enum: ['once', 'recurring'] }).notNull(),
+    status: text('status', {
+      enum: ['scheduled', 'sending', 'completed', 'active', 'paused', 'cancelled'],
+    }).notNull(),
+    sendAt: text('send_at'),
+    recurringPattern: text('recurring_pattern', { enum: ['daily', 'weekly', 'monthly'] }),
+    recurringTime: text('recurring_time'), // HH:MM
+    recurringWeekday: integer('recurring_weekday'), // 0-6
+    recurringMonthDay: integer('recurring_month_day'), // 1-31
+    nextRunAt: text('next_run_at'),
+    throttleMs: integer('throttle_ms').notNull().default(2500),
+    jitterMs: integer('jitter_ms').notNull().default(500),
+    recipientContactIds: text('recipient_contact_ids', { mode: 'json' })
+      .$type<number[]>()
+      .notNull()
+      .default([]),
+    totalRecipients: integer('total_recipients').notNull().default(0),
+    sentCount: integer('sent_count').notNull().default(0),
+    failedCount: integer('failed_count').notNull().default(0),
+    createdAt: text('created_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text('updated_at')
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => ({
+    statusIdx: index('idx_broadcast_status').on(table.status),
+    parentIdx: index('idx_broadcast_parent').on(table.parentId),
+    sendAtIdx: index('idx_broadcast_send_at').on(table.sendAt),
+    nextRunIdx: index('idx_broadcast_next_run').on(table.nextRunAt),
+  })
+);
+
+export type Broadcast = typeof broadcasts.$inferSelect;
+export type NewBroadcast = typeof broadcasts.$inferInsert;
+
+// Broadcast Recipients Table (per-run send state)
+export const broadcastRecipients = sqliteTable(
+  'broadcast_recipients',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    broadcastId: integer('broadcast_id')
+      .notNull()
+      .references(() => broadcasts.id, { onDelete: 'cascade' }),
+    contactId: integer('contact_id').notNull(),
+    phone: text('phone'),
+    contactName: text('contact_name'),
+    status: text('status', { enum: ['pending', 'sent', 'failed'] })
+      .notNull()
+      .default('pending'),
+    error: text('error'),
+    sentAt: text('sent_at'),
+  },
+  (table) => ({
+    broadcastIdx: index('idx_broadcast_recip_broadcast').on(table.broadcastId),
+    statusIdx: index('idx_broadcast_recip_status').on(table.status),
+  })
+);
+
+export type BroadcastRecipient = typeof broadcastRecipients.$inferSelect;
+export type NewBroadcastRecipient = typeof broadcastRecipients.$inferInsert;
