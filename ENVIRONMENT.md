@@ -55,6 +55,11 @@ When running `npm run dev`, the monorepo starts both frontend and backend develo
 
   # Media monitoring interval (ms)
   MEDIA_MONITORING_INTERVAL_MS=300000
+
+  # Broadcast messaging
+  BROADCAST_DEFAULT_THROTTLE_MS=2500
+  BROADCAST_DEFAULT_JITTER_MS=500
+  BROADCAST_TICKER_INTERVAL_MS=20000
   ```
 
 ### How It Works
@@ -152,6 +157,9 @@ LOG_LEVEL=info              # Logging level (default: info)
 | `RATE_LIMIT_MAX_REQUESTS`      | `100`               | Max requests                             |
 | `LOGIN_RATE_LIMIT_MAX`         | `5`                 | Max login attempts                       |
 | `MEDIA_MONITORING_INTERVAL_MS` | `300000`            | Monitoring interval                      |
+| `BROADCAST_DEFAULT_THROTTLE_MS`| `2500`              | Default per-recipient send delay (ms)    |
+| `BROADCAST_DEFAULT_JITTER_MS`  | `500`               | Random jitter added to throttle (ms)     |
+| `BROADCAST_TICKER_INTERVAL_MS` | `20000`             | Scheduler poll interval (ms)             |
 | `LOG_LEVEL`                    | `info`              | Logging level                            |
 | `LOG_PRETTY`                   | `false`             | Pretty logs                              |
 | `DATA_PATH`                    | `./data`            | Host data path                           |

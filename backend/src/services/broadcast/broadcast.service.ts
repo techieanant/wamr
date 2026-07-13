@@ -182,17 +182,17 @@ export class BroadcastService {
     return child;
   }
 
-  async cancel(id: number): Promise<void> {
-    await broadcastRepository.update(id, { status: 'cancelled' });
+  async cancel(id: number): Promise<Broadcast | null> {
+    return broadcastRepository.update(id, { status: 'cancelled' });
   }
 
-  async pause(id: number): Promise<void> {
-    await broadcastRepository.update(id, { status: 'paused' });
+  async pause(id: number): Promise<Broadcast | null> {
+    return broadcastRepository.update(id, { status: 'paused' });
   }
 
-  async resume(id: number): Promise<void> {
+  async resume(id: number): Promise<Broadcast | null> {
     const b = await broadcastRepository.findById(id);
-    if (!b) return;
+    if (!b) return null;
     const next = computeNextRun(
       b.recurringPattern!,
       b.recurringTime!,
@@ -200,15 +200,18 @@ export class BroadcastService {
       b.recurringWeekday,
       b.recurringMonthDay
     );
-    await broadcastRepository.update(id, { status: 'active', nextRunAt: next.toISOString() });
+    return broadcastRepository.update(id, { status: 'active', nextRunAt: next.toISOString() });
   }
 
-  async retryFailed(id: number): Promise<void> {
+  async retryFailed(id: number): Promise<Broadcast | null> {
     const failed = await broadcastRepository.listRecipients(id, 'failed');
     for (const r of failed) {
       await broadcastRepository.updateRecipient(r.id, { status: 'pending', error: null });
     }
-    await broadcastRepository.update(id, { status: 'scheduled', sendAt: new Date().toISOString() });
+    return broadcastRepository.update(id, {
+      status: 'scheduled',
+      sendAt: new Date().toISOString(),
+    });
   }
 }
 
