@@ -43,7 +43,7 @@
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@types/qrcode": "^1.5.6",
-    "@whiskeysockets/baileys": "^6.7.16",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
     "axios": "^1.6.8",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.3.0",

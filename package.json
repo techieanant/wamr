@@ -49,7 +49,7 @@
     ]
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.16",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
     "tsx": "^4.21.0"
   }
 }
