@@ -11,6 +11,7 @@ import WhatsAppConnection from './pages/whatsapp-connection';
 import { ServiceConfigPage } from './pages/service-config';
 import RequestsPage from './pages/requests';
 import ContactsPage from './pages/contacts';
+import BroadcastsPage from './pages/broadcasts';
 import SettingsPage from './pages/settings';
 import { MainLayout } from './components/layout/main-layout';
 import { Toaster } from '@/components/ui/toaster';
@@ -168,6 +169,17 @@ function App() {
                   <ProtectedRoute>
                     <MainLayout>
                       <ContactsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/broadcasts"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <BroadcastsPage />
                     </MainLayout>
                   </ProtectedRoute>
                 }

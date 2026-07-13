@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
-import { LayoutDashboard, Smartphone, Settings, FileText, Blocks, X } from 'lucide-react';
+import { LayoutDashboard, Smartphone, Settings, FileText, Blocks, Send, X } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -8,6 +8,7 @@ const navigation = [
   { name: 'Services', href: '/services', icon: Blocks },
   { name: 'Requests', href: '/requests', icon: FileText },
   { name: 'Contacts', href: '/contacts', icon: FileText },
+  { name: 'Broadcasts', href: '/broadcasts', icon: Send },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
