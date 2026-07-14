@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, like } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { contacts } from '../db/schema.js';
 import { ContactModel, CreateContact } from '../models/contact.model.js';
@@ -85,6 +85,19 @@ export class ContactRepository {
     const rows = await db.select().from(contacts).where(eq(contacts.id, id));
     if (rows.length === 0) return null;
     return rows[0] as ContactModel;
+  }
+
+  /**
+   * Find contacts stored from a LID (replyJid ends with @lid) that have
+   * no resolved phone number yet. Used to backfill phone numbers once
+   * Baileys learns the LID→PN mapping (see lid-mapping.update handler).
+   */
+  async findLidOnly(): Promise<ContactModel[]> {
+    const rows = await db
+      .select()
+      .from(contacts)
+      .where(and(like(contacts.replyJid, '%@lid'), isNull(contacts.phoneNumberEncrypted)));
+    return rows as ContactModel[];
   }
 
   async update(

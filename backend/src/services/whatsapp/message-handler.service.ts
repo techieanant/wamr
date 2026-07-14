@@ -214,7 +214,7 @@ class MessageHandlerService {
       const fullJid = this.extractFullJid(message);
 
       // Extract phone number - use participant JID for groups so we identify the sender
-      const phoneNumber = this.extractPhoneNumber(message, senderJid);
+      const phoneNumber = await this.resolvePhoneNumber(message, senderJid);
       const userIdentifier = phoneNumber || this.extractUserIdentifier(message, senderJid);
 
       logger.info(
@@ -437,6 +437,41 @@ class MessageHandlerService {
       logger.error('Error extracting phone number', { error, from: message.key.remoteJid });
       return null;
     }
+  }
+
+  /**
+   * Resolve a phone number for an incoming message, falling back to an
+   * async LID→PN lookup when the message carries only an @lid JID.
+   * Returns `+<phone>` or null when the mapping isn't known yet.
+   */
+  private async resolvePhoneNumber(
+    message: BaileysMessage,
+    senderJidOverride?: string | null
+  ): Promise<string | null> {
+    // Fast path: PN already present in the message (alt JID / senderPn / @s.whatsapp.net)
+    const extracted = this.extractPhoneNumber(message, senderJidOverride);
+    if (extracted) return extracted;
+
+    // Slow path: message is @lid-only — ask Baileys for the LID→PN mapping.
+    const lidJid = senderJidOverride ?? message.key.remoteJid;
+    if (lidJid?.endsWith('@lid')) {
+      try {
+        const sock = whatsappClientService.getClient();
+        const repo = sock?.signalRepository as unknown as
+          | {
+              lidMapping?: { getPNForLID: (lid: string) => Promise<string | null> };
+            }
+          | undefined;
+        const pn = await repo?.lidMapping?.getPNForLID(lidJid);
+        if (pn) {
+          logger.debug({ lidJid, pn }, 'Resolved phone number from LID mapping');
+          return `+${pn}`;
+        }
+      } catch (err) {
+        logger.warn({ err, lidJid }, 'Failed to resolve PN from LID');
+      }
+    }
+    return null;
   }
 
   /**

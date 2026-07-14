@@ -12,6 +12,8 @@ type WASocket = ReturnType<typeof makeWASocket>;
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
 import { hashingService } from '../encryption/hashing.service.js';
+import { encryptionService } from '../encryption/encryption.service.js';
+import { contactRepository } from '../../repositories/contact.repository.js';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
 import type { WhatsAppConnectionStatus } from '../../models/whatsapp-connection.model.js';
 
@@ -403,6 +405,36 @@ export class WhatsAppClientService {
         }
       } catch (error) {
         logger.error({ error }, 'Error handling messages.upsert event');
+      }
+    });
+
+    // LID → Phone Number mapping update event.
+    // Baileys learns LID→PN mappings lazily; when new mappings arrive, backfill
+    // any contacts we stored from an @lid JID without a resolved phone number.
+    this.sock.ev.on('lid-mapping.update', async () => {
+      try {
+        const lidOnly = await contactRepository.findLidOnly();
+        for (const c of lidOnly) {
+          if (!c.replyJid) continue;
+          const repo = this.sock?.signalRepository as unknown as
+            | {
+                lidMapping?: { getPNForLID: (lid: string) => Promise<string | null> };
+              }
+            | undefined;
+          const pn = await repo?.lidMapping?.getPNForLID(c.replyJid);
+          if (pn) {
+            await contactRepository.upsert({
+              phoneNumberHash: c.phoneNumberHash,
+              phoneNumberEncrypted: encryptionService.encrypt(`+${pn}`),
+            });
+            logger.info(
+              { phoneNumberHash: c.phoneNumberHash },
+              'Backfilled phone number from LID mapping'
+            );
+          }
+        }
+      } catch (err) {
+        logger.warn({ err }, 'LID backfill failed');
       }
     });
   }
