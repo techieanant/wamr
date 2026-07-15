@@ -26,7 +26,13 @@ export class BroadcastSchedulerService {
     const nowIso = new Date().toISOString();
 
     // Resume interrupted sends
-    const resumable = await broadcastRepository.findResumable();
+    let resumable: Awaited<ReturnType<typeof broadcastRepository.findResumable>> = [];
+    try {
+      resumable = await broadcastRepository.findResumable();
+    } catch (e) {
+      logger.error({ error: e }, 'Failed to load resumable broadcasts; skipping this tick');
+      return;
+    }
     for (const b of resumable) {
       if (this.inProgress.has(b.id)) continue;
       this.inProgress.add(b.id);
@@ -36,7 +42,13 @@ export class BroadcastSchedulerService {
         .finally(() => this.inProgress.delete(b.id));
     }
 
-    const due = await broadcastRepository.findDue(nowIso);
+    let due: Awaited<ReturnType<typeof broadcastRepository.findDue>> = [];
+    try {
+      due = await broadcastRepository.findDue(nowIso);
+    } catch (e) {
+      logger.error({ error: e }, 'Failed to load due broadcasts; skipping this tick');
+      return;
+    }
     for (const b of due) {
       if (this.inProgress.has(b.id)) continue;
       this.inProgress.add(b.id);
