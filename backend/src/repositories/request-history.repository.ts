@@ -450,6 +450,17 @@ export class RequestHistoryRepository {
    * Map database row to model with typed JSON fields
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /**
+   * Re-point all request-history rows from an old phone-number hash to a new one.
+   * Used when an LID-only contact is merged into its PN-keyed identity.
+   */
+  async repointByPhoneHash(oldHash: string, newHash: string): Promise<void> {
+    await db
+      .update(requestHistory)
+      .set({ phoneNumberHash: newHash })
+      .where(eq(requestHistory.phoneNumberHash, oldHash));
+  }
+
   private mapToModel(request: any): RequestHistoryModel {
     return {
       ...request,

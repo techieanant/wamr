@@ -4,6 +4,7 @@ import { encryptionService } from '../encryption/encryption.service.js';
 import { whatsappClientService } from '../whatsapp/whatsapp-client.service.js';
 import { env } from '../../config/environment.js';
 import { logger } from '../../config/logger.js';
+import { webSocketService, SocketEvents } from '../websocket/websocket.service.js';
 import type { Broadcast, ComposeBroadcastInput } from '../../models/broadcast.model.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -15,15 +16,31 @@ function replaceName(template: string, name?: string | null): string {
 
 /** Next occurrence for a recurring pattern, strictly after `from`. */
 export function computeNextRun(
-  pattern: 'daily' | 'weekly' | 'monthly',
-  time: string, // HH:MM
+  pattern: 'daily' | 'weekly' | 'monthly' | 'minute' | 'hour',
+  time: string, // HH:MM (ignored for minute/hour)
   from: Date,
   weekday?: number | null,
-  monthDay?: number | null
+  monthDay?: number | null,
+  interval: number = 1
 ): Date {
-  const [h, m] = time.split(':').map((x) => parseInt(x, 10));
+  const safeTime = time && time.includes(':') ? time : '00:00';
+  const [h, m] = safeTime.split(':').map((x) => parseInt(x, 10));
   const next = new Date(from);
   next.setSeconds(0, 0);
+  next.setMilliseconds(0);
+
+  if (pattern === 'minute') {
+    next.setMinutes(next.getMinutes() + interval);
+    while (next <= from) next.setMinutes(next.getMinutes() + interval);
+    return next;
+  }
+  if (pattern === 'hour') {
+    next.setMinutes(0);
+    next.setHours(next.getHours() + interval);
+    while (next <= from) next.setHours(next.getHours() + interval);
+    return next;
+  }
+
   next.setHours(h, m, 0, 0);
   if (next <= from) next.setDate(next.getDate() + 1);
 
@@ -61,6 +78,7 @@ export class BroadcastService {
       scheduleType: input.scheduleType,
       status: isRecurring ? 'active' : 'scheduled',
       recipientContactIds: input.recipientContactIds,
+      totalRecipients: input.recipientContactIds.length,
       throttleMs: input.throttleMs ?? env.BROADCAST_DEFAULT_THROTTLE_MS,
       jitterMs: input.jitterMs ?? env.BROADCAST_DEFAULT_JITTER_MS,
     };
@@ -69,12 +87,14 @@ export class BroadcastService {
       newBroadcast.recurringTime = input.recurringTime;
       newBroadcast.recurringWeekday = input.recurringWeekday ?? null;
       newBroadcast.recurringMonthDay = input.recurringMonthDay ?? null;
+      newBroadcast.recurringInterval = input.recurringInterval ?? 1;
       newBroadcast.nextRunAt = computeNextRun(
         input.recurringPattern!,
         input.recurringTime!,
         now,
         input.recurringWeekday,
-        input.recurringMonthDay
+        input.recurringMonthDay,
+        input.recurringInterval ?? 1
       ).toISOString();
     } else {
       newBroadcast.sendAt = input.sendAt ?? now.toISOString();
@@ -166,6 +186,22 @@ export class BroadcastService {
       sentCount: sent,
       failedCount: failed,
     });
+
+    // Notify clients so the dashboard updates live (covers one-time sends and
+    // recurring children, whose parent stays 'active' and would otherwise never refresh).
+    const total =
+      (broadcast.recipientContactIds as number[] | undefined)?.length ??
+      broadcast.totalRecipients ??
+      0;
+    webSocketService.emit(SocketEvents.BROADCAST_UPDATED, {
+      id: broadcastId,
+      parentId: broadcast.parentId ?? null,
+      label: broadcast.label ?? null,
+      status: 'completed',
+      sentCount: sent,
+      failedCount: failed,
+      totalRecipients: total,
+    });
   }
 
   /** Spawn a child 'once' broadcast from a recurring parent and advance parent's next_run_at. */
@@ -180,13 +216,15 @@ export class BroadcastService {
       recipientContactIds: parent.recipientContactIds,
       throttleMs: parent.throttleMs,
       jitterMs: parent.jitterMs,
+      recurringInterval: parent.recurringInterval,
     } as any);
     const next = computeNextRun(
       parent.recurringPattern!,
       parent.recurringTime!,
       new Date(),
       parent.recurringWeekday,
-      parent.recurringMonthDay
+      parent.recurringMonthDay,
+      parent.recurringInterval ?? 1
     );
     await broadcastRepository.update(parent.id, { nextRunAt: next.toISOString() });
     return child;
@@ -208,7 +246,8 @@ export class BroadcastService {
       b.recurringTime!,
       new Date(),
       b.recurringWeekday,
-      b.recurringMonthDay
+      b.recurringMonthDay,
+      b.recurringInterval ?? 1
     );
     return broadcastRepository.update(id, { status: 'active', nextRunAt: next.toISOString() });
   }

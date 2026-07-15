@@ -217,6 +217,14 @@ class MessageHandlerService {
       const phoneNumber = await this.resolvePhoneNumber(message, senderJid);
       const userIdentifier = phoneNumber || this.extractUserIdentifier(message, senderJid);
 
+      // Merge any LID-only contact into its resolved phone-number identity to avoid duplicates.
+      const remoteJid = message.key?.remoteJid || '';
+      if (remoteJid.endsWith('@lid') && phoneNumber) {
+        const lidHash = hashingService.hashPhoneNumber(remoteJid);
+        const pnHash = hashingService.hashPhoneNumber(phoneNumber);
+        await conversationService.mergeLidContact(lidHash, phoneNumber, pnHash);
+      }
+
       logger.info(
         {
           fullJid,

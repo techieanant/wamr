@@ -7,7 +7,7 @@ export type BroadcastStatus =
   | 'active';
 
 export type BroadcastScheduleType = 'once' | 'recurring';
-export type RecurringPattern = 'daily' | 'weekly' | 'monthly';
+export type RecurringPattern = 'daily' | 'weekly' | 'monthly' | 'minute' | 'hour';
 
 export interface BroadcastRecipient {
   id: number;
@@ -37,6 +37,7 @@ export interface Broadcast {
   recurringTime: string | null;
   recurringWeekday: number | null;
   recurringMonthDay: number | null;
+  recurringInterval: number | null;
   throttleMs: number | null;
   jitterMs: number | null;
   createdAt: string;
@@ -56,6 +57,7 @@ export interface ComposeBroadcastInput {
   recurringTime?: string;
   recurringWeekday?: number;
   recurringMonthDay?: number;
+  recurringInterval?: number;
 }
 
 export interface BroadcastsResponse {

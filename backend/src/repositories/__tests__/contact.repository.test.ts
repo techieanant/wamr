@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockWhere, mockFrom, mockSelect } = vi.hoisted(() => {
+const { mockWhere, mockFrom, mockSelect, mockUpdate, mockSet, mockUpdateWhere } = vi.hoisted(() => {
   const mockWhere = vi.fn();
   const mockFrom = vi.fn();
   const mockSelect = vi.fn();
-  return { mockWhere, mockFrom, mockSelect };
+  const mockUpdate = vi.fn();
+  const mockSet = vi.fn();
+  const mockUpdateWhere = vi.fn();
+  return { mockWhere, mockFrom, mockSelect, mockUpdate, mockSet, mockUpdateWhere };
 });
 
 vi.mock('../../db/index.js', () => ({
-  db: { select: mockSelect },
+  db: { select: mockSelect, update: mockUpdate },
 }));
 
 vi.mock('../../config/logger.js', () => ({
@@ -42,5 +45,49 @@ describe('ContactRepository.findLidOnly', () => {
     mockWhere.mockResolvedValue([]);
     const result = await contactRepository.findLidOnly();
     expect(result).toEqual([]);
+  });
+});
+
+describe('ContactRepository.findByReplyJid', () => {
+  beforeEach(() => {
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReset();
+  });
+
+  it('returns the contact matching the reply JID', async () => {
+    const row = { id: 1, phoneNumberHash: 'h1', replyJid: '123:7@lid' };
+    mockWhere.mockResolvedValue([row]);
+
+    const result = await contactRepository.findByReplyJid('123:7@lid');
+
+    expect(result).toBe(row);
+    expect(mockWhere).toHaveBeenCalled();
+  });
+
+  it('returns null when no contact uses the reply JID', async () => {
+    mockWhere.mockResolvedValue([]);
+    const result = await contactRepository.findByReplyJid('999:0@lid');
+    expect(result).toBeNull();
+  });
+});
+
+describe('ContactRepository.rekeyToPn', () => {
+  beforeEach(() => {
+    mockUpdate.mockReturnValue({ set: mockSet });
+    mockSet.mockReturnValue({ where: mockUpdateWhere });
+    mockUpdateWhere.mockReset();
+  });
+
+  it('re-keys the contact to the PN hash and stores the encrypted phone', async () => {
+    await contactRepository.rekeyToPn('hLid', 'hPn', 'enc', '1234567890@s.whatsapp.net');
+
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockSet).toHaveBeenCalledWith({
+      phoneNumberHash: 'hPn',
+      phoneNumberEncrypted: 'enc',
+      replyJid: '1234567890@s.whatsapp.net',
+    });
+    expect(mockUpdateWhere).toHaveBeenCalled();
   });
 });

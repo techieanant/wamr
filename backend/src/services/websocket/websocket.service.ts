@@ -21,6 +21,9 @@ export enum SocketEvents {
   REQUEST_CONTACT_UPDATE = 'request:contact-update',
   REQUEST_DELETED = 'request:deleted',
 
+  // Broadcast events
+  BROADCAST_UPDATED = 'broadcast:updated',
+
   // System Events
   SYSTEM_ERROR = 'system:error',
 

@@ -12,7 +12,6 @@ type WASocket = ReturnType<typeof makeWASocket>;
 import { logger } from '../../config/logger.js';
 import { env } from '../../config/environment.js';
 import { hashingService } from '../encryption/hashing.service.js';
-import { encryptionService } from '../encryption/encryption.service.js';
 import { contactRepository } from '../../repositories/contact.repository.js';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
 import type { WhatsAppConnectionStatus } from '../../models/whatsapp-connection.model.js';
@@ -423,13 +422,13 @@ export class WhatsAppClientService {
             | undefined;
           const pn = await repo?.lidMapping?.getPNForLID(c.replyJid);
           if (pn) {
-            await contactRepository.upsert({
-              phoneNumberHash: c.phoneNumberHash,
-              phoneNumberEncrypted: encryptionService.encrypt(`+${pn}`),
-            });
+            const fullPn = `+${pn}`;
+            const pnHash = hashingService.hashPhoneNumber(fullPn);
+            const { conversationService } = await import('../conversation/conversation.service.js');
+            await conversationService.mergeLidContact(c.phoneNumberHash, fullPn, pnHash);
             logger.info(
-              { phoneNumberHash: c.phoneNumberHash },
-              'Backfilled phone number from LID mapping'
+              { lid: c.replyJid, phoneNumberHash: pnHash },
+              'Merged LID contact into phone-number identity'
             );
           }
         }

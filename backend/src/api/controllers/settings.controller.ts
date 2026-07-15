@@ -52,7 +52,7 @@ const APP_VERSION = getAppVersion();
 /**
  * Export schema version
  */
-const EXPORT_SCHEMA_VERSION = APP_VERSION;
+export const EXPORT_SCHEMA_VERSION = APP_VERSION;
 
 /**
  * Get all settings

@@ -40,33 +40,39 @@ export function BroadcastDetail({ broadcast, onClose }: BroadcastDetailProps) {
               </div>
             </div>
             <div className="max-h-72 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Recipient</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sent at</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(broadcast.recipients ?? []).map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell>{r.contactName || r.phone || `Contact #${r.contactId}`}</TableCell>
-                      <TableCell>
-                        <Badge variant={RECIPIENT_VARIANT[r.status]}>{r.status}</Badge>
-                      </TableCell>
-                      <TableCell>{r.sentAt ? new Date(r.sentAt).toLocaleString() : '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                  {(broadcast.recipients ?? []).length === 0 && (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">
-                        No recipient details loaded.
-                      </TableCell>
+                      <TableHead>Recipient</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Sent at</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {(broadcast.recipients ?? []).map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell>
+                          {r.contactName || r.phone || `Contact #${r.contactId}`}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={RECIPIENT_VARIANT[r.status]}>{r.status}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {r.sentAt ? new Date(r.sentAt).toLocaleString() : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {(broadcast.recipients ?? []).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          No recipient details loaded.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </>
         )}

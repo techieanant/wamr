@@ -27,6 +27,7 @@ export function BroadcastForm({ onSubmit, isSubmitting }: BroadcastFormProps) {
   const [recurringTime, setRecurringTime] = useState('09:00');
   const [recurringWeekday, setRecurringWeekday] = useState(1);
   const [recurringMonthDay, setRecurringMonthDay] = useState(1);
+  const [recurringInterval, setRecurringInterval] = useState(1);
   const [throttleMs, setThrottleMs] = useState(2500);
   const [jitterMs, setJitterMs] = useState(500);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,8 @@ export function BroadcastForm({ onSubmit, isSubmitting }: BroadcastFormProps) {
       payload.recurringTime = recurringTime;
       if (recurringPattern === 'weekly') payload.recurringWeekday = recurringWeekday;
       if (recurringPattern === 'monthly') payload.recurringMonthDay = recurringMonthDay;
+      if (recurringPattern === 'minute' || recurringPattern === 'hour')
+        payload.recurringInterval = recurringInterval;
     }
     onSubmit(payload);
   };
@@ -172,7 +175,7 @@ export function BroadcastForm({ onSubmit, isSubmitting }: BroadcastFormProps) {
               />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label>Pattern</Label>
                 <Select
@@ -186,55 +189,78 @@ export function BroadcastForm({ onSubmit, isSubmitting }: BroadcastFormProps) {
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="minute">Every minute</SelectItem>
+                    <SelectItem value="hour">Every hour</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="rtime">Time</Label>
-                <Input
-                  id="rtime"
-                  type="time"
-                  value={recurringTime}
-                  onChange={(e) => setRecurringTime(e.target.value)}
-                />
-              </div>
-              {recurringPattern === 'weekly' && (
+              {recurringPattern === 'minute' || recurringPattern === 'hour' ? (
                 <div className="col-span-2 space-y-1">
-                  <Label>Weekday</Label>
-                  <Select
-                    value={String(recurringWeekday)}
-                    onValueChange={(v) => setRecurringWeekday(Number(v))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEEKDAYS.map((d, i) => (
-                        <SelectItem key={d} value={String(i)}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="rinterval">Every</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="rinterval"
+                      type="number"
+                      min={1}
+                      value={recurringInterval}
+                      onChange={(e) => setRecurringInterval(Math.max(1, Number(e.target.value)))}
+                      className="w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {recurringPattern === 'minute' ? 'minute(s)' : 'hour(s)'}
+                    </span>
+                  </div>
                 </div>
-              )}
-              {recurringPattern === 'monthly' && (
-                <div className="col-span-2 space-y-1">
-                  <Label htmlFor="mday">Day of month</Label>
-                  <Input
-                    id="mday"
-                    type="number"
-                    min={1}
-                    max={28}
-                    value={recurringMonthDay}
-                    onChange={(e) => setRecurringMonthDay(Number(e.target.value))}
-                  />
-                </div>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <Label htmlFor="rtime">Time</Label>
+                    <Input
+                      id="rtime"
+                      type="time"
+                      value={recurringTime}
+                      onChange={(e) => setRecurringTime(e.target.value)}
+                    />
+                  </div>
+                  {recurringPattern === 'weekly' && (
+                    <div className="col-span-2 space-y-1">
+                      <Label>Weekday</Label>
+                      <Select
+                        value={String(recurringWeekday)}
+                        onValueChange={(v) => setRecurringWeekday(Number(v))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WEEKDAYS.map((d, i) => (
+                            <SelectItem key={d} value={String(i)}>
+                              {d}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {recurringPattern === 'monthly' && (
+                    <div className="col-span-2 space-y-1">
+                      <Label htmlFor="mday">Day of month</Label>
+                      <Input
+                        id="mday"
+                        type="number"
+                        min={1}
+                        max={28}
+                        value={recurringMonthDay}
+                        onChange={(e) => setRecurringMonthDay(Number(e.target.value))}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="throttle">Throttle (ms)</Label>
               <Input

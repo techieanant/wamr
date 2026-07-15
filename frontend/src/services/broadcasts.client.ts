@@ -42,3 +42,10 @@ export async function getBroadcastContacts(): Promise<{
 }> {
   return apiClient.get('/api/broadcasts/contacts');
 }
+
+export async function exportBroadcasts(): Promise<{
+  broadcasts: unknown[];
+  exportedAt: string;
+}> {
+  return apiClient.get('/api/broadcasts/export');
+}

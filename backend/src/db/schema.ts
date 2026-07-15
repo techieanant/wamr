@@ -315,10 +315,13 @@ export const broadcasts = sqliteTable(
       enum: ['scheduled', 'sending', 'completed', 'active', 'paused', 'cancelled'],
     }).notNull(),
     sendAt: text('send_at'),
-    recurringPattern: text('recurring_pattern', { enum: ['daily', 'weekly', 'monthly'] }),
+    recurringPattern: text('recurring_pattern', {
+      enum: ['daily', 'weekly', 'monthly', 'minute', 'hour'],
+    }),
     recurringTime: text('recurring_time'), // HH:MM
     recurringWeekday: integer('recurring_weekday'), // 0-6
     recurringMonthDay: integer('recurring_month_day'), // 1-31
+    recurringInterval: integer('recurring_interval').notNull().default(1), // every N of the pattern unit
     nextRunAt: text('next_run_at'),
     throttleMs: integer('throttle_ms').notNull().default(2500),
     jitterMs: integer('jitter_ms').notNull().default(500),

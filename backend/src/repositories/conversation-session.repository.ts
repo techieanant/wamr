@@ -250,6 +250,17 @@ export class ConversationSessionRepository {
    * Map database row to model with typed JSON fields
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /**
+   * Re-point all conversation-session rows from an old phone-number hash to a new one.
+   * Used when an LID-only contact is merged into its PN-keyed identity.
+   */
+  async repointByPhoneHash(oldHash: string, newHash: string): Promise<void> {
+    await db
+      .update(conversationSessions)
+      .set({ phoneNumberHash: newHash })
+      .where(eq(conversationSessions.phoneNumberHash, oldHash));
+  }
+
   private mapToModel(session: any): ConversationSessionModel {
     return {
       ...session,

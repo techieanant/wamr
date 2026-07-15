@@ -100,6 +100,34 @@ export class ContactRepository {
     return rows as ContactModel[];
   }
 
+  /**
+   * Find a contact by its stored reply JID (the @lid JID for LID-only contacts).
+   * Used to detect an existing LID-keyed contact when a phone number is later
+   * resolved, so we can merge it into the PN-keyed contact instead of duplicating.
+   */
+  async findByReplyJid(replyJid: string): Promise<ContactModel | null> {
+    const rows = await db.select().from(contacts).where(eq(contacts.replyJid, replyJid));
+    if (rows.length === 0) return null;
+    return rows[0] as ContactModel;
+  }
+
+  /**
+   * Re-key an existing LID-only contact to its resolved phone-number hash and
+   * store the encrypted phone number. Used by the LID→PN merge so a contact
+   * keeps one identity (keyed by PN) instead of splitting into LID + PN rows.
+   */
+  async rekeyToPn(
+    oldHash: string,
+    newHash: string,
+    phoneNumberEncrypted: string,
+    replyJid: string
+  ): Promise<void> {
+    await db
+      .update(contacts)
+      .set({ phoneNumberHash: newHash, phoneNumberEncrypted, replyJid })
+      .where(eq(contacts.phoneNumberHash, oldHash));
+  }
+
   async update(
     id: number,
     input: {

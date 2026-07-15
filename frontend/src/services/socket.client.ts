@@ -41,6 +41,17 @@ export interface ServerToClientEvents {
 
   // System events
   'system:error': (data: { message: string; code?: string }) => void;
+
+  // Broadcast events
+  'broadcast:updated': (data: {
+    id: number;
+    parentId: number | null;
+    label: string | null;
+    status: string;
+    sentCount: number;
+    failedCount: number;
+    totalRecipients: number;
+  }) => void;
 }
 
 export interface ClientToServerEvents {

@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.get('/', broadcastController.list);
 router.get('/contacts', broadcastController.contacts);
+router.get('/export', broadcastController.exportAll);
 router.get('/:id', broadcastController.get);
 router.post('/', broadcastController.create);
 router.post('/:id/cancel', broadcastController.cancel);

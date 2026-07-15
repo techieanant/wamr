@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../hooks/use-toast';
+import { useSocket } from '../hooks/use-socket';
 import {
   getBroadcasts,
   getBroadcast,
@@ -18,7 +21,28 @@ export function useBroadcasts() {
   const broadcastsQuery = useQuery<BroadcastsResponse>({
     queryKey: ['broadcasts'],
     queryFn: () => getBroadcasts(),
+    refetchInterval: 5000, // fallback refresh if socket is unavailable
   });
+
+  const { toast } = useToast();
+  const { on: onSocket } = useSocket();
+
+  // Live updates: backend emits 'broadcast:updated' on every send completion
+  // (covers one-time sends and recurring children, whose parent stays 'active').
+  useEffect(() => {
+    return onSocket('broadcast:updated', (data) => {
+      queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
+      const id = data.parentId ?? data.id;
+      const failed = data.failedCount ?? 0;
+      toast({
+        title: `Broadcast #${id} sent`,
+        description:
+          failed > 0
+            ? `Delivered ${data.sentCount ?? 0}/${data.totalRecipients ?? 0} (${failed} failed)`
+            : `Delivered ${data.sentCount ?? 0}/${data.totalRecipients ?? 0}`,
+      });
+    });
+  }, [onSocket, queryClient, toast]);
 
   const createMutation = useMutation<Broadcast, Error, Parameters<typeof createBroadcast>[0]>({
     mutationFn: (vars) => createBroadcast(vars),

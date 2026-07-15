@@ -2,6 +2,7 @@ import { conversationSessionRepository } from '../../repositories/conversation-s
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
 import { contactRepository } from '../../repositories/contact.repository.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
+import { broadcastRepository } from '../../repositories/broadcast.repository.js';
 import { intentParser, IntentResult } from './intent-parser.js';
 import { stateMachine, StateMachineAction } from './state-machine.js';
 import {
@@ -63,6 +64,45 @@ export class ConversationService {
    * @param contactName - Contact display name
    * @param phoneNumber - Actual phone number for storage (optional, may not be available with LID)
    */
+  /**
+   * Merge an LID-only contact into its resolved phone-number contact so a single
+   * identity is preserved (no duplicate rows). Re-points dependent rows
+   * (request history, conversation sessions, broadcast recipients) from the LID
+   * contact to the PN contact, then deletes the now-empty LID contact.
+   *
+   * The LID contact is looked up by its LID hash (phoneNumberHash), not by
+   * replyJid — LID contacts are often stored without a replyJid, so the hash is
+   * the reliable link between the LID identity and its resolved phone number.
+   */
+  async mergeLidContact(lidHash: string, pn: string, pnHash: string): Promise<void> {
+    const lidContact = await contactRepository.findByPhoneHash(lidHash);
+    if (!lidContact) return;
+
+    const pnContact = await contactRepository.findByPhoneHash(pnHash);
+    if (!pnContact) {
+      // No PN contact yet — re-key the LID contact to the PN hash in place.
+      const encrypted = encryptionService.encrypt(pn);
+      await contactRepository.rekeyToPn(
+        lidContact.phoneNumberHash,
+        pnHash,
+        encrypted,
+        `${pn}@s.whatsapp.net`
+      );
+      return;
+    }
+
+    // PN contact exists: repoint dependents, then drop the LID row.
+    await requestHistoryRepository.repointByPhoneHash(lidContact.phoneNumberHash, pnHash);
+    await conversationSessionRepository.repointByPhoneHash(lidContact.phoneNumberHash, pnHash);
+    await broadcastRepository.repointRecipientsByContactId(
+      lidContact.id,
+      pnContact.id,
+      pn,
+      `${pn}@s.whatsapp.net`
+    );
+    await contactRepository.delete(lidContact.id);
+  }
+
   async processMessage(
     phoneNumberHash: string,
     message: string,
@@ -168,16 +208,24 @@ export class ConversationService {
         logger.warn({ sessionId: session.id }, 'Failed to update contact name for session');
       }
     } else if (phoneNumber) {
-      // Existing session, name unchanged, but we have a phone number.
-      // Update the contact if it's missing a phone number (e.g. created during regression).
+      // We have a resolved phone number — make sure a contact exists with it.
       try {
         const existingContact = await contactRepository.findByPhoneHash(phoneNumberHash);
-        if (existingContact && !existingContact.phoneNumberEncrypted) {
-          const phoneNumberEncrypted = encryptionService.encrypt(phoneNumber);
+        if (!existingContact) {
+          // No contact yet (e.g. deleted, or first LID message without a push name) — create it.
+          await contactRepository.upsert({
+            phoneNumberHash,
+            contactName: contactName || null,
+            phoneNumberEncrypted: encryptionService.encrypt(phoneNumber),
+            replyJid: replyJid ?? undefined,
+          });
+          logger.info({ phoneNumberHash, contactName }, 'Created contact with phone number');
+        } else if (!existingContact.phoneNumberEncrypted) {
+          // Existing contact missing a phone number — backfill it.
           await contactRepository.upsert({
             phoneNumberHash,
             contactName: existingContact.contactName || contactName,
-            phoneNumberEncrypted,
+            phoneNumberEncrypted: encryptionService.encrypt(phoneNumber),
             replyJid: replyJid ?? undefined,
           });
           logger.info(

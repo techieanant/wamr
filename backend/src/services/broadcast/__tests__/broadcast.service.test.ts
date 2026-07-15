@@ -91,6 +91,18 @@ describe('computeNextRun', () => {
     expect(next.getMonth()).toBe(7); // August (0-indexed)
     expect(next.getDate()).toBe(10);
   });
+
+  it('minute returns from + interval minutes', () => {
+    const from = new Date('2026-07-12T10:00:30');
+    const next = computeNextRun('minute', '09:00', from, null, null, 5);
+    expect(next.toISOString()).toBe(new Date('2026-07-12T10:05:00').toISOString());
+  });
+
+  it('hour returns from + interval hours with minutes zeroed', () => {
+    const from = new Date('2026-07-12T10:20:30');
+    const next = computeNextRun('hour', '09:00', from, null, null, 2);
+    expect(next.toISOString()).toBe(new Date('2026-07-12T12:00:00').toISOString());
+  });
 });
 
 describe('BroadcastService.compose', () => {

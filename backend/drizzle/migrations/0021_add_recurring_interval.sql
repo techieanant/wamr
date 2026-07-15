@@ -1,0 +1,1 @@
+ALTER TABLE broadcasts ADD COLUMN recurring_interval INTEGER NOT NULL DEFAULT 1;

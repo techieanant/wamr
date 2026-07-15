@@ -19,6 +19,14 @@ export class BroadcastRepository {
     return rows[0] ?? null;
   }
 
+  /** Child runs spawned from a recurring parent (parentId set). */
+  async findChildren(parentId: number): Promise<Broadcast[]> {
+    return (await db
+      .select()
+      .from(broadcasts)
+      .where(eq(broadcasts.parentId, parentId))) as Broadcast[];
+  }
+
   async update(id: number, patch: Partial<Broadcast>): Promise<Broadcast | null> {
     const [row] = await db
       .update(broadcasts)
@@ -101,6 +109,23 @@ export class BroadcastRepository {
         )
       );
     return Number(rows[0]?.count ?? 0);
+  }
+
+  /**
+   * Re-point all broadcast-recipient rows from an old contact id to a new one,
+   * and refresh their phone/replyJid so future sends use the resolved phone number.
+   * Used when an LID-only contact is merged into its PN-keyed identity.
+   */
+  async repointRecipientsByContactId(
+    oldContactId: number,
+    newContactId: number,
+    phone: string | null,
+    replyJid: string | null
+  ): Promise<void> {
+    await db
+      .update(broadcastRecipients)
+      .set({ contactId: newContactId, phone, replyJid })
+      .where(eq(broadcastRecipients.contactId, oldContactId));
   }
 
   async delete(id: number): Promise<void> {
