@@ -56,6 +56,8 @@ export default function RequestsPage() {
     isApproving,
     rejectRequest,
     isRejecting,
+    retryRequest,
+    isRetrying,
     socket,
   } = useRequests(page, 50, statusFilter === 'ALL' ? undefined : statusFilter);
 
@@ -165,6 +167,24 @@ export default function RequestsPage() {
         }
       );
     }
+  };
+
+  const handleRetry = (requestId: number) => {
+    retryRequest(requestId, {
+      onSuccess: () => {
+        toast({
+          title: 'Request Retried',
+          description: 'The request has been re-submitted to the media service.',
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: 'Retry Failed',
+          description: error instanceof Error ? error.message : 'Failed to retry request',
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   if (isLoading) {
@@ -351,9 +371,11 @@ export default function RequestsPage() {
             onDelete={handleDelete}
             onApprove={handleApprove}
             onReject={handleReject}
+            onRetry={handleRetry}
             isDeleting={isDeleting}
             isApproving={isApproving}
             isRejecting={isRejecting}
+            isRetrying={isRetrying}
             requesterSearch={requesterSearch}
             mediaTypeFilter={mediaTypeFilter}
             dateRange={dateRange}

@@ -6,6 +6,7 @@ import {
   updateRequestStatus,
   approveRequest,
   rejectRequest,
+  retryRequest,
 } from '../../../src/api/controllers/requests.controller';
 import { Request, Response, NextFunction } from 'express';
 import { requestHistoryRepository } from '../../../src/repositories/request-history.repository';
@@ -909,6 +910,189 @@ describe('Requests Controller', () => {
         'Failed to reject request'
       );
       expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('retryRequest', () => {
+    it('should return 400 for invalid request ID', async () => {
+      mockRequest.params = { id: 'invalid' };
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Invalid request ID' });
+    });
+
+    it('should return 404 when request not found', async () => {
+      mockRequest.params = { id: '999' };
+
+      (requestHistoryRepository.findById as Mock).mockResolvedValue(null);
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(requestHistoryRepository.findById).toHaveBeenCalledWith(999);
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Request not found' });
+    });
+
+    it('should return 400 when request status is not FAILED or REJECTED', async () => {
+      const mockRequestData = { id: 1, status: 'PENDING', serviceConfigId: 1 };
+      mockRequest.params = { id: '1' };
+
+      (requestHistoryRepository.findById as Mock).mockResolvedValue(mockRequestData);
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        error: 'Request must be in FAILED or REJECTED status to retry',
+      });
+    });
+
+    it('should return 400 when request has no service configuration', async () => {
+      const mockRequestData = { id: 1, status: 'FAILED' };
+      mockRequest.params = { id: '1' };
+
+      (requestHistoryRepository.findById as Mock).mockResolvedValue(mockRequestData);
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        error: 'Request has no service configuration',
+      });
+    });
+
+    it('should return 400 when service not found or disabled', async () => {
+      const mockRequestData = { id: 1, status: 'FAILED', serviceConfigId: 1 };
+      mockRequest.params = { id: '1' };
+
+      (requestHistoryRepository.findById as Mock).mockResolvedValue(mockRequestData);
+      (mediaServiceConfigRepository.findById as Mock).mockResolvedValue(null);
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mediaServiceConfigRepository.findById).toHaveBeenCalledWith(1);
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Service not found or disabled' });
+    });
+
+    it('should successfully retry a FAILED movie request to Overseerr', async () => {
+      const mockRequestData = {
+        id: 118,
+        status: 'FAILED',
+        serviceConfigId: 1,
+        mediaType: 'movie',
+        tmdbId: 516486,
+        title: 'Greyhound',
+        year: 2020,
+        phoneNumberEncrypted: 'encrypted-phone',
+        replyJid: '5678064218342@lid',
+      };
+      const mockService = {
+        id: 1,
+        serviceType: 'seerr',
+        baseUrl: 'http://10.0.0.128:5055',
+        apiKeyEncrypted: 'encrypted-key',
+        enabled: true,
+      };
+      mockRequest.params = { id: '118' };
+
+      (requestHistoryRepository.findById as Mock).mockResolvedValue(mockRequestData);
+      (mediaServiceConfigRepository.findById as Mock).mockResolvedValue(mockService);
+      (encryptionService.decrypt as Mock)
+        .mockReturnValueOnce('api-key')
+        .mockReturnValueOnce('1234567890');
+
+      const { OverseerrClient } = await import(
+        '../../../src/services/integrations/overseerr.client'
+      );
+      const mockClientInstance = {
+        getRadarrServers: vi.fn().mockResolvedValue([{ id: 1, isDefault: true }]),
+        requestMovie: vi.fn().mockResolvedValue(undefined),
+      };
+      (OverseerrClient as any).mockImplementation(() => mockClientInstance);
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockClientInstance.getRadarrServers).toHaveBeenCalled();
+      expect(mockClientInstance.requestMovie).toHaveBeenCalledWith({
+        mediaId: 516486,
+        serverId: 1,
+        profileId: 1,
+        rootFolder: undefined,
+      });
+      expect(requestHistoryRepository.update).toHaveBeenCalledWith(118, {
+        status: 'SUBMITTED',
+        submittedAt: expect.any(String),
+        errorMessage: null,
+        updatedAt: expect.any(String),
+      });
+      expect(whatsappClientService.sendMessage).toHaveBeenCalledWith(
+        '5678064218342@lid',
+        expect.stringContaining('retried')
+      );
+      expect(webSocketService.emit).toHaveBeenCalledWith(SocketEvents.REQUEST_STATUS_UPDATE, {
+        requestId: 118,
+        status: 'SUBMITTED',
+        previousStatus: 'FAILED',
+        timestamp: expect.any(String),
+      });
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Request retried and submitted successfully',
+      });
+    });
+
+    it('should keep FAILED status and update errorMessage when retry submission fails', async () => {
+      const mockRequestData = {
+        id: 118,
+        status: 'FAILED',
+        serviceConfigId: 1,
+        mediaType: 'movie',
+        tmdbId: 516486,
+        title: 'Greyhound',
+        year: 2020,
+        phoneNumberEncrypted: 'encrypted-phone',
+        replyJid: '5678064218342@lid',
+      };
+      const mockService = {
+        id: 1,
+        serviceType: 'seerr',
+        baseUrl: 'http://10.0.0.128:5055',
+        apiKeyEncrypted: 'encrypted-key',
+        enabled: true,
+      };
+      mockRequest.params = { id: '118' };
+
+      (requestHistoryRepository.findById as Mock).mockResolvedValue(mockRequestData);
+      (mediaServiceConfigRepository.findById as Mock).mockResolvedValue(mockService);
+      (encryptionService.decrypt as Mock)
+        .mockReturnValueOnce('api-key')
+        .mockReturnValueOnce('1234567890');
+
+      const { OverseerrClient } = await import(
+        '../../../src/services/integrations/overseerr.client'
+      );
+      const mockClientInstance = {
+        getRadarrServers: vi.fn().mockResolvedValue([{ id: 1, isDefault: true }]),
+        requestMovie: vi.fn().mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.197:5055')),
+      };
+      (OverseerrClient as any).mockImplementation(() => mockClientInstance);
+
+      await retryRequest(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(requestHistoryRepository.update).toHaveBeenCalledWith(118, {
+        status: 'FAILED',
+        errorMessage: 'connect ECONNREFUSED 10.0.0.197:5055',
+        updatedAt: expect.any(String),
+      });
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Failed to retry request',
+        details: 'connect ECONNREFUSED 10.0.0.197:5055',
+      });
     });
   });
 });

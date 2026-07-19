@@ -65,6 +65,13 @@ async function rejectRequest(id: number, reason?: string): Promise<UpdateStatusR
 }
 
 /**
+ * Retry a FAILED or REJECTED request: re-submit to its media service
+ */
+async function retryRequest(id: number): Promise<UpdateStatusResponse> {
+  return await apiClient.post<UpdateStatusResponse>(`/api/requests/${id}/retry`);
+}
+
+/**
  * Hook for requests management
  */
 export function useRequests(page: number = 1, limit: number = 50, status?: RequestStatus) {
@@ -105,6 +112,14 @@ export function useRequests(page: number = 1, limit: number = 50, status?: Reque
   // Mutation to reject request
   const rejectMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason?: string }) => rejectRequest(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+    },
+  });
+
+  // Mutation to retry a FAILED/REJECTED request
+  const retryMutation = useMutation({
+    mutationFn: (id: number) => retryRequest(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
     },
@@ -210,12 +225,14 @@ export function useRequests(page: number = 1, limit: number = 50, status?: Reque
     updateStatus: updateStatusMutation.mutate,
     approveRequest: approveMutation.mutate,
     rejectRequest: rejectMutation.mutate,
+    retryRequest: retryMutation.mutate,
 
     // Mutation states
     isDeleting: deleteMutation.isPending,
     isUpdating: updateStatusMutation.isPending,
     isApproving: approveMutation.isPending,
     isRejecting: rejectMutation.isPending,
+    isRetrying: retryMutation.isPending,
 
     // Errors
     deleteError: deleteMutation.error,

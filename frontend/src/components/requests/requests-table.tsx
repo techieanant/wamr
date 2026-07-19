@@ -10,7 +10,7 @@ import type { MediaRequest, RequestStatus } from '../../types/request.types';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, RotateCw } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -25,9 +25,11 @@ interface RequestsTableProps {
   onDelete: (id: number) => void;
   onApprove: (id: number) => void;
   onReject: (id: number) => void;
+  onRetry: (id: number) => void;
   isDeleting: boolean;
   isApproving: boolean;
   isRejecting: boolean;
+  isRetrying: boolean;
   requesterSearch?: string;
   mediaTypeFilter?: 'all' | 'movie' | 'series';
   dateRange?: DateRange;
@@ -53,9 +55,11 @@ export function RequestsTable({
   onDelete,
   onApprove,
   onReject,
+  onRetry,
   isDeleting,
   isApproving,
   isRejecting,
+  isRetrying,
   requesterSearch = '',
   mediaTypeFilter = 'all',
   dateRange,
@@ -224,6 +228,18 @@ export function RequestsTable({
                   </Button>
                 </>
               )}
+              {(status === 'FAILED' || status === 'REJECTED') && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onRetry(row.original.id)}
+                  disabled={isRetrying}
+                  className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                  title="Retry request"
+                >
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -239,7 +255,7 @@ export function RequestsTable({
         },
       },
     ],
-    [onDelete, onApprove, onReject, isDeleting, isApproving, isRejecting]
+    [onDelete, onApprove, onReject, onRetry, isDeleting, isApproving, isRejecting, isRetrying]
   );
 
   const table = useReactTable({

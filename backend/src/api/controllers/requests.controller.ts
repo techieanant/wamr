@@ -523,3 +523,245 @@ export const rejectRequest = async (
     next(error);
   }
 };
+
+/**
+ * Retry a FAILED or REJECTED request: re-submit it to its media service.
+ * On success the request becomes SUBMITTED so media monitoring notifies the
+ * requester when the media is available. Mirrors approveRequest's submit path.
+ */
+export const retryRequest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const requestId = parseInt(req.params.id);
+
+    if (isNaN(requestId)) {
+      res.status(400).json({ error: 'Invalid request ID' });
+      return;
+    }
+
+    const request = await requestHistoryRepository.findById(requestId);
+
+    if (!request) {
+      res.status(404).json({ error: 'Request not found' });
+      return;
+    }
+
+    if (request.status !== 'FAILED' && request.status !== 'REJECTED') {
+      res.status(400).json({
+        error: 'Request must be in FAILED or REJECTED status to retry',
+      });
+      return;
+    }
+
+    if (!request.serviceConfigId) {
+      res.status(400).json({ error: 'Request has no service configuration' });
+      return;
+    }
+
+    const service = await mediaServiceConfigRepository.findById(request.serviceConfigId);
+    if (!service || !service.enabled) {
+      res.status(400).json({ error: 'Service not found or disabled' });
+      return;
+    }
+
+    const apiKey = encryptionService.decrypt(service.apiKeyEncrypted);
+
+    try {
+      // Submit to appropriate service (same path as approveRequest)
+      if (service.serviceType === 'seerr') {
+        const client = new OverseerrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
+
+        if (request.mediaType === 'movie' && request.tmdbId) {
+          const radarrServers = await client.getRadarrServers();
+          const defaultServer = radarrServers.find((s) => s.isDefault) || radarrServers[0];
+
+          if (!defaultServer) {
+            throw new Error('No Radarr server configured in Seerr');
+          }
+
+          await client.requestMovie({
+            mediaId: request.tmdbId,
+            serverId: defaultServer.id,
+            profileId: 1,
+            rootFolder: service.rootFolderPath ?? undefined,
+          });
+        } else if (request.mediaType === 'series' && request.tmdbId) {
+          const sonarrServers = await client.getSonarrServers();
+          const defaultServer = sonarrServers.find((s) => s.isDefault) || sonarrServers[0];
+
+          if (!defaultServer) {
+            throw new Error('No Sonarr server configured in Seerr');
+          }
+
+          const selectedSeasons = request.selectedSeasons as number[] | null;
+
+          await client.requestSeries({
+            mediaId: request.tmdbId,
+            serverId: defaultServer.id,
+            profileId: 1,
+            rootFolder: service.rootFolderPath ?? undefined,
+            seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
+          });
+        }
+      } else if (service.serviceType === 'radarr' && request.mediaType === 'movie') {
+        const client = new RadarrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
+
+        if (!request.tmdbId) {
+          throw new Error('Missing TMDB ID for movie request');
+        }
+
+        const titleSlug = `${request.title}-${request.tmdbId}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+
+        await client.addMovie({
+          tmdbId: request.tmdbId,
+          title: request.title,
+          year: request.year ?? 0,
+          titleSlug,
+          qualityProfileId: service.qualityProfileId ?? 1,
+          rootFolderPath: service.rootFolderPath || '/movies',
+          monitored: true,
+          searchForMovie: true,
+        });
+      } else if (service.serviceType === 'sonarr' && request.mediaType === 'series') {
+        const client = new SonarrClient(service.baseUrl, apiKey, service.allowInsecure ?? false);
+
+        if (!request.tvdbId) {
+          throw new Error('Missing TVDB ID for series request');
+        }
+
+        const titleSlug = `${request.title}-${request.tvdbId}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+
+        await client.addSeries({
+          tvdbId: request.tvdbId,
+          title: request.title,
+          year: request.year ?? 0,
+          titleSlug,
+          qualityProfileId: service.qualityProfileId ?? 1,
+          rootFolderPath: service.rootFolderPath || '/tv',
+          monitored: true,
+          searchForMissingEpisodes: true,
+        });
+      }
+
+      // Update request status to SUBMITTED
+      await requestHistoryRepository.update(requestId, {
+        status: 'SUBMITTED',
+        submittedAt: new Date().toISOString(),
+        errorMessage: null,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Send WhatsApp notification
+      if (request.phoneNumberEncrypted || request.replyJid) {
+        try {
+          const phoneNumber = request.phoneNumberEncrypted
+            ? encryptionService.decrypt(request.phoneNumberEncrypted)
+            : null;
+          const replyTarget = request.replyJid ?? phoneNumber;
+          if (!replyTarget) {
+            throw new Error('No phone number or reply Jid available for notification');
+          }
+
+          const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
+          const yearStr = request.year ? ` (${request.year})` : '';
+          const message = `🔄 Request retried successfully!\n\n${emoji} *${request.title}${yearStr}* has been re-submitted to the media server.\n\nYou will be notified when it's available.`;
+
+          await whatsappClientService.sendMessage(replyTarget, message);
+          logger.info({ requestId, recipient: replyTarget.slice(-4) }, 'Retry notification sent');
+        } catch (error) {
+          logger.error({ error, requestId }, 'Failed to send retry notification');
+        }
+      }
+
+      // Emit WebSocket event
+      webSocketService.emit(SocketEvents.REQUEST_STATUS_UPDATE, {
+        requestId,
+        status: 'SUBMITTED',
+        previousStatus: request.status,
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.info(
+        { requestId, title: request.title },
+        'Request retried and submitted successfully'
+      );
+
+      res.json({
+        success: true,
+        message: 'Request retried and submitted successfully',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      await requestHistoryRepository.update(requestId, {
+        status: 'FAILED',
+        errorMessage,
+        updatedAt: new Date().toISOString(),
+      });
+
+      if (request.phoneNumberEncrypted || request.replyJid) {
+        try {
+          const phoneNumber = request.phoneNumberEncrypted
+            ? encryptionService.decrypt(request.phoneNumberEncrypted)
+            : null;
+          const replyTarget = request.replyJid ?? phoneNumber;
+          if (!replyTarget) {
+            throw new Error('No phone number or reply Jid available for notification');
+          }
+
+          const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
+          const yearStr = request.year ? ` (${request.year})` : '';
+
+          const isAlreadyExists =
+            errorMessage.toLowerCase().includes('already exists') ||
+            errorMessage.toLowerCase().includes('already in library') ||
+            errorMessage.toLowerCase().includes('already been added') ||
+            ((error as any)?.response?.status === 400 &&
+              ((error as any)?.response?.data?.message ?? '').toLowerCase().includes('already'));
+          const userMessage = isAlreadyExists
+            ? `ℹ️ Good news!\n\n${emoji} *${request.title}${yearStr}* is already available in the library. You can watch it now!`
+            : `❌ Failed to retry your request.\n\n${emoji} *${request.title}${yearStr}*\n\n${errorMessage}`;
+
+          await whatsappClientService.sendMessage(replyTarget, userMessage);
+          logger.info(
+            { requestId, recipient: replyTarget.slice(-4) },
+            'Retry failure notification sent'
+          );
+        } catch (notifyError) {
+          logger.error(
+            { error: notifyError, requestId },
+            'Failed to send retry failure notification'
+          );
+        }
+      }
+
+      webSocketService.emit(SocketEvents.REQUEST_STATUS_UPDATE, {
+        requestId,
+        status: 'FAILED',
+        previousStatus: request.status,
+        errorMessage,
+        timestamp: new Date().toISOString(),
+      });
+
+      logger.error({ error, requestId }, 'Failed to retry request');
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retry request',
+        details: errorMessage,
+      });
+    }
+  } catch (error) {
+    logger.error({ error, requestId: req.params.id }, 'Failed to retry request');
+    next(error);
+  }
+};

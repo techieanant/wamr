@@ -7,6 +7,7 @@ import {
   updateRequestStatus,
   approveRequest,
   rejectRequest,
+  retryRequest,
 } from '../controllers/requests.controller.js';
 
 const router = Router();
@@ -49,5 +50,11 @@ router.post('/:id/approve', approveRequest);
  * Reject a pending request with optional reason
  */
 router.post('/:id/reject', rejectRequest);
+
+/**
+ * POST /api/requests/:id/retry
+ * Retry a FAILED or REJECTED request: re-submit to its media service
+ */
+router.post('/:id/retry', retryRequest);
 
 export default router;
