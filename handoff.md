@@ -6,7 +6,7 @@
 
 - GitHub: `github.com/techieanant/wamr`
 - Docker: `ghcr.io/techieanant/wamr:latest`
-- Latest version: **v1.6.0** (released 2026-07-19)
+- Latest version: **v1.6.2** (released 2026-07-28)
 
 ---
 
@@ -118,6 +118,8 @@
 
 | Version | Date | Tag | Description |
 |---|---|---|---|
+| v1.6.2 | 2026-07-28 | `v1.6.2` | Fix WhatsApp 405 Connection Failure (MACOS platform + current WA version) |
+| v1.6.1 | 2026-07-29 | `v1.6.1` | Fix WhatsApp 405 Connection Failure (incomplete — Docker missing patches/) |
 | v1.6.0 | 2026-07-19 | `v1.6.0` | Manual retry for FAILED/REJECTED requests |
 | v1.5.1 | 2026-07-15 | `v1.5.1` | Broadcast crash fix (reply_jid + scheduler hardening) |
 | v1.5.0 | 2026-07-15 | `v1.5.0` | Broadcast messaging, LID→PN resolution, JSON export |

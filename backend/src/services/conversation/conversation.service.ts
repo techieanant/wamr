@@ -1310,18 +1310,9 @@ export class ConversationService {
         result.errorMessage
       );
 
-      // Send confirmation message to the user.
-      // For quota rejections, createAndProcessRequest already sent the detailed message,
-      // so only send for successful submissions (PENDING/SUBMITTED).
-      // For REJECTED status, skip to avoid duplicating the quota rejection message.
-      if (isSuccess && response?.message && replyJid) {
-        try {
-          const { whatsappClientService } = await import('../whatsapp/whatsapp-client.service.js');
-          await whatsappClientService.sendMessage(replyJid, response.message);
-        } catch (sendError) {
-          logger.error({ sessionId, error: sendError }, 'Failed to send success message');
-        }
-      }
+      // createAndProcessRequest already sent the appropriate response message
+      // to the user for all statuses (PENDING/SUBMITTED/REJECTED/FAILED).
+      // No additional message needed here.
     } catch (error) {
       logger.error({ sessionId, error }, 'Fatal error in submitRequest');
 
