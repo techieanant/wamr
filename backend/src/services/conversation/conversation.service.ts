@@ -1300,15 +1300,8 @@ export class ConversationService {
 
       const isSuccess = result.status === 'SUBMITTED' || result.status === 'PENDING';
 
-      // Capture replyJid BEFORE handleSubmissionComplete clears session maps
-      const replyJid = this.activeReplyJids.get(sessionId);
-
       // Handle completion - transition back to IDLE
-      const response = await this.handleSubmissionComplete(
-        sessionId,
-        isSuccess,
-        result.errorMessage
-      );
+      await this.handleSubmissionComplete(sessionId, isSuccess, result.errorMessage);
 
       // createAndProcessRequest already sent the appropriate response message
       // to the user for all statuses (PENDING/SUBMITTED/REJECTED/FAILED).

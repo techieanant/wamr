@@ -216,8 +216,10 @@ class ResultNormalizerService {
       const normalizedSonarr = this.normalizeSonarrResults(sonarrResults);
       const normalizedOverseerr = this.normalizeOverseerrResults(overseerrResults);
 
-      // Combine all normalized results
-      const combined = [...normalizedRadarr, ...normalizedSonarr, ...normalizedOverseerr];
+      // Combine all normalized results.
+      // Overseerr results come FIRST so deduplication prefers them over Sonarr/Radarr.
+      // Overseerr results always have tmdbId set, which is required for submitting via Seerr.
+      const combined = [...normalizedOverseerr, ...normalizedSonarr, ...normalizedRadarr];
 
       logger.debug('Normalization complete', {
         total: combined.length,

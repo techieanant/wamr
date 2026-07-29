@@ -120,9 +120,21 @@ export function RequestsTable({
         cell: ({ row }) => {
           const title = row.getValue('title') as string;
           const year = row.original.year;
+          const serviceUrl = row.original.serviceUrl;
           return (
             <div className="font-medium">
-              {title}
+              {serviceUrl ? (
+                <a
+                  href={serviceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {title}
+                </a>
+              ) : (
+                title
+              )}
               {year && <span className="ml-2 text-muted-foreground">({year})</span>}
             </div>
           );

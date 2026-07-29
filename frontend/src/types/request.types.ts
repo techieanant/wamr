@@ -18,6 +18,7 @@ export interface MediaRequest {
   selectedSeasons?: number[];
   status: RequestStatus;
   submittedAt?: string;
+  serviceUrl?: string;
   errorMessage?: string;
   adminNotes?: string;
   createdAt: string;

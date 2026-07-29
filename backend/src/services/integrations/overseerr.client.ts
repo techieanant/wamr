@@ -278,7 +278,10 @@ export class OverseerrClient {
 
       const response = await this.client.post<OverseerrRequestResponse>('/api/v1/request', body);
 
-      logger.info({ mediaId: params.mediaId }, 'Movie requested via Overseerr');
+      logger.info(
+        { mediaId: params.mediaId, requestId: response.data.id, status: response.data.status },
+        'Movie requested via Overseerr'
+      );
 
       return response.data;
     } catch (error) {
@@ -329,7 +332,10 @@ export class OverseerrClient {
 
       const response = await this.client.post<OverseerrRequestResponse>('/api/v1/request', body);
 
-      logger.info({ mediaId: params.mediaId }, 'Series requested via Overseerr');
+      logger.info(
+        { mediaId: params.mediaId, requestId: response.data.id, status: response.data.status },
+        'Series requested via Overseerr'
+      );
 
       return response.data;
     } catch (error) {

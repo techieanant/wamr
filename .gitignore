@@ -103,3 +103,5 @@ docs/
 # OpenCode agent files
 .opencode/
 .grepai/
+handoff.md
+micasa.md

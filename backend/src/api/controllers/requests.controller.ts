@@ -37,7 +37,58 @@ export const getAllRequests = async (
     const endIndex = startIndex + limit;
     const paginatedRequests = requests.slice(startIndex, endIndex);
 
-    // Add requester phone number (decrypted, unmasked) to each request
+    // Add requester phone number (decrypted, unmasked) and service URL to each request
+    // Fetch service configs for all requests to construct direct links
+    const configIds = new Set(paginatedRequests.map((r) => r.serviceConfigId).filter(Boolean));
+    const configCache = new Map(
+      await Promise.all(
+        [...configIds].map(async (id) => {
+          const cfg = await mediaServiceConfigRepository.findById(id!);
+          return [id, cfg] as const;
+        })
+      )
+    );
+
+    // Build service URL based on request type and IDs
+    const buildServiceUrl = (
+      serviceType: string | null | undefined,
+      configId: number | undefined,
+      mediaType: string,
+      title: string,
+      tmdbId: number | undefined
+    ): string | undefined => {
+      if (!serviceType || !configId) return undefined;
+      const cfg = configCache.get(configId);
+      if (!cfg?.baseUrl) return undefined;
+
+      const base = cfg.baseUrl.replace(/\/+$/, '');
+
+      if (serviceType === 'seerr') {
+        // Overseerr: /movie/{tmdbId} for movies, /tv/{tmdbId} for series
+        if (!tmdbId) return undefined;
+        const path = mediaType === 'movie' ? 'movie' : 'tv';
+        return `${base}/${path}/${tmdbId}`;
+      }
+
+      if (serviceType === 'radarr') {
+        if (!tmdbId) return undefined;
+        return `${base}/movie/${tmdbId}`;
+      }
+
+      if (serviceType === 'sonarr') {
+        // Sonarr uses title-based slugs: /series/{title-slug}
+        // Generate a URL-friendly slug from the title
+        const slug = title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+        if (!slug) return undefined;
+        return `${base}/series/${slug}`;
+      }
+
+      return undefined;
+    };
+
     const requestsWithPhone = paginatedRequests.map((request) => {
       let requesterPhone: string | undefined;
       if (request.phoneNumberEncrypted) {
@@ -49,9 +100,19 @@ export const getAllRequests = async (
           requesterPhone = undefined;
         }
       }
+
+      const serviceUrl = buildServiceUrl(
+        request.serviceType,
+        request.serviceConfigId ?? undefined,
+        request.mediaType,
+        request.title,
+        request.tmdbId ?? undefined
+      );
+
       return {
         ...request,
         requesterPhone,
+        serviceUrl,
       };
     });
 

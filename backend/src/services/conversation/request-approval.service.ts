@@ -68,6 +68,48 @@ export class RequestApprovalService {
 
       const serviceType: ServiceType = service.serviceType;
 
+      // Local duplicate check — prevent the same title from being requested twice
+      // even if Overseerr's mediaStatus is stale (e.g., if the first request
+      // to Overseerr failed silently, Overseerr won't know about it).
+      const existingRequests = await requestHistoryRepository.findAll();
+      const duplicate = existingRequests.find((r) => {
+        // Match by tmdbId for exact matches
+        if (selectedResult.tmdbId && r.tmdbId === selectedResult.tmdbId) {
+          return ['PENDING', 'APPROVED', 'SUBMITTED'].includes(r.status);
+        }
+        // Fall back to tvdbId for series
+        if (
+          selectedResult.mediaType === 'series' &&
+          selectedResult.tvdbId &&
+          r.tvdbId === selectedResult.tvdbId
+        ) {
+          return ['PENDING', 'APPROVED', 'SUBMITTED'].includes(r.status);
+        }
+        // Last resort: match by exact title+year for same user
+        if (
+          r.title.toLowerCase() === selectedResult.title.toLowerCase() &&
+          r.year === selectedResult.year &&
+          r.phoneNumberHash === phoneNumberHash &&
+          ['PENDING', 'APPROVED', 'SUBMITTED'].includes(r.status)
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      if (duplicate) {
+        const msg =
+          `⏳ *${selectedResult.title}*` +
+          (selectedResult.year ? ` (${selectedResult.year})` : '') +
+          ` has already been requested and is pending (ID: #${duplicate.id}).`;
+
+        if (sendTarget) {
+          await whatsappClientService.sendMessage(sendTarget, msg);
+        }
+
+        return { success: false, errorMessage: 'Duplicate request', status: 'DUPLICATE' };
+      }
+
       // Determine effective approval mode considering exceptions
       let effectiveApprovalMode = autoApprovalMode;
       if (exceptionsEnabled && isException) {
@@ -344,6 +386,7 @@ export class RequestApprovalService {
   ): Promise<{ success: boolean; errorMessage?: string }> {
     try {
       const mediaType = selectedResult.mediaType;
+      let handled = false;
 
       if (serviceType === 'seerr') {
         const client = new OverseerrClient(baseUrl, apiKey, allowInsecure);
@@ -364,6 +407,7 @@ export class RequestApprovalService {
             // This avoids injecting Linux-style paths into Windows-hosted Sonarr/Radarr.
             rootFolder: rootFolderPath ?? undefined,
           });
+          handled = true;
         } else if (mediaType === 'series' && selectedResult.tmdbId) {
           const sonarrServers = await client.getSonarrServers();
           const defaultServer = sonarrServers.find((s) => s.isDefault) || sonarrServers[0];
@@ -379,6 +423,7 @@ export class RequestApprovalService {
             rootFolder: rootFolderPath ?? undefined,
             seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',
           });
+          handled = true;
         }
       } else if (serviceType === 'radarr' && mediaType === 'movie') {
         const client = new RadarrClient(baseUrl, apiKey, allowInsecure);
@@ -402,6 +447,7 @@ export class RequestApprovalService {
           monitored: true,
           searchForMovie: true,
         });
+        handled = true;
       } else if (serviceType === 'sonarr' && mediaType === 'series') {
         const client = new SonarrClient(baseUrl, apiKey, allowInsecure);
 
@@ -424,6 +470,7 @@ export class RequestApprovalService {
           monitored: true,
           searchForMissingEpisodes: true,
         });
+        handled = true;
       } else if (serviceType === 'radarr' && mediaType === 'series') {
         throw new Error(
           "Sorry, the configured service (Radarr) can't handle TV series requests. Please contact your admin."
@@ -432,6 +479,10 @@ export class RequestApprovalService {
         throw new Error(
           "Sorry, the configured service (Sonarr) can't handle movie requests. Please contact your admin."
         );
+      }
+
+      if (!handled) {
+        throw new Error(`Unhandled request: ${serviceType} cannot handle ${mediaType} media`);
       }
 
       return { success: true };
