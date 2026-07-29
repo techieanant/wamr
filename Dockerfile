@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy package files first for better layer caching
 COPY package.json package-lock.json* turbo.json ./
+COPY patches ./patches
 COPY backend/package.json ./backend/
 COPY frontend/package.json ./frontend/
 
