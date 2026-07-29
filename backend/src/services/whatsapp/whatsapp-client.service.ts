@@ -127,12 +127,18 @@ export class WhatsAppClientService {
       this.markOnlineOnConnect = connectionSettings?.markOnlineOnConnect ?? false;
       const markOnlineOnConnect = this.markOnlineOnConnect;
 
-      // Fetch the latest WA web version — WhatsApp rejects outdated versions with 405
-      let waVersion: [number, number, number] = [2, 3000, 1035194821]; // fallback to current known-good
+      // Use the latest known WA web version.
+      // fetchLatestBaileysVersion() from the stale Baileys package returns an
+      // outdated value (1035194821 from Feb 2026) that WhatsApp now rejects with 405.
+      // Check https://wppconnect.io/whatsapp-versions/ for the current version.
+      let waVersion: [number, number, number] = [2, 3000, 1044015310];
       try {
         const { version } = await fetchLatestBaileysVersion();
-        waVersion = version;
-        logger.info({ version: waVersion }, 'Using WA version for connection');
+        // Only use fetched version if it's actually newer than our hardcoded one
+        if (version[2] > waVersion[2]) {
+          waVersion = version;
+        }
+        logger.info({ version: waVersion, fetched: version }, 'Using WA version for connection');
       } catch (err) {
         logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
       }
