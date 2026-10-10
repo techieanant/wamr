@@ -266,9 +266,13 @@ class MessageHandlerService {
       try {
         // Use phone number if available, otherwise fall back to userIdentifier
         const adminCheckNumber = phoneNumber || userIdentifier;
+        // Quoted stanzaId (present when the admin long-pressed a notification and
+        // used WhatsApp's reply gesture) lets processAdminReply target that request.
+        const quotedStanzaId = message.message?.extendedTextMessage?.contextInfo?.stanzaId;
         const adminReplyResult = await adminNotificationService.processAdminReply(
           adminCheckNumber,
-          messageBody
+          messageBody,
+          quotedStanzaId ?? null
         );
 
         if (adminReplyResult.handled) {

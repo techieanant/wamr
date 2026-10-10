@@ -238,15 +238,16 @@ class AdminNotificationService {
         `${emoji} *${request.title}${yearStr}*${seasonsInfo}\n` +
         `📱 Requested by: ${requesterInfo}\n` +
         `⏰ Status: ${request.status}\n\n` +
-        `Reply with:\n` +
-        `• *APPROVE* or *1* - Approve request\n` +
-        `• *DECLINE* or *2* - Decline request\n` +
-        `• *DELETE* or *3* - Delete request`;
+        `Reply to this message with:\n` +
+        `• *APPROVE* - Approve request #${request.id}\n` +
+        `• *DECLINE* - Decline request #${request.id}\n` +
+        `• *DELETE* - Delete request #${request.id}\n\n` +
+        `Or target any pending request by ID: *approve 12*`;
 
-      await whatsappClientService.sendMessage(adminPhone, message);
+      const messageId = await whatsappClientService.sendMessage(adminPhone, message);
 
-      // Track pending notification
-      pendingNotifications.set(request.id, { timestamp: new Date() });
+      // Track pending notification (messageId enables quote-reply matching)
+      pendingNotifications.set(request.id, { timestamp: new Date(), messageId });
 
       logger.info(
         { requestId: request.id, adminPhone: adminPhone.slice(-4) },
@@ -278,12 +279,24 @@ class AdminNotificationService {
   }
 
   /**
-   * Process admin reply for request action
+   * Process admin reply for request action.
+   *
+   * Target resolution order (most explicit wins):
+   *  1. Explicit ID in the command text — "approve 12"
+   *  2. Quote-reply match — admin long-pressed the notification and replied to it;
+   *     the quoted message's stanzaId is matched against stored notification messageIds
+   *  3. Bare command with exactly one pending request — act on it
+   *  4. Bare command with multiple pending — refuse and send a digest (never guess,
+   *     the old behavior silently acted on the newest pending request)
+   *
+   * Also handles PENDING/LIST to show all pending requests with their IDs.
+   *
    * Returns true if the message was handled as an admin command
    */
   async processAdminReply(
     phoneNumber: string,
-    message: string
+    message: string,
+    quotedStanzaId?: string | null
   ): Promise<{ handled: boolean; response?: string }> {
     const isAdmin = await this.isFromAdmin(phoneNumber);
 
@@ -314,7 +327,12 @@ class AdminNotificationService {
 
     const trimmedMessage = message.trim();
 
-    // Check for request ID pattern: "approve 123" or "1 123" or just "approve" (applies to latest)
+    // PENDING / LIST — show digest of all pending requests with their IDs
+    if (/^(?:pending|list)$/i.test(trimmedMessage)) {
+      return { handled: true, response: await this.buildPendingDigest() };
+    }
+
+    // Check for request ID pattern: "approve 123" or just "approve"
     const commandMatch = trimmedMessage.match(/^(\w+)\s*(\d+)?$/i);
 
     if (!commandMatch) {
@@ -322,7 +340,7 @@ class AdminNotificationService {
     }
 
     const command = commandMatch[1].toLowerCase();
-    let requestId = commandMatch[2] ? parseInt(commandMatch[2], 10) : null;
+    const explicitRequestId = commandMatch[2] ? parseInt(commandMatch[2], 10) : null;
 
     // Determine action from command
     let action: 'approve' | 'decline' | 'delete' | null = null;
@@ -339,19 +357,39 @@ class AdminNotificationService {
       return { handled: false };
     }
 
-    // If no request ID provided, get the latest pending request
-    if (!requestId) {
-      const latestPending = await requestHistoryRepository.findLatestPending();
-      if (latestPending) {
-        requestId = latestPending.id;
+    // Resolve target request
+    let requestId: number | null = explicitRequestId;
+    let quotedRequestId: number | null = null;
+
+    if (!requestId && quotedStanzaId) {
+      quotedRequestId = this.findRequestIdByMessageId(quotedStanzaId);
+      if (quotedRequestId !== null) {
+        requestId = quotedRequestId;
       }
     }
 
     if (!requestId) {
-      return {
-        handled: true,
-        response: '❌ No pending request found. Please specify a request ID.',
-      };
+      // Bare command: act only when the target is unambiguous
+      const pending = await requestHistoryRepository.findByStatus('PENDING');
+
+      if (pending.length === 1) {
+        requestId = pending[0].id;
+      } else if (pending.length === 0) {
+        return {
+          handled: true,
+          response: '❌ No pending requests found.',
+        };
+      } else {
+        // Multiple pending and no explicit target — never guess (the old behavior
+        // silently acted on the newest pending request, which approved the wrong
+        // request whenever the admin replied to an older notification).
+        return {
+          handled: true,
+          response:
+            `⚠️ ${pending.length} pending requests — specify which one.\n\n` +
+            (await this.buildPendingDigest()),
+        };
+      }
     }
 
     // Get the request
@@ -375,6 +413,47 @@ class AdminNotificationService {
         response: `❌ Failed to ${action} request #${requestId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
+  }
+
+  /**
+   * Reverse-lookup a request ID from a quoted message's stanzaId.
+   * Returns null when the stanza doesn't match any tracked notification
+   * (e.g. after a restart, or the admin quoted an unrelated message) —
+   * callers then fall through to the normal resolution order.
+   */
+  private findRequestIdByMessageId(messageId: string): number | null {
+    for (const [requestId, data] of pendingNotifications.entries()) {
+      if (data.messageId && data.messageId === messageId) {
+        return requestId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Build the pending-requests digest shown for PENDING/LIST and for
+   * ambiguous bare commands. Uses DB request IDs directly (no positional
+   * numbering) so "approve 12" always means request #12.
+   */
+  private async buildPendingDigest(): Promise<string> {
+    const pending = await requestHistoryRepository.findByStatus('PENDING');
+
+    if (pending.length === 0) {
+      return '✅ No pending requests.';
+    }
+
+    const lines = pending.map((r) => {
+      const emoji = r.mediaType === 'movie' ? '🎬' : '📺';
+      const yearStr = r.year ? ` (${r.year})` : '';
+      const requester = r.contactName || `****${r.phoneNumberHash?.slice(-4) || 'Unknown'}`;
+      return `#${r.id} ${emoji} *${r.title}${yearStr}* — ${requester}`;
+    });
+
+    return (
+      `⏳ Pending requests (${pending.length}):\n\n` +
+      lines.join('\n') +
+      `\n\nReply *approve <ID>* / *decline <ID>* / *delete <ID>* — or reply to a request's notification.`
+    );
   }
 
   /**

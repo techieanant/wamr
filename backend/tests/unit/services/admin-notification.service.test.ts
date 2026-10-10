@@ -17,7 +17,9 @@ vi.mock('../../../src/repositories/request-history.repository.js', () => ({
   requestHistoryRepository: {
     findById: vi.fn(),
     findAll: vi.fn(),
+    findByStatus: vi.fn().mockResolvedValue([]),
     update: vi.fn(),
+    delete: vi.fn(),
     findLatestPending: vi.fn(),
   },
 }));
@@ -64,6 +66,8 @@ import {
   ADMIN_NOTIFICATION_ENABLED_KEY,
 } from '../../../src/services/notifications/admin-notification.service.js';
 import { settingRepository } from '../../../src/repositories/setting.repository.js';
+import { requestHistoryRepository } from '../../../src/repositories/request-history.repository.js';
+import type { RequestHistory } from '../../../src/db/schema.js';
 import { whatsappConnectionRepository } from '../../../src/repositories/whatsapp-connection.repository.js';
 import { conversationSessionRepository } from '../../../src/repositories/conversation-session.repository.js';
 import { whatsappClientService } from '../../../src/services/whatsapp/whatsapp-client.service.js';
@@ -406,6 +410,151 @@ describe('AdminNotificationService', () => {
 
       // Should be handled (even though no pending request, it's recognized as command)
       expect(result.handled).toBe(true);
+    });
+
+    describe('target resolution', () => {
+      const pendingRequest = (id: number, title: string) => ({
+        id,
+        phoneNumberHash: 'user-hash',
+        phoneNumberEncrypted: 'encrypted-phone',
+        contactName: null,
+        mediaType: 'movie' as const,
+        title,
+        year: 2023,
+        tmdbId: 12345,
+        tvdbId: null,
+        status: 'PENDING' as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      beforeEach(() => {
+        (conversationSessionRepository.findByPhoneHash as any).mockResolvedValue(null);
+      });
+
+      it('explicit ID wins over everything: approve 7 targets #7 even with other pending', async () => {
+        (requestHistoryRepository.findById as any).mockResolvedValue(pendingRequest(7, 'Target'));
+        (requestHistoryRepository.update as any).mockResolvedValue({ id: 7 });
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
+          pendingRequest(7, 'Target'),
+          pendingRequest(9, 'Other'),
+        ]);
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve 7'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('#7');
+        expect(result.response).not.toContain('#9');
+        expect(requestHistoryRepository.findById).toHaveBeenCalledWith(7);
+      });
+
+      it('quoted stanzaId resolves to the notification the admin replied to', async () => {
+        (requestHistoryRepository.findById as any).mockResolvedValue(pendingRequest(5, 'Quoted'));
+        (requestHistoryRepository.update as any).mockResolvedValue({ id: 5 });
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
+          pendingRequest(5, 'Quoted'),
+          pendingRequest(9, 'Other'),
+        ]);
+
+        // Seed the module-level notification map through the public API:
+        // notifyNewRequest stores the stanza id returned by sendMessage.
+        (whatsappClientService.sendMessage as any).mockResolvedValue('STANZA-5');
+        await adminNotificationService.notifyNewRequest(
+          pendingRequest(5, 'Quoted') as unknown as RequestHistory
+        );
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve',
+          'STANZA-5'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('#5');
+        expect(requestHistoryRepository.findById).toHaveBeenCalledWith(5);
+      });
+
+      it('unknown quoted stanzaId falls through to ambiguous-bare-command refusal', async () => {
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
+          pendingRequest(5, 'A'),
+          pendingRequest(9, 'B'),
+        ]);
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve',
+          'UNKNOWN-STANZA'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('2 pending requests');
+        expect(result.response).toContain('#5');
+        expect(result.response).toContain('#9');
+        // Must NOT have acted on any request
+        expect(requestHistoryRepository.findById).not.toHaveBeenCalled();
+      });
+
+      it('bare command with exactly one pending acts on it', async () => {
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
+          pendingRequest(3, 'Only'),
+        ]);
+        (requestHistoryRepository.findById as any).mockResolvedValue(pendingRequest(3, 'Only'));
+        (requestHistoryRepository.update as any).mockResolvedValue({ id: 3 });
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('#3');
+        expect(requestHistoryRepository.findById).toHaveBeenCalledWith(3);
+      });
+
+      it('bare command with multiple pending refuses and sends digest instead of guessing', async () => {
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
+          pendingRequest(5, 'A'),
+          pendingRequest(9, 'B'),
+        ]);
+
+        const result = await adminNotificationService.processAdminReply('+11234567890', 'approve');
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('specify which one');
+        // The old behavior silently approved the newest pending — assert it's gone
+        expect(requestHistoryRepository.findById).not.toHaveBeenCalled();
+        expect(requestHistoryRepository.update).not.toHaveBeenCalled();
+      });
+
+      it('bare command with zero pending reports empty', async () => {
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([]);
+
+        const result = await adminNotificationService.processAdminReply('+11234567890', 'approve');
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('No pending requests');
+      });
+
+      it('PENDING command returns digest with IDs', async () => {
+        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
+          pendingRequest(5, 'Movie A'),
+          pendingRequest(9, 'Show B'),
+        ]);
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'pending'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('Pending requests (2)');
+        expect(result.response).toContain('#5');
+        expect(result.response).toContain('#9');
+        expect(result.response).toContain('Movie A');
+      });
     });
   });
 });

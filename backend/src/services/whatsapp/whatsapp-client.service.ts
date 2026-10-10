@@ -502,8 +502,10 @@ export class WhatsAppClientService {
   /**
    * Send message to a recipient
    * @param recipient - Can be a full JID (user@lid, user@s.whatsapp.net), phone number (+1234567890), or user ID
+   * @returns The Baileys message key id of the sent message (used for quote-reply
+   *          matching), or undefined if the socket returned no key.
    */
-  async sendMessage(recipient: string, message: string): Promise<void> {
+  async sendMessage(recipient: string, message: string): Promise<string | undefined> {
     if (!this.sock || !this.isReady()) {
       throw new Error('WhatsApp client is not ready');
     }
@@ -543,6 +545,8 @@ export class WhatsAppClientService {
           logger.debug({ presenceError }, 'Failed to restore unavailable presence after send');
         }
       }
+
+      return result?.key?.id ?? undefined;
     } catch (error) {
       logger.error({ error, recipient: recipient.slice(-4) }, 'Failed to send message');
       throw error;
