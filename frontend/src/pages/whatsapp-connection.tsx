@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWhatsApp } from '../hooks/use-whatsapp';
 import { useSocket } from '../hooks/use-socket';
 import { useToast } from '../hooks/use-toast';
@@ -41,12 +41,6 @@ export default function WhatsAppConnection() {
   const [hasClickedConnect, setHasClickedConnect] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [realtimeConnecting, setRealtimeConnecting] = useState(false);
-  const [autoReconnectAttempt, setAutoReconnectAttempt] = useState(0);
-
-  // Refs for auto-reconnect state (avoid stale closure issues)
-  const autoReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoReconnectAttemptRef = useRef(0);
-  const MAX_AUTO_RECONNECT_ATTEMPTS = 3;
 
   // On mount, check if already connected via API
   useEffect(() => {
@@ -113,86 +107,9 @@ export default function WhatsAppConnection() {
       cleanup();
     };
   }, [on, socketConnected, queryClient, toast]);
-
-  // Auto-reconnect with exponential backoff when status transitions to DISCONNECTED
-  // Only triggers on a live disconnect (not on initial page load if already disconnected).
-  const prevStatusRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const currentStatus = status?.status;
-    const prevStatus = prevStatusRef.current;
-
-    // Detect a fresh transition to DISCONNECTED (not initial undefined→DISCONNECTED)
-    // Only auto-reconnect when we had an established CONNECTED session — not on QR timeout.
-    if (
-      prevStatus !== undefined && // skip initial mount
-      prevStatus === 'CONNECTED' && // must have had a live session
-      currentStatus === 'DISCONNECTED'
-    ) {
-      // Clear any existing timer
-      if (autoReconnectTimerRef.current) {
-        clearTimeout(autoReconnectTimerRef.current);
-        autoReconnectTimerRef.current = null;
-      }
-      autoReconnectAttemptRef.current = 0;
-      setAutoReconnectAttempt(0);
-
-      const attemptReconnect = () => {
-        const attempt = autoReconnectAttemptRef.current + 1;
-
-        if (attempt > MAX_AUTO_RECONNECT_ATTEMPTS) {
-          toast({
-            title: 'Auto-reconnect failed',
-            description:
-              'Could not reconnect automatically. Please click "Connect WhatsApp" to try again.',
-            variant: 'destructive',
-          });
-          autoReconnectAttemptRef.current = 0;
-          setAutoReconnectAttempt(0);
-          return;
-        }
-
-        autoReconnectAttemptRef.current = attempt;
-        setAutoReconnectAttempt(attempt);
-
-        toast({
-          title: `Auto-reconnecting... (${attempt}/${MAX_AUTO_RECONNECT_ATTEMPTS})`,
-          description: 'WhatsApp disconnected. Attempting to reconnect automatically.',
-        });
-
-        connect();
-
-        // Schedule next retry with exponential backoff: 4s, 8s, 16s
-        const nextDelay = Math.pow(2, attempt + 1) * 1000;
-        autoReconnectTimerRef.current = setTimeout(attemptReconnect, nextDelay);
-      };
-
-      // First attempt after 2 seconds
-      autoReconnectTimerRef.current = setTimeout(attemptReconnect, 2000);
-    }
-
-    prevStatusRef.current = currentStatus;
-
-    // Cancel retry if we reconnected successfully
-    if (currentStatus === 'CONNECTED' && autoReconnectTimerRef.current) {
-      clearTimeout(autoReconnectTimerRef.current);
-      autoReconnectTimerRef.current = null;
-      autoReconnectAttemptRef.current = 0;
-      setAutoReconnectAttempt(0);
-    }
-
-    return () => {
-      // Cleanup on unmount
-    };
-  }, [status?.status]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      if (autoReconnectTimerRef.current) {
-        clearTimeout(autoReconnectTimerRef.current);
-      }
-    };
-  }, []);
+  // Note: auto-reconnect is now handled server-side in whatsapp-client.service.ts.
+  // The backend schedules retries with a 5/10/20/40/60s backoff (max 5 attempts) and
+  // emits a 'reconnecting' status that the ConnectionStatus badge reflects.
 
   const isConnected = status?.status === 'CONNECTED' || realtimeConnected;
   const isConnecting_status = status?.status === 'CONNECTING';
@@ -413,18 +330,8 @@ export default function WhatsAppConnection() {
           </div>
         )}
       </div>
-
-      {/* Auto-reconnect indicator */}
-      {autoReconnectAttempt > 0 && !isConnected && (
-        <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          <span>
-            Auto-reconnecting... (attempt {autoReconnectAttempt}/{MAX_AUTO_RECONNECT_ATTEMPTS})
-          </span>
-        </div>
-      )}
-
       {/* Connection Status */}
+
       <ConnectionStatus />
 
       {/* QR Code Display (only show when connecting) */}

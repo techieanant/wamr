@@ -14,7 +14,7 @@ export function ConnectionStatus() {
   const { on, isConnected: socketConnected } = useSocket(false); // Don't auto-connect (App.tsx handles it)
   const { status, disconnect, restart, isDisconnecting, isRestarting } = useWhatsApp();
   const [realtimeStatus, setRealtimeStatus] = useState<
-    'connected' | 'disconnected' | 'connecting' | 'loading' | null
+    'connected' | 'disconnected' | 'connecting' | 'reconnecting' | 'loading' | null
   >(null);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number | undefined>();
@@ -81,8 +81,8 @@ export function ConnectionStatus() {
         | 'connected'
         | 'disconnected'
         | 'connecting'
+        | 'reconnecting'
         | 'loading';
-      setRealtimeStatus(statusValue);
 
       if (statusData.progress !== undefined) {
         setLoadingProgress(statusData.progress);
@@ -109,20 +109,6 @@ export function ConnectionStatus() {
     };
   }, [on, socketConnected]);
 
-  // Reset realtime status when polling status changes
-  useEffect(() => {
-    if (status?.status) {
-      // Normalize status to lowercase for comparison with WebSocket events
-      const normalizedStatus = status.status.toLowerCase() as
-        | 'connected'
-        | 'disconnected'
-        | 'connecting'
-        | 'loading';
-      setRealtimeStatus(normalizedStatus);
-    }
-  }, [status?.status]);
-
-  // Use realtime status if available, otherwise fall back to polled status
   const currentStatus = realtimeStatus || status?.status || 'DISCONNECTED';
   const displayPhone = phoneNumber || status?.phoneNumber;
 
@@ -150,6 +136,14 @@ export function ConnectionStatus() {
           <Badge className="bg-yellow-500 hover:bg-yellow-600">
             <Loader2 className="mr-1 h-3 w-3 animate-spin" />
             Connecting
+          </Badge>
+        );
+      case 'RECONNECTING':
+      case 'reconnecting':
+        return (
+          <Badge className="bg-orange-500 hover:bg-orange-600">
+            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            Reconnecting…
           </Badge>
         );
       case 'DISCONNECTED':

@@ -44,6 +44,14 @@ export class WhatsAppClientService {
   private initializationTimeout: NodeJS.Timeout | null = null;
   private markOnlineOnConnect = false; // Updated on initialize() and via setMarkOnlineOnConnect()
 
+  // Auto-reconnect state. When a non-loggedOut close arrives and we previously had a
+  // live session, we retry with a capped exponential backoff. The user can always
+  // interrupt by calling disconnect()/logout() (which calls cancelReconnect()).
+  private reconnectAttempts = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private static readonly RECONNECT_DELAYS_MS = [5_000, 10_000, 20_000, 40_000, 60_000] as const;
+  private static readonly MAX_RECONNECT_ATTEMPTS = 5;
+
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: BaileysMessage) => void) | null = null;
   private readyCallback: (() => void) | null = null;
@@ -237,6 +245,12 @@ export class WhatsAppClientService {
         logger.info('WhatsApp client is ready (connection open)');
         this.isInitializing = false;
 
+        // A successful open means any pending auto-reconnect succeeded.
+        // Cancel the timer (if we got here from manual initialize() there was none) and
+        // reset the attempt counter so the next disconnect starts fresh.
+        this.cancelReconnect();
+        this.reconnectAttempts = 0;
+
         // Clear initialization timeout
         if (this.initializationTimeout) {
           clearTimeout(this.initializationTimeout);
@@ -319,27 +333,19 @@ export class WhatsAppClientService {
           // Always allow reconnect for 515 regardless of session state.
           const isRestartRequired = statusCode === 515;
 
-          // Attempt automatic reconnection after a short delay (unless it was a manual logout)
-          // Only reconnect if we had a real session OR if WhatsApp asked for a restart (515).
-          // If we never got past the QR phase and it's NOT a restart request,
-          // this is a fresh pairing attempt rejected by WhatsApp — don't spam reconnects.
-          if (shouldReconnect && (hadEstablishedSession || isRestartRequired)) {
-            logger.info('Scheduling automatic reconnection in 5 seconds...');
-            setTimeout(async () => {
-              try {
-                logger.info('Attempting automatic reconnection...');
-                this.isInitializing = false;
-                this.sock = null;
-                await this.initialize();
-                logger.info('Automatic reconnection initiated');
-              } catch (reconnectError) {
-                logger.error({ error: reconnectError }, 'Failed to reconnect automatically');
-              }
-            }, 5000);
-          } else if (!shouldReconnect) {
+          // Decide whether to auto-reconnect:
+          //  - loggedOut (401): never auto-reconnect; wipe session so a fresh QR is required.
+          //  - 515 restart, or any other close after we had a real session: auto-reconnect
+          //    with capped exponential backoff.
+          //  - close before any session was established (e.g. QR pairing rejected): no
+          //    auto-reconnect — user must click Connect again. (This matches the previous
+          //    behavior; we don't want to spam reconnects against a never-paired session.)
+          if (!shouldReconnect) {
             logger.info('Logout detected, not attempting automatic reconnection');
+            this.cancelReconnect();
             this.isInitializing = false;
             this.sock = null;
+            this.reconnectAttempts = 0;
 
             // Clear stale session files so next init generates a fresh QR code
             try {
@@ -350,14 +356,18 @@ export class WhatsAppClientService {
             } catch (err) {
               logger.warn({ err }, 'Failed to clear session files after logout');
             }
+          } else if (hadEstablishedSession || isRestartRequired) {
+            void this.scheduleReconnect(statusCode, hadEstablishedSession, isRestartRequired);
           } else {
             // shouldReconnect=true but no established session and not a restart request —
             // QR pairing was rejected by WhatsApp. Stop here; user must click Connect again manually.
             logger.info(
               'QR pairing attempt rejected by WhatsApp (no prior session). Stopping auto-reconnect — user must click Connect again.'
             );
+            this.cancelReconnect();
             this.isInitializing = false;
             this.sock = null;
+            this.reconnectAttempts = 0;
           }
         } catch (error) {
           logger.error({ error }, 'Error handling disconnected event');
@@ -654,6 +664,113 @@ export class WhatsAppClientService {
   }
 
   /**
+   * Cancel any pending auto-reconnect timer. Safe to call from any state — if no
+   * timer is armed, this is a no-op. Used by disconnect()/logout() (so the user can
+   * stop retries) and by the 'connection.open' handler (so a successful retry clears
+   * the in-flight timer).
+   */
+  private cancelReconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /**
+   * Schedule the next auto-reconnect attempt.
+   *
+   * Called from the 'connection.update' close handler when we want to recover from
+   * a transient drop (network blip, WA rate limit, 515 restart). Backs off
+   * exponentially up to MAX_RECONNECT_ATTEMPTS attempts. After the cap, we leave
+   * the status as DISCONNECTED so the user knows to click Connect manually.
+   *
+   * Logs a structured 'whatsapp.reconnect' event for every attempt (success and
+   * failure) so it's easy to alert on in production.
+   */
+  private async scheduleReconnect(
+    statusCode: number | undefined,
+    hadEstablishedSession: boolean,
+    isRestartRequired: boolean
+  ): Promise<void> {
+    // loggedOut is the user being kicked out of the device by WhatsApp. There is no
+    // recovery path that doesn't require a fresh QR scan, so never auto-reconnect.
+    // (The close handler should also guard this, but we double-check here as a
+    // defense-in-depth — future callers of this method shouldn't need to know.)
+    if (statusCode === DisconnectReason.loggedOut) {
+      return;
+    }
+
+    if (this.reconnectAttempts >= WhatsAppClientService.MAX_RECONNECT_ATTEMPTS) {
+      logger.warn(
+        {
+          attempts: this.reconnectAttempts,
+          maxAttempts: WhatsAppClientService.MAX_RECONNECT_ATTEMPTS,
+          statusCode,
+        },
+        'Auto-reconnect exhausted; leaving status as DISCONNECTED. User must click Connect.'
+      );
+      this.reconnectAttempts = 0;
+      this.cancelReconnect();
+      return;
+    }
+
+    this.reconnectAttempts += 1;
+    const attemptIndex = this.reconnectAttempts - 1; // 0-based for delay lookup
+    const delayMs =
+      WhatsAppClientService.RECONNECT_DELAYS_MS[
+        Math.min(attemptIndex, WhatsAppClientService.RECONNECT_DELAYS_MS.length - 1)
+      ];
+    const isLastAttempt = this.reconnectAttempts === WhatsAppClientService.MAX_RECONNECT_ATTEMPTS;
+
+    logger.info(
+      {
+        attempt: this.reconnectAttempts,
+        maxAttempts: WhatsAppClientService.MAX_RECONNECT_ATTEMPTS,
+        delayMs,
+        statusCode,
+        hadEstablishedSession,
+        isRestartRequired,
+      },
+      'Scheduling WhatsApp auto-reconnect'
+    );
+    // Surface 'reconnecting' to the UI before the delay so the badge updates
+    // immediately rather than after the wait. Awaited so callers (and tests) can
+    // observe the side effects synchronously. Errors are logged and swallowed —
+    // they shouldn't block the timer arm.
+    await this.updateConnectionStatus('RECONNECTING').catch((err) => {
+      logger.warn({ err }, 'Failed to write RECONNECTING status to DB');
+    });
+    try {
+      const { qrCodeEmitterService } = await import('./qr-code-emitter.service.js');
+      qrCodeEmitterService.emitConnectionStatus('reconnecting');
+    } catch (err) {
+      logger.warn({ err }, 'Failed to emit reconnecting status');
+    }
+
+    this.cancelReconnect(); // Make sure no stale timer is still armed
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      try {
+        logger.info({ attempt: this.reconnectAttempts }, 'Attempting WhatsApp auto-reconnect');
+        // Tear down any partial state from the failed connection before re-init.
+        this.isInitializing = false;
+        this.sock = null;
+        await this.initialize();
+        // Success is detected in the 'connection.update' handler when status flips
+        // to 'open' — that handler resets the attempt counter and cancels any
+        // remaining timers.
+      } catch (err) {
+        logger.error(
+          { err, attempt: this.reconnectAttempts, isLastAttempt },
+          'WhatsApp auto-reconnect attempt failed'
+        );
+        // Status stays RECONNECTING. If the next attempt also fails, the close
+        // handler will reschedule (or hit the cap and fall back to DISCONNECTED).
+      }
+    }, delayMs);
+  }
+
+  /**
    * Disconnect from WhatsApp
    */
   async disconnect(): Promise<void> {
@@ -663,6 +780,11 @@ export class WhatsAppClientService {
         isInitializing: this.isInitializing,
         stackTrace: new Error().stack,
       });
+
+      // User-initiated disconnect: cancel any pending auto-reconnect so we don't
+      // fight them and re-establish the connection a few seconds later.
+      this.cancelReconnect();
+      this.reconnectAttempts = 0;
 
       // Clear initialization timeout
       if (this.initializationTimeout) {

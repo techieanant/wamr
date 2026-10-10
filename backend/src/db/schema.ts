@@ -23,7 +23,9 @@ export const whatsappConnections = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     phoneNumberHash: text('phone_number_hash').notNull().unique(),
-    status: text('status', { enum: ['DISCONNECTED', 'CONNECTING', 'CONNECTED'] }).notNull(),
+    status: text('status', {
+      enum: ['DISCONNECTED', 'CONNECTING', 'CONNECTED', 'RECONNECTING'],
+    }).notNull(),
     lastConnectedAt: text('last_connected_at'),
     qrCodeGeneratedAt: text('qr_code_generated_at'),
     // Message filtering configuration

@@ -67,7 +67,7 @@ class QRCodeEmitterService {
    * Emit connection status update
    */
   emitConnectionStatus(
-    status: 'connected' | 'disconnected' | 'connecting',
+    status: 'connected' | 'disconnected' | 'connecting' | 'reconnecting',
     phoneNumber?: string
   ): void {
     if (!this.io) {

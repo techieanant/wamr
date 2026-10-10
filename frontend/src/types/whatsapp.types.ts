@@ -1,7 +1,12 @@
 /**
  * WhatsApp connection status
  */
-export type WhatsAppStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'LOADING';
+export type WhatsAppStatus =
+  | 'DISCONNECTED'
+  | 'CONNECTING'
+  | 'CONNECTED'
+  | 'RECONNECTING'
+  | 'LOADING';
 
 /**
  * Message filter type
@@ -54,7 +59,7 @@ export interface WhatsAppQREvent {
  * WhatsApp status event data
  */
 export interface WhatsAppStatusEvent {
-  status: 'connected' | 'disconnected' | 'connecting' | 'loading';
+  status: 'connected' | 'disconnected' | 'connecting' | 'reconnecting' | 'loading';
   phoneNumber?: string;
   timestamp: string;
   progress?: number;

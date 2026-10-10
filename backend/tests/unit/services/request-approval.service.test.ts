@@ -74,6 +74,10 @@ describe('RequestApprovalService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default the duplicate-check query to empty so tests that don't care
+    // about it don't crash on undefined.find(). Tests that need a non-empty
+    // list override this with vi.mocked(...).mockResolvedValueOnce(...).
+    vi.mocked(requestHistoryRepository.findAll).mockResolvedValue([]);
     service = new RequestApprovalService();
   });
 

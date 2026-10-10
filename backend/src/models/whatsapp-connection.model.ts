@@ -3,7 +3,7 @@
  * Represents WhatsApp Web connection status and metadata
  */
 
-export type WhatsAppConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
+export type WhatsAppConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'RECONNECTING';
 export type MessageFilterType = 'prefix' | 'keyword' | null;
 export type AutoApprovalMode = 'auto_approve' | 'auto_deny' | 'manual';
 
