@@ -4,6 +4,7 @@
  */
 import { logger } from '../../config/logger.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
+import { contactRepository } from '../../repositories/contact.repository.js';
 import { whatsappConnectionRepository } from '../../repositories/whatsapp-connection.repository.js';
 import { mediaServiceConfigRepository } from '../../repositories/media-service-config.repository.js';
 import { encryptionService } from '../encryption/encryption.service.js';
@@ -42,8 +43,15 @@ export class RequestApprovalService {
       const exceptionsEnabled = connection?.exceptionsEnabled || false;
       const exceptionContacts = connection?.exceptionContacts || [];
 
-      // Check if this requester is in the exceptions list
-      const isException = exceptionsEnabled && exceptionContacts.includes(phoneNumberHash);
+      // Check if this requester is in the exceptions list.
+      // Primary: hash match. Fallback: resolve the requester's stored contact by
+      // their full JID (replyJid) and check that contact's hash — protects against
+      // stale/rotated hashes (e.g. a contact keyed off a device-suffixed JID) where
+      // the live hash no longer matches the exception list but the contact row does.
+      const isException =
+        exceptionsEnabled &&
+        (exceptionContacts.includes(phoneNumberHash) ||
+          (await this.isExceptionByReplyJid(replyJid, exceptionContacts)));
 
       logger.info(
         {
@@ -368,6 +376,28 @@ export class RequestApprovalService {
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         status: 'FAILED',
       };
+    }
+  }
+
+  /**
+   * Exception-list fallback matching by the requester's stored contact row.
+   * Resolves the contact by their full JID (replyJid) and checks whether that
+   * contact's hash is in the exception list. Returns false when the JID is
+   * missing or no contact row exists — the primary hash match is then the
+   * only authority.
+   */
+  private async isExceptionByReplyJid(
+    replyJid: string | undefined,
+    exceptionContacts: string[]
+  ): Promise<boolean> {
+    if (!replyJid || exceptionContacts.length === 0) return false;
+    try {
+      const contact = await contactRepository.findByReplyJid(replyJid);
+      if (!contact) return false;
+      return exceptionContacts.includes(contact.phoneNumberHash);
+    } catch (err) {
+      logger.warn({ err, replyJid }, 'Failed to resolve contact for exception fallback');
+      return false;
     }
   }
 

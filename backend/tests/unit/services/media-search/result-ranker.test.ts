@@ -217,10 +217,7 @@ describe('rankResults — year-desc mode', () => {
   });
 
   it('handles null years without crashing', () => {
-    const results = [
-      makeResult('Unknown', null),
-      makeResult('Interstellar', 2014),
-    ];
+    const results = [makeResult('Unknown', null), makeResult('Interstellar', 2014)];
     expect(() => rankResults(results, 'anything', 'year-desc')).not.toThrow();
   });
 });

@@ -57,9 +57,12 @@ vi.mock('@whiskeysockets/baileys', () => {
       badSession: 500,
     },
     jidDecode: vi.fn((jid) => {
-      if (!jid) return null;
-      const parts = jid.split('@')[0].split(':');
-      return { user: parts[0], server: 's.whatsapp.net' };
+      // Mirrors the real jidDecode (lib/WABinary/jid-utils.js): undefined for
+      // anything without '@', device split off the user part, server preserved.
+      if (!jid || typeof jid !== 'string' || !jid.includes('@')) return undefined;
+      const [userCombined, server] = jid.split('@');
+      const [user] = userCombined.split(':');
+      return { user, server };
     }),
     proto: {
       IMessageKey: {},

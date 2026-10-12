@@ -34,7 +34,8 @@ describe('MessageHandlerService.resolvePhoneNumber (LID→PN)', () => {
   });
 
   it('resolves an @lid message via getPNForLID when the mapping is known', async () => {
-    mockGetPNForLID.mockResolvedValue('1234567890');
+    // getPNForLID returns a full JID in production, not a bare number
+    mockGetPNForLID.mockResolvedValue('1234567890@s.whatsapp.net');
     const msg = { key: { remoteJid: '1234567890:7@lid', id: 'm2' } } as any;
     const result = await (messageHandlerService as any).resolvePhoneNumber(msg);
     expect(result).toBe('+1234567890');
@@ -56,12 +57,30 @@ describe('MessageHandlerService.resolvePhoneNumber (LID→PN)', () => {
   });
 
   it('uses the senderJidOverride (group participant) for the LID lookup', async () => {
-    mockGetPNForLID.mockResolvedValue('5551234');
+    mockGetPNForLID.mockResolvedValue('5551234@s.whatsapp.net');
     const msg = {
       key: { remoteJid: 'g@s.whatsapp.net', participant: '5551234:9@lid', id: 'm5' },
     } as any;
     const result = await (messageHandlerService as any).resolvePhoneNumber(msg, '5551234:9@lid');
     expect(result).toBe('+5551234');
     expect(mockGetPNForLID).toHaveBeenCalledWith('5551234:9@lid');
+  });
+
+  it('strips the device suffix when getPNForLID returns a device-suffixed JID', async () => {
+    // Baileys' lidMapping returns full device JIDs — "17788796712:0@s.whatsapp.net".
+    // Using the raw string as a phone number shifts the last-10-digits hash
+    // (":0" rides along) and creates a phantom identity, so the result must be
+    // the bare number.
+    mockGetPNForLID.mockResolvedValue('17788796712:0@s.whatsapp.net');
+    const msg = { key: { remoteJid: '172610457477162@lid', id: 'm6' } } as any;
+    const result = await (messageHandlerService as any).resolvePhoneNumber(msg);
+    expect(result).toBe('+17788796712');
+  });
+
+  it('returns null when getPNForLID returns a JID that cannot be decoded', async () => {
+    mockGetPNForLID.mockResolvedValue('not-a-jid');
+    const msg = { key: { remoteJid: '172610457477162@lid', id: 'm7' } } as any;
+    const result = await (messageHandlerService as any).resolvePhoneNumber(msg);
+    expect(result).toBeNull();
   });
 });

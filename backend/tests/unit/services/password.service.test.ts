@@ -41,9 +41,7 @@ describe('PasswordService', () => {
       const error = new Error('Hashing failed');
       (bcrypt.hash as any).mockRejectedValue(error);
 
-      await expect(passwordService.hash('password')).rejects.toThrow(
-        'Failed to hash password'
-      );
+      await expect(passwordService.hash('password')).rejects.toThrow('Failed to hash password');
     });
   });
 
@@ -104,9 +102,7 @@ describe('PasswordService', () => {
       const result = passwordService.validateComplexity(password);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'Password must be at least 4 characters long'
-      );
+      expect(result.errors).toContain('Password must be at least 4 characters long');
     });
 
     it('should reject empty password', () => {
@@ -115,9 +111,7 @@ describe('PasswordService', () => {
       const result = passwordService.validateComplexity(password);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain(
-        'Password must be at least 4 characters long'
-      );
+      expect(result.errors).toContain('Password must be at least 4 characters long');
     });
 
     it('should validate simple passwords like "1234"', () => {

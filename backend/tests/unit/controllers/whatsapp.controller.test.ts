@@ -310,7 +310,13 @@ describe('WhatsApp Controller', () => {
         {}
       );
       expect(logger.info).toHaveBeenCalledWith(
-        { filterType: 'keyword', filterValue: 'movie', processFromSelf: undefined, processGroups: undefined, markOnlineOnConnect: undefined },
+        {
+          filterType: 'keyword',
+          filterValue: 'movie',
+          processFromSelf: undefined,
+          processGroups: undefined,
+          markOnlineOnConnect: undefined,
+        },
         'Message filter updated'
       );
       expect(mockResponse.json).toHaveBeenCalledWith({

@@ -504,10 +504,7 @@ describe('AdminNotificationService', () => {
         (requestHistoryRepository.findById as any).mockResolvedValue(pendingRequest(3, 'Only'));
         (requestHistoryRepository.update as any).mockResolvedValue({ id: 3 });
 
-        const result = await adminNotificationService.processAdminReply(
-          '+11234567890',
-          'approve'
-        );
+        const result = await adminNotificationService.processAdminReply('+11234567890', 'approve');
 
         expect(result.handled).toBe(true);
         expect(result.response).toContain('#3');
@@ -544,10 +541,7 @@ describe('AdminNotificationService', () => {
           pendingRequest(9, 'Show B'),
         ]);
 
-        const result = await adminNotificationService.processAdminReply(
-          '+11234567890',
-          'pending'
-        );
+        const result = await adminNotificationService.processAdminReply('+11234567890', 'pending');
 
         expect(result.handled).toBe(true);
         expect(result.response).toContain('Pending requests (2)');

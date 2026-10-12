@@ -52,6 +52,14 @@ export class WhatsAppClientService {
   private static readonly RECONNECT_DELAYS_MS = [5_000, 10_000, 20_000, 40_000, 60_000] as const;
   private static readonly MAX_RECONNECT_ATTEMPTS = 5;
 
+  // Cached WA Web version. fetchLatestBaileysVersion() scrapes raw.githubusercontent.com
+  // on every call — without a cache, every auto-reconnect attempt blocks on GitHub.
+  // Re-fetch at most once per hour; fall back to the last known value when offline.
+  private static cachedWaVersion: [number, number, number] | null = null;
+  private static waVersionFetchedAt = 0;
+  private static readonly WA_VERSION_TTL_MS = 60 * 60 * 1000; // 1 hour
+  private static inFlightVersionFetch: Promise<[number, number, number]> | null = null;
+
   private qrCodeCallback: ((qr: string) => void) | null = null;
   private messageCallback: ((message: BaileysMessage) => void) | null = null;
   private readyCallback: (() => void) | null = null;
@@ -74,6 +82,49 @@ export class WhatsAppClientService {
       if (now - ts > this.SENT_MSG_TTL_MS) this.sentMessageIds.delete(k);
     }
     return this.sentMessageIds.has(keyId);
+  }
+
+  /**
+   * Resolve the WA Web version to connect with: the fetched-latest version when it's
+   * newer than the hardcoded fallback, otherwise the fallback.
+   *
+   * fetchLatestBaileysVersion() scrapes raw.githubusercontent.com on every call, so
+   * results are cached for WA_VERSION_TTL_MS and concurrent callers share one in-flight
+   * fetch. On fetch failure, the last cached value (or hardcoded fallback) is used so
+   * reconnects never block on GitHub being reachable.
+   */
+  private static async getWaVersion(): Promise<[number, number, number]> {
+    const FALLBACK: [number, number, number] = [2, 3000, 1044015310];
+    const now = Date.now();
+
+    if (
+      WhatsAppClientService.cachedWaVersion &&
+      now - WhatsAppClientService.waVersionFetchedAt < WhatsAppClientService.WA_VERSION_TTL_MS
+    ) {
+      return WhatsAppClientService.cachedWaVersion;
+    }
+
+    if (!WhatsAppClientService.inFlightVersionFetch) {
+      WhatsAppClientService.inFlightVersionFetch = fetchLatestBaileysVersion()
+        .then(({ version }) => {
+          // Only accept the fetched version if it's actually newer than the fallback
+          const resolved = version[2] > FALLBACK[2] ? version : FALLBACK;
+          WhatsAppClientService.cachedWaVersion = resolved;
+          WhatsAppClientService.waVersionFetchedAt = Date.now();
+          logger.info({ version: resolved, fetched: version }, 'Using WA version for connection');
+          return resolved;
+        })
+        .catch((err) => {
+          logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
+          // Keep last cached value if present; otherwise fall back to hardcoded.
+          return WhatsAppClientService.cachedWaVersion ?? FALLBACK;
+        })
+        .finally(() => {
+          WhatsAppClientService.inFlightVersionFetch = null;
+        });
+    }
+
+    return WhatsAppClientService.inFlightVersionFetch;
   }
 
   /**
@@ -135,21 +186,9 @@ export class WhatsAppClientService {
       this.markOnlineOnConnect = connectionSettings?.markOnlineOnConnect ?? false;
       const markOnlineOnConnect = this.markOnlineOnConnect;
 
-      // Use the latest known WA web version.
-      // fetchLatestBaileysVersion() from the stale Baileys package returns an
-      // outdated value (1035194821 from Feb 2026) that WhatsApp now rejects with 405.
+      // Use the latest known WA web version (cached, re-fetched at most hourly).
       // Check https://wppconnect.io/whatsapp-versions/ for the current version.
-      let waVersion: [number, number, number] = [2, 3000, 1044015310];
-      try {
-        const { version } = await fetchLatestBaileysVersion();
-        // Only use fetched version if it's actually newer than our hardcoded one
-        if (version[2] > waVersion[2]) {
-          waVersion = version;
-        }
-        logger.info({ version: waVersion, fetched: version }, 'Using WA version for connection');
-      } catch (err) {
-        logger.warn({ err }, 'Failed to fetch latest WA version, using fallback');
-      }
+      const waVersion = await WhatsAppClientService.getWaVersion();
 
       // Build browser label: WAMR (DEV) in development, WAMR (PROD) in production
       const browserLabel = env.NODE_ENV === 'development' ? 'WAMR (DEV)' : 'WAMR (PROD)';

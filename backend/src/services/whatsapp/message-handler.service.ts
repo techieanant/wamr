@@ -474,10 +474,19 @@ class MessageHandlerService {
               lidMapping?: { getPNForLID: (lid: string) => Promise<string | null> };
             }
           | undefined;
-        const pn = await repo?.lidMapping?.getPNForLID(lidJid);
-        if (pn) {
-          logger.debug({ lidJid, pn }, 'Resolved phone number from LID mapping');
-          return `+${pn}`;
+        // getPNForLID returns a full device-suffixed JID (e.g. "17788796712:0@s.whatsapp.net").
+        // jidDecode it — using the raw string as a phone number shifts the last-10-digits
+        // hash by one character (device index ":0" rides along) and creates a phantom identity.
+        const pnJid = await repo?.lidMapping?.getPNForLID(lidJid);
+        if (pnJid) {
+          const decoded = jidDecode(pnJid);
+          if (decoded?.user) {
+            logger.debug(
+              { lidJid, pnJid, pn: decoded.user },
+              'Resolved phone number from LID mapping'
+            );
+            return `+${decoded.user}`;
+          }
         }
       } catch (err) {
         logger.warn({ err, lidJid }, 'Failed to resolve PN from LID');

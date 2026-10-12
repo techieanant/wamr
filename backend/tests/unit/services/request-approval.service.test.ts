@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RequestApprovalService } from '../../../src/services/conversation/request-approval.service.js';
 import { requestHistoryRepository } from '../../../src/repositories/request-history.repository.js';
+import { contactRepository } from '../../../src/repositories/contact.repository.js';
 import { whatsappConnectionRepository } from '../../../src/repositories/whatsapp-connection.repository.js';
 import { mediaServiceConfigRepository } from '../../../src/repositories/media-service-config.repository.js';
 import { encryptionService } from '../../../src/services/encryption/encryption.service.js';
@@ -17,6 +18,7 @@ import { SonarrClient } from '../../../src/services/integrations/sonarr.client.j
 vi.mock('../../../src/repositories/request-history.repository.js');
 vi.mock('../../../src/repositories/whatsapp-connection.repository.js');
 vi.mock('../../../src/repositories/media-service-config.repository.js');
+vi.mock('../../../src/repositories/contact.repository.js');
 vi.mock('../../../src/services/encryption/encryption.service.js');
 vi.mock('../../../src/services/whatsapp/whatsapp-client.service.js');
 vi.mock('../../../src/services/websocket/websocket.service.js');
@@ -673,6 +675,73 @@ describe('RequestApprovalService', () => {
             serviceConfigId: 1,
             status: 'SUBMITTED',
             submittedAt: expect.any(String),
+          });
+        });
+
+        it('should exempt via stored contact reply_jid when live hash is stale', async () => {
+          // Simulates the production bug: the requester's live hash no longer matches
+          // the exception list (e.g. contact keyed off a device-suffixed JID), but
+          // their stored contact row — resolved by replyJid — does.
+          vi.mocked(contactRepository.findByReplyJid).mockResolvedValue({
+            id: 1,
+            phoneNumberHash: exceptionPhoneHash,
+            contactName: 'Anant',
+            phoneNumberEncrypted: null,
+            replyJid: '172610457477162@lid',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'PENDING',
+          } as any);
+
+          const result = await service.createAndProcessRequest(
+            'stale-hash-that-does-not-match',
+            phoneNumber,
+            mockSelectedResult,
+            1,
+            undefined,
+            undefined,
+            '172610457477162@lid'
+          );
+
+          expect(result).toEqual({
+            success: true,
+            status: 'PENDING',
+          });
+          expect(contactRepository.findByReplyJid).toHaveBeenCalledWith(
+            '172610457477162@lid'
+          );
+        });
+
+        it('should not exempt when no contact row matches the reply_jid', async () => {
+          vi.mocked(contactRepository.findByReplyJid).mockResolvedValue(null);
+          vi.mocked(encryptionService.decrypt).mockReturnValue('decrypted-key');
+          vi.mocked(requestHistoryRepository.create).mockResolvedValue({
+            id: 1,
+            status: 'SUBMITTED',
+          } as any);
+
+          const mockRadarrClient = {
+            addMovie: vi.fn().mockResolvedValue(undefined),
+          };
+          vi.mocked(RadarrClient).mockImplementation(() => mockRadarrClient as any);
+
+          const result = await service.createAndProcessRequest(
+            'stale-hash-that-does-not-match',
+            phoneNumber,
+            mockSelectedResult,
+            1,
+            undefined,
+            undefined,
+            '172610457477162@lid'
+          );
+
+          // No fallback match → treated as auto-approve
+          expect(result).toEqual({
+            success: true,
+            status: 'SUBMITTED',
           });
         });
       });

@@ -90,10 +90,7 @@ describe('SetupController', () => {
         mockNext as NextFunction
       );
 
-      expect(setupService.createInitialAdmin).toHaveBeenCalledWith(
-        'admin',
-        'Password123!'
-      );
+      expect(setupService.createInitialAdmin).toHaveBeenCalledWith('admin', 'Password123!');
       expect(mockResponse.status).toHaveBeenCalledWith(201);
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -161,9 +158,7 @@ describe('SetupController', () => {
     });
 
     it('should return 400 when password does not meet requirements', async () => {
-      const error = new Error(
-        'Password does not meet requirements: Password too weak'
-      );
+      const error = new Error('Password does not meet requirements: Password too weak');
       mockRequest.body = { username: 'admin', password: 'weak' };
       (setupService.createInitialAdmin as Mock).mockRejectedValue(error);
 
@@ -221,9 +216,7 @@ describe('SetupController', () => {
         code: 'ABCD-EFGH-IJ',
         newPassword: 'NewPassword123!',
       };
-      (setupService.resetPasswordWithBackupCode as Mock).mockResolvedValue(
-        true
-      );
+      (setupService.resetPasswordWithBackupCode as Mock).mockResolvedValue(true);
 
       await controller.resetPasswordWithBackupCode(
         mockRequest as Request,
@@ -239,8 +232,7 @@ describe('SetupController', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         data: {
-          message:
-            'Password reset successful. Please log in with your new password.',
+          message: 'Password reset successful. Please log in with your new password.',
         },
       });
     });
@@ -267,9 +259,7 @@ describe('SetupController', () => {
         code: 'INVALID-CODE',
         newPassword: 'NewPassword123!',
       };
-      (setupService.resetPasswordWithBackupCode as Mock).mockResolvedValue(
-        false
-      );
+      (setupService.resetPasswordWithBackupCode as Mock).mockResolvedValue(false);
 
       await controller.resetPasswordWithBackupCode(
         mockRequest as Request,
@@ -286,16 +276,12 @@ describe('SetupController', () => {
     });
 
     it('should return 400 when new password does not meet requirements', async () => {
-      const error = new Error(
-        'Password does not meet requirements: Password too weak'
-      );
+      const error = new Error('Password does not meet requirements: Password too weak');
       mockRequest.body = {
         code: 'ABCD-EFGH-IJ',
         newPassword: 'weak',
       };
-      (setupService.resetPasswordWithBackupCode as Mock).mockRejectedValue(
-        error
-      );
+      (setupService.resetPasswordWithBackupCode as Mock).mockRejectedValue(error);
 
       await controller.resetPasswordWithBackupCode(
         mockRequest as Request,
@@ -317,9 +303,7 @@ describe('SetupController', () => {
         code: 'ABCD-EFGH-IJ',
         newPassword: 'NewPassword123!',
       };
-      (setupService.resetPasswordWithBackupCode as Mock).mockRejectedValue(
-        error
-      );
+      (setupService.resetPasswordWithBackupCode as Mock).mockRejectedValue(error);
 
       await controller.resetPasswordWithBackupCode(
         mockRequest as Request,
@@ -335,9 +319,7 @@ describe('SetupController', () => {
         code: 'abcd-efgh-ij',
         newPassword: 'NewPassword123!',
       };
-      (setupService.resetPasswordWithBackupCode as Mock).mockResolvedValue(
-        true
-      );
+      (setupService.resetPasswordWithBackupCode as Mock).mockResolvedValue(true);
 
       await controller.resetPasswordWithBackupCode(
         mockRequest as Request,
