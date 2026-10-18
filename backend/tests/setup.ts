@@ -23,6 +23,11 @@ vi.mock('../src/config/environment', () => ({
     WHATSAPP_SESSION_PATH: './.wwebjs_auth',
     MEDIA_MONITORING_INTERVAL_MS: 300000,
     ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', // 64 hex chars = 32 bytes
+    // LLM intent parsing off by default; suites that exercise it mock env themselves
+    LLM_ENABLED: false,
+    LLM_PROVIDER: 'gemini',
+    LLM_MODEL: 'gemini-flash-latest',
+    LLM_TIMEOUT_MS: 8000,
   },
 }));
 

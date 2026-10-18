@@ -3,7 +3,8 @@ import { whatsappConnectionRepository } from '../../repositories/whatsapp-connec
 import { contactRepository } from '../../repositories/contact.repository.js';
 import { requestHistoryRepository } from '../../repositories/request-history.repository.js';
 import { broadcastRepository } from '../../repositories/broadcast.repository.js';
-import { intentParser, IntentResult } from './intent-parser.js';
+import { IntentResult } from './intent-parser.js';
+import { intentResolver } from './intent-resolver.js';
 import { stateMachine, StateMachineAction } from './state-machine.js';
 import {
   ConversationSessionModel,
@@ -263,8 +264,8 @@ export class ConversationService {
       this.activeContactNames.set(session.id, contactName);
     }
 
-    // Parse user intent
-    const intent = intentParser.parse(message, session.state);
+    // Parse user intent (LLM when enabled, keyword parser otherwise)
+    const intent = await intentResolver.resolve(message, session.state);
     logger.info(
       { sessionId: session.id, intent, sessionState: session.state },
       '🔍 DEBUG: Parsed user intent'
