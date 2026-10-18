@@ -79,6 +79,7 @@ On first access, you'll be guided through a setup wizard to:
 - 💬 **WhatsApp Integration** - Connect your WhatsApp account via QR code
 - 🎬 **Media Request System** - Users can request movies and TV shows via WhatsApp
 - 🔄 **Service Integration** - Connect to Radarr, Sonarr, or Overseerr
+- 🧠 **Optional LLM Intent Parsing** - Point WAMR at Gemini, OpenAI or a local Ollama model for free-form requests, with automatic fallback to the built-in keyword parser (see [ENVIRONMENT.md](ENVIRONMENT.md#natural-language-intent-parsing-llm))
 - 📊 **Request Management** - Approve, reject, or auto-approve media requests
 - 🔍 **Media Search** - Search across configured media services
 - 📝 **Audit Logging** - Complete history of all requests and actions

@@ -8,6 +8,10 @@
  * - JWT_SECRET: Minimum 32 characters for JWT token signing
  * - ENCRYPTION_KEY: 64 hex characters (32 bytes) for AES-256-GCM encryption
  *
+ * Optional natural-language parsing:
+ * - LLM_ENABLED: set to 'true' to route messages through an LLM before the
+ *   keyword parser. Requires LLM_API_KEY for the gemini and openai providers.
+ *
  * @module config/environment
  */
 
@@ -59,6 +63,17 @@ const envSchema = z.object({
   BROADCAST_DEFAULT_THROTTLE_MS: z.string().transform(Number).default('2500'),
   BROADCAST_DEFAULT_JITTER_MS: z.string().transform(Number).default('500'),
   BROADCAST_TICKER_INTERVAL_MS: z.string().transform(Number).default('20000'),
+
+  // LLM / natural-language intent parsing (optional)
+  LLM_ENABLED: z
+    .string()
+    .transform((val) => val === 'true')
+    .default('false'),
+  LLM_PROVIDER: z.enum(['gemini', 'openai', 'ollama', 'custom']).default('gemini'),
+  LLM_BASE_URL: z.string().optional(),
+  LLM_API_KEY: z.string().optional(),
+  LLM_MODEL: z.string().default('gemini-flash-latest'),
+  LLM_TIMEOUT_MS: z.string().transform(Number).default('8000'),
 
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),

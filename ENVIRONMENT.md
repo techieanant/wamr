@@ -160,6 +160,12 @@ LOG_LEVEL=info              # Logging level (default: info)
 | `BROADCAST_DEFAULT_THROTTLE_MS`| `2500`              | Default per-recipient send delay (ms)    |
 | `BROADCAST_DEFAULT_JITTER_MS`  | `500`               | Random jitter added to throttle (ms)     |
 | `BROADCAST_TICKER_INTERVAL_MS` | `20000`             | Scheduler poll interval (ms)             |
+| `LLM_ENABLED`                  | `false`             | Enable LLM intent parsing                |
+| `LLM_PROVIDER`                 | `gemini`            | `gemini`, `openai`, `ollama` or `custom` |
+| `LLM_API_KEY`                  | _(optional)_        | Required for gemini/openai               |
+| `LLM_MODEL`                    | `gemini-flash-latest`| Model id                                |
+| `LLM_BASE_URL`                 | _(per provider)_    | Override the OpenAI-compatible base URL  |
+| `LLM_TIMEOUT_MS`               | `8000`              | Per-message LLM timeout                  |
 | `LOG_LEVEL`                    | `info`              | Logging level                            |
 | `LOG_PRETTY`                   | `false`             | Pretty logs                              |
 | `DATA_PATH`                    | `./data`            | Host data path                           |
@@ -276,6 +282,70 @@ This allows:
 - Minimum 4 characters (12+ recommended for production)
 - Set via setup wizard or environment variable
 - Change from default values immediately if pre-configured!
+
+### Natural-Language Intent Parsing (LLM)
+
+Optional. When `LLM_ENABLED=false` (the default), WAMR uses its built-in keyword
+parser and makes no outbound AI calls. Setting `LLM_ENABLED=true` routes each
+incoming message through an LLM first, which handles free-form phrasing the
+keyword parser cannot:
+
+| Message                      | Keyword parser                    | With LLM          |
+| ---------------------------- | --------------------------------- | ----------------- |
+| `No Country for Old Men`     | treated as **cancel** (`no`)      | title             |
+| `The Watch`                  | searches for `the`                | title             |
+| `1917`                       | unrecognised                      | title             |
+| `seasons 1-3`                | unrecognised (needs `1,2,3`)      | seasons 1, 2, 3   |
+| `something scary for tonight`| unrecognised                      | search query      |
+
+The LLM only classifies the message and normalises the search term. It never
+picks a title, and the catalogue search, season list and state machine remain
+the source of truth, so a wrong guess shows up as search results you can reject
+rather than a bad request.
+
+**Failure is always soft.** A missing key, timeout, HTTP error, malformed reply
+or an `unknown` classification falls back to the keyword parser for that
+message. The bot never stops working because the LLM is down.
+
+**Google Gemini** (`LLM_PROVIDER=gemini`, the default)
+
+```bash
+LLM_ENABLED=true
+LLM_PROVIDER=gemini
+LLM_API_KEY=<key from https://aistudio.google.com/apikey>
+LLM_MODEL=gemini-flash-latest
+```
+
+`gemini-flash-latest` tracks the current Flash model. Google recommends pinning
+a stable id (for example `gemini-3.8-flash`) if you would rather not be
+hot-swapped onto a new version. Classification is one short call per message, so
+a Flash-tier model is both fast enough to be invisible in chat and very cheap.
+
+**Local via Ollama** (no data leaves your network)
+
+```bash
+LLM_ENABLED=true
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://192.168.1.50:11434/v1
+LLM_MODEL=llama3.1:8b
+```
+
+Note that `localhost` inside the WAMR container is the container itself - point
+`LLM_BASE_URL` at your host's LAN IP, or at the Ollama container's name if they
+share a Docker network.
+
+**OpenAI or any compatible gateway**
+
+```bash
+LLM_ENABLED=true
+LLM_PROVIDER=openai          # or: custom, with an explicit LLM_BASE_URL
+LLM_API_KEY=sk-...
+LLM_MODEL=gpt-4o-mini
+```
+
+**Privacy:** with a hosted provider, the text of each incoming WhatsApp message
+is sent to that provider for classification. Contact names and phone numbers are
+not. Use Ollama if that tradeoff is not acceptable for your setup.
 
 ## Environment Variable Loading Order
 
