@@ -1,6 +1,6 @@
 {
   "name": "wamr-monorepo",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "private": true,
   "description": "WhatsApp Media Request Manager - Monorepo",
   "workspaces": [

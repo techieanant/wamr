@@ -569,19 +569,36 @@ describe('AdminNotificationService', () => {
         expect(result.response).toContain('No pending requests');
       });
 
-      it('PENDING command returns digest with IDs', async () => {
-        (requestHistoryRepository.findByStatus as any).mockResolvedValue([
-          pendingRequest(5, 'Movie A'),
-          pendingRequest(9, 'Show B'),
-        ]);
+      it('PENDING command returns digest with IDs and DECLINED section', async () => {
+        (requestHistoryRepository.findByStatus as any).mockImplementation(
+          async (status: 'PENDING' | 'REJECTED') =>
+            status === 'PENDING'
+              ? [pendingRequest(5, 'Movie A'), pendingRequest(9, 'Show B')]
+              : [pendingRequest(12, 'Zootopia 2')]
+        );
 
         const result = await adminNotificationService.processAdminReply('+11234567890', 'pending');
 
         expect(result.handled).toBe(true);
-        expect(result.response).toContain('Pending requests (2)');
+        expect(result.response).toContain('Pending (2)');
         expect(result.response).toContain('#5');
         expect(result.response).toContain('#9');
         expect(result.response).toContain('Movie A');
+        expect(result.response).toContain('Declined — reply *approve <ID>* to re-submit (1)');
+        expect(result.response).toContain('#12');
+      });
+
+      it('digest with only declined requests and no pending says so', async () => {
+        (requestHistoryRepository.findByStatus as any).mockImplementation(
+          async (status: 'PENDING' | 'REJECTED') =>
+            status === 'PENDING' ? [] : [pendingRequest(12, 'Zootopia 2')]
+        );
+
+        const result = await adminNotificationService.processAdminReply('+11234567890', 'pending');
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('No PENDING requests right now');
+        expect(result.response).toContain('#12 🎬 *Zootopia 2 (2023)*');
       });
 
       it('approve on REJECTED request re-submits it (mirrors web retry)', async () => {

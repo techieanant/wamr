@@ -234,15 +234,21 @@ class AdminNotificationService {
         : '';
 
       const message =
-        `🔔 *New Media Request #${request.id}*\n\n` +
+        `${request.status === 'REJECTED' ? '🔁' : '🔔'} *Media Request #${request.id}*\n\n` +
         `${emoji} *${request.title}${yearStr}*${seasonsInfo}\n` +
         `📱 Requested by: ${requesterInfo}\n` +
         `⏰ Status: ${request.status}\n\n` +
-        `Reply to this message with:\n` +
-        `• *APPROVE* - Approve request #${request.id}\n` +
-        `• *DECLINE* - Decline request #${request.id}\n` +
-        `• *DELETE* - Delete request #${request.id}\n\n` +
-        `Or target any pending request by ID: *approve 12*`;
+        `${
+          request.status === 'REJECTED'
+            ? `Was declined earlier. Reply to this message with:\n` +
+              `• *APPROVE* - Re-submit request #${request.id}\n` +
+              `• *DELETE* - Delete request #${request.id} forever`
+            : `Reply to this message with:\n` +
+              `• *APPROVE* - Approve request #${request.id}\n` +
+              `• *DECLINE* - Decline request #${request.id}\n` +
+              `• *DELETE* - Delete request #${request.id}`
+        }\n\n` +
+        `See all pending: *PENDING* · Target by ID: *approve <ID>*`;
 
       const messageId = await whatsappClientService.sendMessage(adminPhone, message);
 
@@ -450,24 +456,40 @@ class AdminNotificationService {
    * Build the pending-requests digest shown for PENDING/LIST and for
    * ambiguous bare commands. Uses DB request IDs directly (no positional
    * numbering) so "approve 12" always means request #12.
+   *
+   * Also lists actionable REJECTED requests in their own section — those can be
+   * re-submitted with "approve <ID>", and hiding them caused confusion when an
+   * admin replied with an ID they remembered from an older notification.
    */
   private async buildPendingDigest(): Promise<string> {
     const pending = await requestHistoryRepository.findByStatus('PENDING');
+    const rejected = await requestHistoryRepository.findByStatus('REJECTED');
 
-    if (pending.length === 0) {
+    if (pending.length === 0 && rejected.length === 0) {
       return '✅ No pending requests.';
     }
 
-    const lines = pending.map((r) => {
+    const line = (r: RequestHistory): string => {
       const emoji = r.mediaType === 'movie' ? '🎬' : '📺';
       const yearStr = r.year ? ` (${r.year})` : '';
       const requester = r.contactName || `****${r.phoneNumberHash?.slice(-4) || 'Unknown'}`;
       return `#${r.id} ${emoji} *${r.title}${yearStr}* — ${requester}`;
-    });
+    };
+
+    let body = '';
+    if (pending.length > 0) {
+      body += `⏳ Pending (${pending.length}):\n${pending.map(line).join('\n')}`;
+    }
+    if (rejected.length > 0) {
+      if (body) body += '\n\n';
+      body += `❌ Declined — reply *approve <ID>* to re-submit (${rejected.length}):\n${rejected.map(line).join('\n')}`;
+    }
+    if (pending.length === 0) {
+      body += `\n\n⋅ No PENDING requests right now.`;
+    }
 
     return (
-      `⏳ Pending requests (${pending.length}):\n\n` +
-      lines.join('\n') +
+      body +
       `\n\nReply *approve <ID>* / *decline <ID>* / *delete <ID>* — or reply to a request's notification.`
     );
   }
@@ -695,7 +717,10 @@ class AdminNotificationService {
 
         logger.info({ requestId: request.id }, 'Request approved via admin WhatsApp reply');
 
-        return `✅ Request #${request.id} approved and submitted.\n\n${titleInfo}`;
+        // Echo the previous status so chat history stays self-consistent (the admin
+        // may have approved by ID from an older notification, e.g. a REJECTED row).
+        const wasStr = request.status === 'PENDING' ? '' : ` (was ${request.status})`;
+        return `✅ Request #${request.id} approved and submitted${wasStr}.\n\n${titleInfo}`;
       } catch (error) {
         // Update to FAILED status
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
