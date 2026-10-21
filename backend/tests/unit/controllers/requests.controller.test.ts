@@ -369,7 +369,7 @@ describe('Requests Controller', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Request not found' });
     });
 
-    it('should return 400 when request status is not PENDING or FAILED', async () => {
+    it('should return 400 when request status is already submitted', async () => {
       const mockRequestData = { id: 1, status: 'APPROVED', serviceConfigId: 1 };
       mockRequest.params = { id: '1' };
 
@@ -379,7 +379,7 @@ describe('Requests Controller', () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
-        error: 'Request must be in PENDING or FAILED status to approve',
+        error: 'Request must be in PENDING, FAILED or REJECTED status to approve',
       });
     });
 

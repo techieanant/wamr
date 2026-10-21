@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 vi.mock('../../../src/repositories/setting.repository.js', () => ({
   settingRepository: {
@@ -11,6 +11,28 @@ vi.mock('../../../src/repositories/whatsapp-connection.repository.js', () => ({
   whatsappConnectionRepository: {
     getActive: vi.fn(),
   },
+}));
+
+vi.mock('../../../src/repositories/media-service-config.repository.js', () => ({
+  mediaServiceConfigRepository: {
+    findById: vi.fn(),
+  },
+}));
+
+const { mockOverseerrCtor, mockRadarrCtor, mockSonarrCtor } = vi.hoisted(() => ({
+  mockOverseerrCtor: vi.fn(),
+  mockRadarrCtor: vi.fn(),
+  mockSonarrCtor: vi.fn(),
+}));
+
+vi.mock('../../../src/services/integrations/overseerr.client.js', () => ({
+  OverseerrClient: mockOverseerrCtor,
+}));
+vi.mock('../../../src/services/integrations/radarr.client.js', () => ({
+  RadarrClient: mockRadarrCtor,
+}));
+vi.mock('../../../src/services/integrations/sonarr.client.js', () => ({
+  SonarrClient: mockSonarrCtor,
 }));
 
 vi.mock('../../../src/repositories/request-history.repository.js', () => ({
@@ -56,6 +78,18 @@ vi.mock('../../../src/config/logger.js', () => ({
     error: vi.fn(),
     warn: vi.fn(),
     debug: vi.fn(),
+  },
+}));
+
+const { mockWebSocketEmit } = vi.hoisted(() => ({ mockWebSocketEmit: vi.fn() }));
+
+vi.mock('../../../src/services/websocket/websocket.service.js', () => ({
+  webSocketService: { emit: mockWebSocketEmit },
+  SocketEvents: {
+    REQUEST_NEW: 'request:new',
+    REQUEST_DELETED: 'request:deleted',
+    REQUEST_STATUS_UPDATE: 'request:status-update',
+    REQUEST_CONTACT_UPDATE: 'request:contact-update',
   },
 }));
 
@@ -548,6 +582,95 @@ describe('AdminNotificationService', () => {
         expect(result.response).toContain('#5');
         expect(result.response).toContain('#9');
         expect(result.response).toContain('Movie A');
+      });
+
+      it('approve on REJECTED request re-submits it (mirrors web retry)', async () => {
+        const rejected = {
+          ...pendingRequest(12, 'Zootopia 2'),
+          status: 'REJECTED' as const,
+          serviceConfigId: 1,
+        };
+        (requestHistoryRepository.findById as any).mockResolvedValue(rejected);
+        (requestHistoryRepository.update as any).mockResolvedValue({ id: 12 });
+        // Dynamic imports inside the approve path need these modules present
+        const { mediaServiceConfigRepository } = await import(
+          '../../../src/repositories/media-service-config.repository.js'
+        );
+        (mediaServiceConfigRepository.findById as Mock).mockResolvedValue({
+          id: 1,
+          serviceType: 'seerr',
+          enabled: true,
+          baseUrl: 'http://localhost:5055',
+          apiKeyEncrypted: 'enc',
+          rootFolderPath: null,
+          allowInsecure: false,
+        });
+        mockOverseerrCtor.mockImplementation(() => ({
+          getRadarrServers: vi.fn().mockResolvedValue([{ id: 1, isDefault: true }]),
+          requestMovie: vi.fn().mockResolvedValue(undefined),
+        }));
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve 12'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('#12');
+        expect(result.response).toContain('approved and submitted');
+        expect(requestHistoryRepository.update).toHaveBeenCalledWith(
+          12,
+          expect.objectContaining({ status: 'SUBMITTED' })
+        );
+      });
+
+      it('approve on already-requested media answers with already-available hint', async () => {
+        const rejected = {
+          ...pendingRequest(12, 'Zootopia 2'),
+          status: 'REJECTED' as const,
+          serviceConfigId: 1,
+        };
+        (requestHistoryRepository.findById as any).mockResolvedValue(rejected);
+        const { mediaServiceConfigRepository } = await import(
+          '../../../src/repositories/media-service-config.repository.js'
+        );
+        (mediaServiceConfigRepository.findById as Mock).mockResolvedValue({
+          id: 1,
+          serviceType: 'seerr',
+          enabled: true,
+          baseUrl: 'http://localhost:5055',
+          apiKeyEncrypted: 'enc',
+          rootFolderPath: null,
+          allowInsecure: false,
+        });
+        // OverseerrClient constructor throws "already exists" for duplicates
+        mockOverseerrCtor.mockImplementation(() => ({
+          getRadarrServers: vi
+            .fn()
+            .mockRejectedValue(new Error('Movie already exists in library')),
+        }));
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve 12'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('already available or queued');
+      });
+
+      it('approve on APPROVED request refuses with status guard', async () => {
+        const done = { ...pendingRequest(10, 'Done'), status: 'APPROVED' as const };
+        (requestHistoryRepository.findById as any).mockResolvedValue(done);
+
+        const result = await adminNotificationService.processAdminReply(
+          '+11234567890',
+          'approve 10'
+        );
+
+        expect(result.handled).toBe(true);
+        expect(result.response).toContain('cannot be approved (status: APPROVED)');
+        expect(requestHistoryRepository.update).not.toHaveBeenCalled();
       });
     });
   });

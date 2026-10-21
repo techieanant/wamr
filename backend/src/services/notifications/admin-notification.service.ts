@@ -408,9 +408,25 @@ class AdminNotificationService {
       return { handled: true, response: result };
     } catch (error) {
       logger.error({ error, requestId, action }, 'Failed to process admin reply action');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const lower = errorMessage.toLowerCase();
+      const isAlreadyExists =
+        errorMessage.includes('already exists') ||
+        errorMessage.includes('already in library') ||
+        errorMessage.includes('already been added') ||
+        // Overseerr returns 400 "already requested" when the media is already queued
+        lower.includes('already');
+      if (isAlreadyExists) {
+        const emoji = request.mediaType === 'movie' ? '🎬' : '📺';
+        const yearStr = request.year ? ` (${request.year})` : '';
+        return {
+          handled: true,
+          response: `ℹ️ Request #${requestId} is already available or queued.\n\n${emoji} *${request.title}${yearStr}*`,
+        };
+      }
       return {
         handled: true,
-        response: `❌ Failed to ${action} request #${requestId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        response: `❌ Failed to ${action} request #${requestId}: ${errorMessage}`,
       };
     }
   }
@@ -526,7 +542,14 @@ class AdminNotificationService {
     }
 
     if (action === 'approve') {
-      if (request.status !== 'PENDING' && request.status !== 'FAILED') {
+      // APPROVED/SUBMITTED are terminal for approve; PENDING/FAILED/REJECTED are all
+      // actionable (REJECTED mirrors the web UI's retry feature, which re-submits
+      // rejected requests).
+      if (
+        request.status !== 'PENDING' &&
+        request.status !== 'FAILED' &&
+        request.status !== 'REJECTED'
+      ) {
         return `❌ Request #${request.id} cannot be approved (status: ${request.status})`;
       }
 

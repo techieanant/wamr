@@ -283,8 +283,15 @@ export const approveRequest = async (
       return;
     }
 
-    if (request.status !== 'PENDING' && request.status !== 'FAILED') {
-      res.status(400).json({ error: 'Request must be in PENDING or FAILED status to approve' });
+    // PENDING/FAILED/REJECTED are all actionable (REJECTED mirrors the retry feature)
+    if (
+      request.status !== 'PENDING' &&
+      request.status !== 'FAILED' &&
+      request.status !== 'REJECTED'
+    ) {
+      res
+        .status(400)
+        .json({ error: 'Request must be in PENDING, FAILED or REJECTED status to approve' });
       return;
     }
 
