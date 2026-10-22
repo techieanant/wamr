@@ -206,8 +206,19 @@ class MediaMonitoringService {
       const status = match.mediaInfo?.status;
 
       // Status 5 = fully available, Status 4 = partially available
-      const isFullyAvailable = status === 5;
-      const isPartiallyAvailable = status === 4;
+      const isFullyAvailableRaw = status === 5;
+      const isPartiallyAvailableRaw = status === 4;
+
+      // Seerr status 5/4 only means the media was added to the backing service's
+      // library — the file may still be downloading. Verify via the backing
+      // service's own API before declaring anything available to the user.
+      const isFullyAvailable =
+        isFullyAvailableRaw &&
+        (await this.verifyBackingFileAvailable(baseUrl, apiKey, 'movie', request));
+      const isPartiallyAvailable =
+        isPartiallyAvailableRaw &&
+        request.mediaType === 'series' &&
+        (await this.verifyBackingFileAvailable(baseUrl, apiKey, 'series', request));
 
       // If it's a TV series and partially available, get season details
       if (isPartiallyAvailable && request.mediaType === 'series' && request.tmdbId) {
@@ -695,6 +706,96 @@ class MediaMonitoringService {
     }
 
     return phoneNumber;
+  }
+
+  /**
+   * Verify actual download state on the backing Radarr/Sonarr instance behind a
+   * Seerr service.
+   *
+   * Seerr's mediaInfo.status === 5 only means the media entry was *added* to the
+   * backing service's library — the file may still be downloading. Before telling
+   * a user their request is available, confirm a file actually exists on disk via
+   * the backing service's own API (its connection details come from Seerr's
+   * service settings).
+   */
+  private async verifyBackingFileAvailable(
+    seerrBaseUrl: string,
+    seerrApiKey: string,
+    mediaType: 'movie' | 'series',
+    request: any
+  ): Promise<boolean> {
+    const client = new OverseerrClient(seerrBaseUrl, seerrApiKey);
+    try {
+      const servers =
+        mediaType === 'movie' ? await client.getRadarrServers() : await client.getSonarrServers();
+      const server = servers.find((s) => s.isDefault) ?? servers[0];
+
+      if (!server) {
+        logger.warn(
+          { requestId: request.id },
+          'No backing service configured in Seerr; accepting Seerr status as-is'
+        );
+        return true;
+      }
+
+      if (mediaType === 'movie') {
+        const radarr = new RadarrClient(
+          server.backingBaseUrl,
+          server.backingApiKey,
+          server.backingAllowInsecure
+        );
+        const movie = await radarr.getMovieByTmdbId(request.tmdbId);
+        const hasFile = movie?.hasFile === true;
+        logger.debug(
+          { requestId: request.id, tmdbId: request.tmdbId, server: server.name, hasFile },
+          'Backing Radarr file verification'
+        );
+        return hasFile;
+      }
+
+      const sonarr = new SonarrClient(
+        server.backingBaseUrl,
+        server.backingApiKey,
+        server.backingAllowInsecure
+      );
+      // Series: require all requested seasons to have season statistics with
+      // available episode files equal to total episodes.
+      const series = await sonarr.getSeriesByTvdbId(request.tvdbId);
+      if (!series) {
+        logger.debug({ requestId: request.id, tvdbId: request.tvdbId }, 'Series not in Sonarr');
+        return false;
+      }
+      const requestedSeasons: number[] | null =
+        (request.selectedSeasons as number[] | null) ?? null;
+      const seasonStats = series.seasons ?? [];
+      const relevant = requestedSeasons?.length
+        ? seasonStats.filter((s: any) => requestedSeasons.includes(s.seasonNumber))
+        : seasonStats.filter((s: any) => s.seasonNumber > 0);
+      const complete = relevant.every((s: any) => {
+        const stat = s.statistics;
+        if (!stat) return false;
+        return stat.totalEpisodeCount > 0 && stat.episodeFileCount >= stat.totalEpisodeCount;
+      });
+      logger.debug(
+        {
+          requestId: request.id,
+          tvdbId: request.tvdbId,
+          server: server.name,
+          complete,
+          seasons: relevant.length,
+        },
+        'Backing Sonarr file verification'
+      );
+      return complete;
+    } catch (error) {
+      logger.error(
+        { error, requestId: request.id, mediaType },
+        'Backing file verification failed; falling back to Seerr status'
+      );
+      // If the backing check itself errors (e.g. transient network), prefer the
+      // previous behavior rather than blocking notifications forever.
+      return true;
+    }
   }
 
   /**

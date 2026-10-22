@@ -190,4 +190,20 @@ describe('WhatsAppClientService auto-reconnect', () => {
     // @ts-expect-error — private field
     expect(service.reconnectTimer).toBeNull();
   });
+
+  it('QR scan timeout (408, no prior session) schedules a QR loop restart', async () => {
+    await callScheduleReconnect({
+      statusCode: 408,
+      hadEstablishedSession: false,
+      isRestartRequired: false,
+    });
+
+    // The close handler routes QR-scan timeouts through scheduleReconnect too, so
+    // the pairing window restarts automatically instead of dead-ending on
+    // DISCONNECTED when the user simply didn't scan in time.
+    // @ts-expect-error — private field
+    expect(service.reconnectTimer).not.toBeNull();
+    // @ts-expect-error — private field
+    expect(service.reconnectAttempts).toBe(1);
+  });
 });

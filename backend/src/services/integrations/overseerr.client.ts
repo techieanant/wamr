@@ -136,12 +136,20 @@ interface OverseerrSonarrServer {
 
 /**
  * Simplified server response for internal use
+ * backingBaseUrl/apiKey/allowInsecure expose the underlying Radarr/Sonarr
+ * connection so callers can verify actual download state (Seerr's mediaInfo
+ * status only says the media was *added*, not that a file exists on disk).
  */
-interface OverseerrServer {
+export interface OverseerrServer {
   id: number;
   name: string;
   type: 'radarr' | 'sonarr';
   isDefault: boolean;
+  activeProfileId: number;
+  activeProfileName: string;
+  backingBaseUrl: string;
+  backingApiKey: string;
+  backingAllowInsecure: boolean;
 }
 
 /**
@@ -371,6 +379,11 @@ export class OverseerrClient {
         name: server.name,
         type: 'radarr' as const,
         isDefault: server.isDefault,
+        activeProfileId: server.activeProfileId,
+        activeProfileName: server.activeProfileName,
+        backingBaseUrl: `http${server.useSsl ? 's' : ''}://${server.hostname}:${server.port}${server.baseUrl ?? ''}`,
+        backingApiKey: server.apiKey,
+        backingAllowInsecure: false,
       }));
     } catch (error) {
       logger.error({ error }, 'Failed to fetch Overseerr Radarr servers');
@@ -390,6 +403,11 @@ export class OverseerrClient {
         name: server.name,
         type: 'sonarr' as const,
         isDefault: server.isDefault,
+        activeProfileId: server.activeProfileId,
+        activeProfileName: server.activeProfileName,
+        backingBaseUrl: `http${server.useSsl ? 's' : ''}://${server.hostname}:${server.port}${server.baseUrl ?? ''}`,
+        backingApiKey: server.apiKey,
+        backingAllowInsecure: false,
       }));
     } catch (error) {
       logger.error({ error }, 'Failed to fetch Overseerr Sonarr servers');

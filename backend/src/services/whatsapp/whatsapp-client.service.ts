@@ -397,6 +397,17 @@ export class WhatsAppClientService {
             }
           } else if (hadEstablishedSession || isRestartRequired) {
             void this.scheduleReconnect(statusCode, hadEstablishedSession, isRestartRequired);
+          } else if (statusCode === 408 && !hadEstablishedSession) {
+            // "QR refs attempts ended" — the user didn't scan the QR in time. This is
+            // a normal pairing timeout, not a rejection: restart the QR loop
+            // automatically instead of dead-ending on DISCONNECTED. Shares the same
+            // attempt cap so a persistent failure can't spin forever.
+            logger.info(
+              'QR scan timed out (408) before pairing. Restarting QR loop automatically.'
+            );
+            this.isInitializing = false;
+            this.sock = null;
+            void this.scheduleReconnect(statusCode, hadEstablishedSession, isRestartRequired);
           } else {
             // shouldReconnect=true but no established session and not a restart request —
             // QR pairing was rejected by WhatsApp. Stop here; user must click Connect again manually.

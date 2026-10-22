@@ -410,12 +410,22 @@ describe('OverseerrClient', () => {
           name: 'Radarr Server 1',
           type: 'radarr',
           isDefault: true,
+          activeProfileId: 1,
+          activeProfileName: 'HD',
+          backingBaseUrl: 'http://localhost:7878/',
+          backingApiKey: 'radarr-key',
+          backingAllowInsecure: false,
         },
         {
           id: 2,
           name: 'Radarr Server 2',
           type: 'radarr',
           isDefault: false,
+          activeProfileId: undefined,
+          activeProfileName: undefined,
+          backingBaseUrl: 'http://undefined:undefined',
+          backingApiKey: undefined,
+          backingAllowInsecure: false,
         },
       ]);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/v1/settings/radarr');
@@ -465,6 +475,11 @@ describe('OverseerrClient', () => {
           name: 'Sonarr Server 1',
           type: 'sonarr',
           isDefault: true,
+          activeProfileId: 1,
+          activeProfileName: 'HD',
+          backingBaseUrl: 'http://localhost:8989/',
+          backingApiKey: 'sonarr-key',
+          backingAllowInsecure: false,
         },
       ]);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/v1/settings/sonarr');
