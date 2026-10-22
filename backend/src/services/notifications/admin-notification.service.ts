@@ -616,7 +616,7 @@ class AdminNotificationService {
             await client.requestMovie({
               mediaId: request.tmdbId,
               serverId: defaultServer.id,
-              profileId: 1,
+              profileId: defaultServer.activeProfileId ?? 1,
               // Omit rootFolder when not configured so Overseerr uses its own defaults
               rootFolder: service.rootFolderPath ?? undefined,
             });
@@ -633,7 +633,7 @@ class AdminNotificationService {
             await client.requestSeries({
               mediaId: request.tmdbId,
               serverId: defaultServer.id,
-              profileId: 1,
+              profileId: defaultServer.activeProfileId ?? 1,
               // Omit rootFolder when not configured so Overseerr uses its own defaults
               rootFolder: service.rootFolderPath ?? undefined,
               seasons: selectedSeasons && selectedSeasons.length > 0 ? selectedSeasons : 'all',

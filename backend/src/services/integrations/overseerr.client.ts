@@ -36,7 +36,12 @@ interface OverseerrSearchResult {
       tmdbId?: number;
       tvdbId?: number;
       status: number; // 5 = available, 4 = partially available, 3 = processing, 2 = pending, 1 = unknown
-      requests: unknown[];
+      requests?: Array<{
+        id: number;
+        // Seerr MediaRequestStatus: 1=pending, 2=approved, 3=declined,
+        // 4=processing, 5=partially available, 6=available
+        status: number;
+      }>;
     };
   }>;
 }
